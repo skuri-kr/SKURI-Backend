@@ -208,6 +208,7 @@ Spring 백엔드는 Access Token / Refresh Token을 직접 발급하거나 관�
   - Chat 관리자 전용 예시:
     - `GET /v1/admin/chat-rooms`
     - `GET /v1/admin/chat-rooms/{chatRoomId}`
+    - `GET /v1/admin/chat-rooms/{chatRoomId}/members`
     - `GET /v1/admin/chat-rooms/{chatRoomId}/messages`
     - `POST /v1/admin/chat-rooms`
     - `DELETE /v1/admin/chat-rooms/{chatRoomId}`

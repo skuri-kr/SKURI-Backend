@@ -202,6 +202,7 @@ firebase emulators:start --only auth --project "$FIREBASE_PROJECT_ID"
 DB_URL=$DB_URL DB_USERNAME=$DB_USERNAME DB_PASSWORD=$DB_PASSWORD FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 FIREBASE_PROJECT_ID=$FIREBASE_PROJECT_ID FIREBASE_CREDENTIALS_PATH= GOOGLE_APPLICATION_CREDENTIALS= SPRING_PROFILES_ACTIVE=local-emulator SERVER_PORT=18080 ./gradlew bootRun
 curl "http://127.0.0.1:18080/v1/admin/chat-rooms?type=DEPARTMENT" -H "Authorization: Bearer <ADMIN_ID_TOKEN>"
 curl "http://127.0.0.1:18080/v1/admin/chat-rooms/<CHAT_ROOM_ID>" -H "Authorization: Bearer <ADMIN_ID_TOKEN>"
+curl "http://127.0.0.1:18080/v1/admin/chat-rooms/<CHAT_ROOM_ID>/members" -H "Authorization: Bearer <ADMIN_ID_TOKEN>"
 curl "http://127.0.0.1:18080/v1/admin/chat-rooms/<CHAT_ROOM_ID>/messages?size=2" -H "Authorization: Bearer <ADMIN_ID_TOKEN>"
 curl "http://127.0.0.1:18080/v1/admin/parties/<PARTY_ID>/messages?size=2" -H "Authorization: Bearer <ADMIN_ID_TOKEN>"
 curl http://127.0.0.1:18080/v3/api-docs

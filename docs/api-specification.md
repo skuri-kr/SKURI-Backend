@@ -5677,6 +5677,54 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 }
 ```
 
+#### GET /v1/admin/chat-rooms/{chatRoomId}/members
+관리자 공개 채팅방 멤버 조회
+
+운영 화면 `/chat-rooms`의 상세 패널/모달에서 참여 멤버 표시용으로 사용하는 API다.
+
+정책 메모:
+
+- 대상은 `isPublic=true && type!=PARTY` 공개 채팅방만 허용한다.
+- 관리자 계정의 join 여부와 무관하게 조회한다.
+- `PARTY` 타입, 비공개 방, 존재하지 않는 방은 모두 `404 CHAT_ROOM_NOT_FOUND`로 숨긴다.
+- `chat_room_members` 기준으로 `joinedAt ASC, memberId ASC` 정렬한다.
+- 회원 row가 없으면 `memberId`, `joinedAt`, `lastReadAt`, `muted`는 멤버십 row 기준으로 내려가고, 회원 프로필 필드는 `null`이다.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "memberId": "dw9rPtuticbjnaYPkeiF3RGPpqk1",
+      "email": "user@sungkyul.ac.kr",
+      "nickname": "스쿠리 유저",
+      "realname": "홍길동",
+      "studentId": "2023112233",
+      "department": "컴퓨터공학과",
+      "photoUrl": "https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg",
+      "joinedAt": "2026-03-05T12:00:00Z",
+      "lastReadAt": "2026-03-05T12:10:00Z",
+      "muted": false,
+      "status": "ACTIVE"
+    },
+    {
+      "memberId": "member-without-profile",
+      "email": null,
+      "nickname": null,
+      "realname": null,
+      "studentId": null,
+      "department": null,
+      "photoUrl": null,
+      "joinedAt": "2026-03-05T12:05:00Z",
+      "lastReadAt": null,
+      "muted": true,
+      "status": null
+    }
+  ]
+}
+```
+
 #### POST /v1/admin/chat-rooms
 공개 채팅방 생성
 
@@ -7218,6 +7266,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 > - 2026-04-06: Member profile photo ownership 검증 반영 — `PROFILE_IMAGE` 업로드 경로를 `profiles/{memberId}/...`로 고정하고, `PATCH /v1/members/me`의 내부 `photoUrl`은 본인 소유 member-scoped URL만 허용하며, `DELETE /v1/members/me/photo` cleanup도 본인 소유로 검증된 파일에만 수행하도록 동기화
 > - 2026-03-05: Phase 3 구현 반영 — 채팅 커서 페이지네이션(`cursorCreatedAt`,`cursorId`) 명시, `lastReadAt` 단조 증가/미읽음 경계(`createdAt > lastReadAt`) 확정, STOMP 경로를 `/app/chat/{chatRoomId}`·`/topic/chat/{chatRoomId}`로 동기화
 > - 2026-04-06: Admin Chat read API 반영 — `GET /v1/admin/chat-rooms`, `GET /v1/admin/chat-rooms/{chatRoomId}`, `GET /v1/admin/chat-rooms/{chatRoomId}/messages`, `GET /v1/admin/parties/{partyId}/messages` 계약과 관리자 고정 필드/멤버십 우회 정책을 문서화
+> - 2026-06-24: Admin Chat room member API 추가 — `GET /v1/admin/chat-rooms/{chatRoomId}/members` 계약과 public non-party 제한, 멤버십 정렬, 회원 row 누락 시 nullable profile 필드 정책을 문서화
 > - 2026-03-05: Chat 계약 동기화 — `lastMessage.createdAt`/`accountData` 필드로 통일, 비공개 채팅방 접근 정책(REST/WS) 및 STOMP 에러 포맷(`/user/queue/errors`) 명시
 > - 2026-03-05: Chat 명세 보완 — 채팅방 요약 `lastMessage.senderName` 예시 추가, STOMP 메시지 `NON_NULL` 직렬화 정책 명시
 > - 2026-03-28: Chat 메시지 계약 확장 — 일반/파티 채팅 REST + STOMP payload에 `senderPhotoUrl` 추가, 기본 source of truth를 `members.photo_url`로 두고 `null` 직렬화 정책을 명시
