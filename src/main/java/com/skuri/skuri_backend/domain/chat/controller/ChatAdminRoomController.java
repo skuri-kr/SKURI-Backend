@@ -2,6 +2,7 @@ package com.skuri.skuri_backend.domain.chat.controller;
 
 import com.skuri.skuri_backend.common.dto.ApiResponse;
 import com.skuri.skuri_backend.domain.chat.dto.request.AdminCreateChatRoomRequest;
+import com.skuri.skuri_backend.domain.chat.dto.response.AdminChatRoomMemberResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.AdminCreateChatRoomResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessagePageResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomDetailResponse;
@@ -144,6 +145,56 @@ public class ChatAdminRoomController {
             @PathVariable String chatRoomId
     ) {
         return ResponseEntity.ok(ApiResponse.success(chatAdminService.getPublicChatRoomDetail(chatRoomId)));
+    }
+
+    @GetMapping("/{chatRoomId}/members")
+    @Operation(
+            summary = "공개 채팅방 멤버 조회(관리자)",
+            description = "관리자는 현재 참여 여부와 관계없이 공개 채팅방의 멤버십과 회원 표시 정보를 조회할 수 있습니다. `PARTY` 타입과 비공개 채팅방은 이 API에서 제공하지 않으며 `CHAT_ROOM_NOT_FOUND` 를 반환합니다."
+    )
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "조회 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = OpenApiChatSchemas.AdminChatRoomMemberListApiResponse.class),
+                            examples = @ExampleObject(name = "default", value = OpenApiChatExamples.SUCCESS_ADMIN_CHAT_ROOM_MEMBERS)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(name = "default", value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "관리자 권한 없음",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(name = "admin_required", value = OpenApiCommonExamples.ERROR_ADMIN_REQUIRED)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "공개 채팅방이 없거나 PARTY/비공개 채팅방임",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(name = "chat_room_not_found", value = OpenApiChatExamples.ERROR_CHAT_ROOM_NOT_FOUND)
+                    )
+            )
+    })
+    public ResponseEntity<ApiResponse<List<AdminChatRoomMemberResponse>>> getPublicChatRoomMembers(
+            @Parameter(description = "채팅방 ID", example = "public:game:minecraft")
+            @PathVariable String chatRoomId
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(chatAdminService.getPublicChatRoomMembers(chatRoomId)));
     }
 
     @GetMapping("/{chatRoomId}/messages")
