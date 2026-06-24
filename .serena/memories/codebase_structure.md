@@ -112,8 +112,8 @@
 
 
 ## Admin Chat Read API 관련 파일
-- `src/main/java/com/skuri/skuri_backend/domain/chat/controller/ChatAdminRoomController.java`: 관리자 공개 채팅방 목록/상세/메시지 조회 + 기존 생성/삭제 API를 함께 제공한다.
-- `src/main/java/com/skuri/skuri_backend/domain/chat/service/ChatAdminService.java`, `ChatService.java`: 관리자 public non-party room 조회와 membership 없는 메시지 page 조회를 기존 chat domain/service/repository로 재사용한다.
+- `src/main/java/com/skuri/skuri_backend/domain/chat/controller/ChatAdminRoomController.java`: 관리자 공개 채팅방 목록/상세/멤버/메시지 조회 + 기존 생성/삭제 API를 함께 제공한다.
+- `src/main/java/com/skuri/skuri_backend/domain/chat/service/ChatAdminService.java`, `ChatService.java`: 관리자 public non-party room 조회, 멤버십+회원 표시 정보 조회, membership 없는 메시지 page 조회를 기존 chat/member domain/service/repository로 재사용한다.
 - `src/main/java/com/skuri/skuri_backend/domain/taxiparty/controller/PartyAdminController.java`, `service/TaxiPartyAdminService.java`: 관리자 파티 상세 메시지 조회를 `party:{partyId}` canonical room으로 위임한다.
 - `src/main/java/com/skuri/skuri_backend/infra/openapi/OpenApiChatExamples.java`, `OpenApiTaxiPartyExamples.java`: 관리자 chat read API 예시를 관리한다.
 - `src/test/java/com/skuri/skuri_backend/domain/chat/controller/ChatAdminRoomControllerContractTest.java`, `domain/chat/service/ChatServiceTest.java`, `domain/taxiparty/controller/PartyAdminControllerContractTest.java`, `domain/taxiparty/service/TaxiPartyAdminServiceTest.java`: 관리자 chat read contract/service 회귀를 담당한다.

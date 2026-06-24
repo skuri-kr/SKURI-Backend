@@ -2,6 +2,7 @@ package com.skuri.skuri_backend.domain.chat.controller;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.domain.chat.dto.response.AdminChatRoomMemberResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.AdminCreateChatRoomResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessagePageResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessageResponse;
@@ -12,6 +13,7 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.service.ChatAdminService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
+import com.skuri.skuri_backend.domain.member.entity.MemberStatus;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.infra.auth.config.ApiAccessDeniedHandler;
 import com.skuri.skuri_backend.infra.auth.config.ApiAuthenticationEntryPoint;
@@ -28,6 +30,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -136,6 +139,64 @@ class ChatAdminRoomControllerContractTest {
                 )
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("CHAT_ROOM_NOT_FOUND"));
+    }
+
+    @Test
+    void getPublicChatRoomMembers_관리자요청_200() throws Exception {
+        mockToken("admin-token", "admin-uid", true);
+        when(chatAdminService.getPublicChatRoomMembers("public:game:minecraft"))
+                .thenReturn(List.of(new AdminChatRoomMemberResponse(
+                        "member-1",
+                        "member1@sungkyul.ac.kr",
+                        "스쿠리 유저",
+                        "홍길동",
+                        "2023112233",
+                        "컴퓨터공학과",
+                        "https://example.com/member-1.jpg",
+                        Instant.parse("2026-03-05T12:00:00Z"),
+                        Instant.parse("2026-03-05T12:10:00Z"),
+                        false,
+                        MemberStatus.ACTIVE
+                )));
+
+        mockMvc.perform(
+                        get("/v1/admin/chat-rooms/public:game:minecraft/members")
+                                .header(AUTHORIZATION, "Bearer admin-token")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].memberId").value("member-1"))
+                .andExpect(jsonPath("$.data[0].nickname").value("스쿠리 유저"))
+                .andExpect(jsonPath("$.data[0].department").value("컴퓨터공학과"))
+                .andExpect(jsonPath("$.data[0].joinedAt").value("2026-03-05T12:00:00Z"))
+                .andExpect(jsonPath("$.data[0].muted").value(false))
+                .andExpect(jsonPath("$.data[0].status").value("ACTIVE"));
+    }
+
+    @Test
+    void getPublicChatRoomMembers_채팅방없음_404() throws Exception {
+        mockToken("admin-token", "admin-uid", true);
+        when(chatAdminService.getPublicChatRoomMembers("party:party-1"))
+                .thenThrow(new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        mockMvc.perform(
+                        get("/v1/admin/chat-rooms/party:party-1/members")
+                                .header(AUTHORIZATION, "Bearer admin-token")
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("CHAT_ROOM_NOT_FOUND"));
+    }
+
+    @Test
+    void getPublicChatRoomMembers_비관리자요청_403_ADMIN_REQUIRED() throws Exception {
+        mockToken("user-token", "user-uid", false);
+
+        mockMvc.perform(
+                        get("/v1/admin/chat-rooms/public:game:minecraft/members")
+                                .header(AUTHORIZATION, "Bearer user-token")
+                )
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("ADMIN_REQUIRED"));
     }
 
     @Test

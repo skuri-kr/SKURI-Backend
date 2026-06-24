@@ -385,6 +385,7 @@ SSE 운영 제약:
 | WebSocket | `SEND /app/chat/{chatRoomId}` | 채팅방 메시지 전송 |
 | `GET` | `/v1/admin/chat-rooms` | 공개 채팅방 전체 목록 조회 (관리자, public non-party) |
 | `GET` | `/v1/admin/chat-rooms/{id}` | 공개 채팅방 상세 조회 (관리자, public non-party) |
+| `GET` | `/v1/admin/chat-rooms/{id}/members` | 공개 채팅방 멤버 조회 (관리자, public non-party) |
 | `GET` | `/v1/admin/chat-rooms/{id}/messages` | 공개 채팅방 메시지 조회 (관리자, membership 불필요) |
 | `POST` | `/v1/admin/chat-rooms` | 공개 채팅방 생성 (관리자) |
 | `DELETE` | `/v1/admin/chat-rooms/{chatRoomId}` | 공개 채팅방 삭제 (관리자) |
@@ -400,7 +401,7 @@ SSE 운영 제약:
 - [x] 파티 채팅 특수 메시지 (계좌, 도착, 종료) 동작
 - [x] 공개 일반 채팅방의 joined/not joined 목록/상세 정책 및 join/leave/create REST 계약 동작
 - [x] 공개방 seed/backfill과 학과 변경 membership 제거 정책 동작
-- [x] 관리자 공개 채팅방 조회 API (`GET /v1/admin/chat-rooms`, `GET /v1/admin/chat-rooms/{chatRoomId}`, `GET /v1/admin/chat-rooms/{chatRoomId}/messages`)가 join 여부와 무관하게 public non-party room을 조회
+- [x] 관리자 공개 채팅방 조회 API (`GET /v1/admin/chat-rooms`, `GET /v1/admin/chat-rooms/{chatRoomId}`, `GET /v1/admin/chat-rooms/{chatRoomId}/members`, `GET /v1/admin/chat-rooms/{chatRoomId}/messages`)가 join 여부와 무관하게 public non-party room을 조회
 - [x] 관리자 파티 채팅 조회 API (`GET /v1/admin/parties/{partyId}/messages`)가 party membership 없이 cursor pagination 계약을 재사용
 - [x] 관리자 공개 채팅방 쓰기 API (`POST/DELETE /v1/admin/chat-rooms`) + `ADMIN_REQUIRED` 권한 정책 동작
 

@@ -3,6 +3,7 @@ package com.skuri.skuri_backend.domain.chat.service;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.chat.dto.request.AdminCreateChatRoomRequest;
+import com.skuri.skuri_backend.domain.chat.dto.response.AdminChatRoomMemberResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.AdminCreateChatRoomResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessagePageResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomDetailResponse;
@@ -13,21 +14,31 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
+import com.skuri.skuri_backend.domain.member.entity.Member;
+import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ChatAdminService {
 
+    private static final ZoneId CHAT_TIME_ZONE = ZoneId.of("Asia/Seoul");
+
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final MemberRepository memberRepository;
     private final ChatService chatService;
 
     @Transactional(readOnly = true)
@@ -38,6 +49,24 @@ public class ChatAdminService {
     @Transactional(readOnly = true)
     public ChatRoomDetailResponse getPublicChatRoomDetail(String chatRoomId) {
         return chatService.getAdminPublicChatRoomDetail(chatRoomId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminChatRoomMemberResponse> getPublicChatRoomMembers(String chatRoomId) {
+        findPublicNonPartyRoomOrThrow(chatRoomId);
+
+        List<ChatRoomMember> memberships = chatRoomMemberRepository.findByChatRoomIdOrdered(chatRoomId);
+        List<String> memberIds = memberships.stream()
+                .map(ChatRoomMember::getMemberId)
+                .toList();
+        Map<String, Member> membersById = memberIds.isEmpty()
+                ? Map.of()
+                : memberRepository.findAllById(memberIds).stream()
+                .collect(Collectors.toMap(Member::getId, Function.identity()));
+
+        return memberships.stream()
+                .map(membership -> toAdminChatRoomMemberResponse(membership, membersById.get(membership.getMemberId())))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -95,5 +124,37 @@ public class ChatAdminService {
         if (!Boolean.TRUE.equals(request.isPublic())) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST, "관리자 채팅방 생성 API는 isPublic=true만 허용합니다.");
         }
+    }
+
+    private ChatRoom findPublicNonPartyRoomOrThrow(String chatRoomId) {
+        ChatRoom room = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+        if (room.getType() == ChatRoomType.PARTY || !room.isPublic()) {
+            throw new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND);
+        }
+        return room;
+    }
+
+    private AdminChatRoomMemberResponse toAdminChatRoomMemberResponse(ChatRoomMember membership, Member member) {
+        return new AdminChatRoomMemberResponse(
+                membership.getMemberId(),
+                member != null ? member.getEmail() : null,
+                member != null ? member.getNickname() : null,
+                member != null ? member.getRealname() : null,
+                member != null ? member.getStudentId() : null,
+                member != null ? member.getDepartment() : null,
+                member != null ? member.getPhotoUrl() : null,
+                toApiInstant(membership.getJoinedAt()),
+                toApiInstant(membership.getLastReadAt()),
+                membership.isMuted(),
+                member != null ? member.getStatus() : null
+        );
+    }
+
+    private Instant toApiInstant(LocalDateTime value) {
+        if (value == null) {
+            return null;
+        }
+        return value.atZone(CHAT_TIME_ZONE).toInstant();
     }
 }

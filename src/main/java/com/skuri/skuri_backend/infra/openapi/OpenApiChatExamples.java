@@ -368,6 +368,40 @@ public final class OpenApiChatExamples {
             }
             """;
 
+    public static final String SUCCESS_ADMIN_CHAT_ROOM_MEMBERS = """
+            {
+              "success": true,
+              "data": [
+                {
+                  "memberId": "dw9rPtuticbjnaYPkeiF3RGPpqk1",
+                  "email": "user@sungkyul.ac.kr",
+                  "nickname": "스쿠리 유저",
+                  "realname": "홍길동",
+                  "studentId": "2023112233",
+                  "department": "컴퓨터공학과",
+                  "photoUrl": "https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg",
+                  "joinedAt": "2026-03-05T12:00:00Z",
+                  "lastReadAt": "2026-03-05T12:10:00Z",
+                  "muted": false,
+                  "status": "ACTIVE"
+                },
+                {
+                  "memberId": "member-without-profile",
+                  "email": null,
+                  "nickname": null,
+                  "realname": null,
+                  "studentId": null,
+                  "department": null,
+                  "photoUrl": null,
+                  "joinedAt": "2026-03-05T12:05:00Z",
+                  "lastReadAt": null,
+                  "muted": true,
+                  "status": null
+                }
+              ]
+            }
+            """;
+
     public static final String SUCCESS_ADMIN_CHAT_ROOM_MESSAGES_PAGE = """
             {
               "success": true,
