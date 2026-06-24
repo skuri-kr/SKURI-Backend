@@ -3,6 +3,7 @@ package com.skuri.skuri_backend.domain.chat.service;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.chat.dto.request.AdminCreateChatRoomRequest;
+import com.skuri.skuri_backend.domain.chat.dto.response.AdminChatRoomMemberResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.AdminCreateChatRoomResponse;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
@@ -10,12 +11,17 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
+import com.skuri.skuri_backend.domain.member.entity.Member;
+import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,6 +45,9 @@ class ChatAdminServiceTest {
     private ChatMessageRepository chatMessageRepository;
 
     @Mock
+    private MemberRepository memberRepository;
+
+    @Mock
     private ChatService chatService;
 
     @InjectMocks
@@ -60,6 +69,60 @@ class ChatAdminServiceTest {
         assertEquals(ChatRoomType.UNIVERSITY, response.type());
         verify(chatRoomRepository, times(2)).save(any(ChatRoom.class));
         verify(chatRoomMemberRepository).save(any(ChatRoomMember.class));
+    }
+
+    @Test
+    void getPublicChatRoomMembers_정상요청_멤버프로필포함() {
+        ChatRoom room = ChatRoom.create(
+                "room-public",
+                "공개방",
+                ChatRoomType.UNIVERSITY,
+                null,
+                null,
+                "admin-uid",
+                true,
+                null
+        );
+        LocalDateTime joinedAt = LocalDateTime.of(2026, 3, 5, 21, 0);
+        ChatRoomMember membership = ChatRoomMember.create(room, "member-1", joinedAt);
+        Member member = Member.create(
+                "member-1",
+                "member1@sungkyul.ac.kr",
+                "홍길동",
+                LocalDateTime.of(2026, 3, 1, 10, 0)
+        );
+        member.updateProfile("스쿠리 유저", "2023112233", "컴퓨터공학과", "https://example.com/member-1.jpg");
+        when(chatRoomRepository.findById("room-public")).thenReturn(Optional.of(room));
+        when(chatRoomMemberRepository.findByChatRoomIdOrdered("room-public")).thenReturn(List.of(membership));
+        when(memberRepository.findAllById(List.of("member-1"))).thenReturn(List.of(member));
+
+        List<AdminChatRoomMemberResponse> responses = chatAdminService.getPublicChatRoomMembers("room-public");
+
+        assertEquals(1, responses.size());
+        AdminChatRoomMemberResponse response = responses.getFirst();
+        assertEquals("member-1", response.memberId());
+        assertEquals("member1@sungkyul.ac.kr", response.email());
+        assertEquals("스쿠리 유저", response.nickname());
+        assertEquals("홍길동", response.realname());
+        assertEquals("2023112233", response.studentId());
+        assertEquals("컴퓨터공학과", response.department());
+        assertEquals("https://example.com/member-1.jpg", response.photoUrl());
+        assertEquals(joinedAt.atZone(ZoneId.of("Asia/Seoul")).toInstant(), response.joinedAt());
+        assertEquals(member.getStatus(), response.status());
+    }
+
+    @Test
+    void getPublicChatRoomMembers_파티방_404() {
+        ChatRoom room = ChatRoom.createPartyRoom("party-1");
+        when(chatRoomRepository.findById("party:party-1")).thenReturn(Optional.of(room));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> chatAdminService.getPublicChatRoomMembers("party:party-1")
+        );
+
+        assertEquals(ErrorCode.CHAT_ROOM_NOT_FOUND, exception.getErrorCode());
+        verify(chatRoomMemberRepository, never()).findByChatRoomIdOrdered("party:party-1");
     }
 
     @Test
