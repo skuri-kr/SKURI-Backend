@@ -12,7 +12,7 @@ public record UpdateInquiryStatusRequest(
         InquiryStatus status,
 
         @Size(max = 500, message = "memo는 500자 이하여야 합니다.")
-        @Schema(description = "관리자 메모", nullable = true, example = "재현 후 수정 배포 완료")
+        @Schema(description = "사용자에게 공개되는 관리자 답변", nullable = true, example = "재현 후 수정 배포 완료")
         String memo
 ) {
 }

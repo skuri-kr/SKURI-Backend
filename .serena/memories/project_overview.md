@@ -28,6 +28,7 @@
 - `POST /v1/inquiries`의 `attachments`는 optional이며 요청에서 생략하거나 `null`이면 서버에서 빈 배열로 정규화한다.
 - 첨부는 최대 3개, 허용 MIME은 `image/jpeg`, `image/png`, `image/webp`다.
 - `GET /v1/inquiries/my`, `GET /v1/admin/inquiries`/`PATCH /v1/admin/inquiries/{inquiryId}/status` 응답은 항상 `attachments: []` 형태를 유지하며 null을 반환하지 않는다.
+- Inquiry의 기존 `adminMemo` 저장값은 사용자 공개 답변이다. 사용자용 `GET /v1/inquiries/my`는 이를 nullable `answer`로 제공하고, 관리자용 `memo` 입력도 문의 사용자에게 공개된다.
 - 회원 탈퇴 후에도 문의 기록과 첨부 이미지 메타데이터는 보존하고, inquiry의 구조화 개인정보만 마스킹한다.
 
 ## Legal Document 메모
