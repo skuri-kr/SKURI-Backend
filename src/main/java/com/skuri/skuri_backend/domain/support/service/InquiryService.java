@@ -100,6 +100,7 @@ public class InquiryService {
                 inquiry.getSubject(),
                 inquiry.getContent(),
                 inquiry.getStatus(),
+                inquiry.getAdminMemo(),
                 normalizePersistedAttachments(inquiry.getAttachments()),
                 inquiry.getCreatedAt(),
                 inquiry.getUpdatedAt()
