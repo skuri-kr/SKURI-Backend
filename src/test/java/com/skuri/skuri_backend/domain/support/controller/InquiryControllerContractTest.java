@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
@@ -173,6 +174,7 @@ class InquiryControllerContractTest {
                         "앱 오류 문의",
                         "채팅 화면에서 오류가 발생합니다.",
                         InquiryStatus.PENDING,
+                        "재현 후 수정 배포 완료",
                         List.of(new InquiryAttachment(
                                 "https://cdn.skuri.app/uploads/inquiries/2026/03/28/image.jpg",
                                 "https://cdn.skuri.app/uploads/inquiries/2026/03/28/image_thumb.jpg",
@@ -188,7 +190,29 @@ class InquiryControllerContractTest {
         mockMvc.perform(get("/v1/inquiries/my").header(AUTHORIZATION, "Bearer user-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].id").value("inquiry-1"))
+                .andExpect(jsonPath("$.data[0].answer").value("재현 후 수정 배포 완료"))
                 .andExpect(jsonPath("$.data[0].attachments[0].mime").value("image/jpeg"));
+    }
+
+    @Test
+    void getMyInquiries_답변없음_null로응답한다() throws Exception {
+        mockUserToken("user-token");
+        when(inquiryService.getMyInquiries("user-uid"))
+                .thenReturn(List.of(new InquiryResponse(
+                        "inquiry-1",
+                        InquiryType.BUG,
+                        "앱 오류 문의",
+                        "채팅 화면에서 오류가 발생합니다.",
+                        InquiryStatus.PENDING,
+                        null,
+                        List.of(),
+                        LocalDateTime.of(2026, 2, 3, 12, 0),
+                        LocalDateTime.of(2026, 2, 3, 12, 0)
+                )));
+
+        mockMvc.perform(get("/v1/inquiries/my").header(AUTHORIZATION, "Bearer user-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].answer").value(nullValue()));
     }
 
     @Test

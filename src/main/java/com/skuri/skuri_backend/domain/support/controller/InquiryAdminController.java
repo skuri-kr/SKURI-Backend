@@ -104,7 +104,7 @@ public class InquiryAdminController {
     }
 
     @PatchMapping("/{inquiryId}/status")
-    @Operation(summary = "문의 상태 처리(관리자)", description = "문의 상태와 관리자 메모를 갱신합니다.")
+    @Operation(summary = "문의 상태 처리(관리자)", description = "문의 상태와 사용자 공개 답변을 갱신합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",

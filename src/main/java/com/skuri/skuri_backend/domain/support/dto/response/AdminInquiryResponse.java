@@ -31,7 +31,7 @@ public record AdminInquiryResponse(
         @Schema(description = "문의 첨부 이미지 목록", example = "[]")
         List<InquiryAttachment> attachments,
 
-        @Schema(description = "관리자 메모", nullable = true, example = "재현 후 수정 배포 완료")
+        @Schema(description = "사용자에게 공개되는 관리자 답변", nullable = true, example = "재현 후 수정 배포 완료")
         String memo,
 
         @Schema(description = "사용자 이메일", nullable = true, example = "user@sungkyul.ac.kr")

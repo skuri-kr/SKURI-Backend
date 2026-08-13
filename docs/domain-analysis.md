@@ -719,7 +719,7 @@ Hooks:
     - subject, content, attachments[] (url, thumbUrl, width, height, size, mime)
     - userId, userEmail, userName
     - userRealname, userStudentId
-    - status (PENDING, IN_PROGRESS, RESOLVED), adminMemo
+    - status (PENDING, IN_PROGRESS, RESOLVED), adminMemo (사용자 공개 답변)
     - attachments는 최대 3개, JPEG/PNG/WebP만 허용
     - 요청에서 attachments 생략/null은 허용하고 서버에서 빈 배열로 정규화
     - 응답은 항상 `attachments: []` 형태를 유지하며 null을 반환하지 않음

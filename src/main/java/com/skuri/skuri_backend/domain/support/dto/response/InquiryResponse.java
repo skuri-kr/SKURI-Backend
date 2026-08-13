@@ -25,6 +25,9 @@ public record InquiryResponse(
         @Schema(description = "문의 상태", example = "PENDING")
         InquiryStatus status,
 
+        @Schema(description = "사용자에게 공개되는 관리자 답변", nullable = true, example = "재현 후 수정 배포 완료")
+        String answer,
+
         @Schema(description = "문의 첨부 이미지 목록", example = "[]")
         List<InquiryAttachment> attachments,
 
