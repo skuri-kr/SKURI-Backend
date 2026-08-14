@@ -283,6 +283,59 @@ GROUP BY status;
 
 이 수치는 사용자가 운영 DB에서 실행해 전달한 결과를 기준으로 하며, 문서 작성자가 별도 운영 DB 접속으로 재인증한 값은 아니다.
 
+### 준비된 SQL 파일
+
+- [`sql/2026-08-14-department-course-preflight.sql`](./sql/2026-08-14-department-course-preflight.sql): 대상 DB의 테이블/컬럼/collation/category 분포/FK를 읽기 전용으로 확인한다.
+- [`sql/2026-08-14-department-course-migration.sql`](./sql/2026-08-14-department-course-migration.sql): 환경 검증, 동적 collation 일치, 학과 seed, 직접 입력 학과 컬럼, category 정규화, FK 생성을 수행하는 procedure를 정의한다. 파일을 읽는 것만으로 migration이 실행되지는 않는다.
+- [`sql/2026-08-14-department-course-postcheck.sql`](./sql/2026-08-14-department-course-postcheck.sql): 적용 후 category 잔여값, 학과 orphan, FK 3개를 검증한다.
+
+비밀번호는 명령행에 직접 적지 않고 `mysql -p` 프롬프트 또는 운영자가 관리하는 MySQL login path를 사용한다. `.env` 파일을 `source`해서 shell 환경으로 펼치지 않는다.
+
+#### 로컬 DB 적용
+
+현재 Mac의 기본 로컬 대상은 `127.0.0.1:3306/skuri`다. 새 DB라면 먼저 현재 백엔드를 `JPA_DDL_AUTO=update`로 한 번 기동해 legacy 필수 테이블을 만든다. 기존 DB라면 바로 아래 절차를 사용한다.
+
+```bash
+mysql -h 127.0.0.1 -P 3306 -u <LOCAL_DB_USER> -p skuri
+```
+
+mysql prompt에서 실행한다.
+
+```sql
+SOURCE docs/sql/2026-08-14-department-course-preflight.sql;
+SOURCE docs/sql/2026-08-14-department-course-migration.sql;
+CALL migrate_department_course(-1);
+SOURCE docs/sql/2026-08-14-department-course-postcheck.sql;
+DROP PROCEDURE migrate_department_course;
+```
+
+- `-1`은 로컬 데이터의 실제 정규화 대상 건수를 허용한다는 의미다.
+- 지원하지 않는 category, canonical master로 해석할 수 없는 학과, FK schema 불일치는 로컬에서도 즉시 중단한다.
+- 로컬도 운영과 같은 FK 3개를 갖도록 맞춰야 개발/테스트 환경에서 무결성 차이를 발견할 수 있다.
+
+#### 운영 DB 적용
+
+앱을 내리고 백업을 확보한 뒤 SSH tunnel을 통해 운영 MySQL의 loopback 포트에 접속한다. 예시는 로컬 tunnel endpoint가 `127.0.0.1:3307`인 경우다.
+
+```bash
+mysql -h 127.0.0.1 -P 3307 -u <PROD_DB_USER> -p <PROD_DB_NAME>
+```
+
+mysql prompt에서 먼저 preflight 결과가 이 절의 운영 기준과 여전히 같은지 확인한 뒤 실행한다.
+
+```sql
+SOURCE docs/sql/2026-08-14-department-course-preflight.sql;
+SOURCE docs/sql/2026-08-14-department-course-migration.sql;
+CALL migrate_department_course(1048);
+SOURCE docs/sql/2026-08-14-department-course-postcheck.sql;
+DROP PROCEDURE migrate_department_course;
+```
+
+- 운영 `1048`은 전달받은 2026-08-14 조회 결과에 대한 안전장치다.
+- 실행 시점의 preflight 결과가 달라졌다면 숫자만 임의로 바꾸지 말고 신규 데이터 유입 원인을 확인한 뒤 기대값을 다시 승인한다.
+- MySQL DDL은 rollback되지 않으므로 백업과 앱 중지가 필수다. procedure는 가능한 오류를 DDL 전에 검사하지만, 실행 중 인프라 장애까지 원자적으로 되돌릴 수는 없다.
+- migration 성공 후에만 새 백엔드를 배포하고 API smoke test를 진행한다.
+
 ### 1. 사전 조건과 스키마 확인
 
 1. 앱을 내리고 DB 백업을 확보한다.
