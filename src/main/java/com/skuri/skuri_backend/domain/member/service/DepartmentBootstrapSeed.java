@@ -17,7 +17,6 @@ import java.util.List;
 @Slf4j
 @Component
 @Profile("!test")
-@Order(Ordered.HIGHEST_PRECEDENCE)
 @RequiredArgsConstructor
 public class DepartmentBootstrapSeed {
 
@@ -55,6 +54,7 @@ public class DepartmentBootstrapSeed {
 
     private final DepartmentRepository departmentRepository;
 
+    @Order(Ordered.HIGHEST_PRECEDENCE)
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void seed() {

@@ -21,7 +21,6 @@ import java.util.HexFormat;
 @Slf4j
 @Component
 @Profile("!test")
-@Order(Ordered.HIGHEST_PRECEDENCE + 1)
 @RequiredArgsConstructor
 public class PublicChatRoomSeedMigration {
 
@@ -31,6 +30,7 @@ public class PublicChatRoomSeedMigration {
     private final ChatRoomRepository chatRoomRepository;
     private final DepartmentService departmentService;
 
+    @Order(Ordered.HIGHEST_PRECEDENCE + 1)
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void seed() {
