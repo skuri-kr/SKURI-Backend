@@ -75,6 +75,9 @@ class MemberAdminServiceTest {
     @Mock
     private ReportRepository reportRepository;
 
+    @Mock
+    private DepartmentService departmentService;
+
     @InjectMocks
     private MemberAdminService memberAdminService;
 
@@ -101,6 +104,7 @@ class MemberAdminServiceTest {
                 eq(Sort.Direction.DESC),
                 any()
         )).thenReturn(new PageImpl<>(List.of(member)));
+        when(departmentService.normalizeSupported("컴퓨터공학과")).thenReturn("컴퓨터공학과");
 
         var response = memberAdminService.getAdminMembers(
                 "홍길동",
@@ -338,6 +342,8 @@ class MemberAdminServiceTest {
 
     @Test
     void getAdminMembers_지원하지않는학과면_VALIDATION_ERROR() {
+        when(departmentService.normalizeSupported("없는학과")).thenReturn(null);
+
         BusinessException exception = assertThrows(
                 BusinessException.class,
                 () -> memberAdminService.getAdminMembers(null, null, null, "없는학과", null, null, 0, 20)

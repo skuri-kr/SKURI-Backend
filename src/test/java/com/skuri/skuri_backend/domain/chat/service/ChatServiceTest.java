@@ -22,6 +22,7 @@ import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.member.service.DepartmentService;
 import com.skuri.skuri_backend.domain.minecraft.config.MinecraftBridgeProperties;
 import com.skuri.skuri_backend.domain.minecraft.service.MinecraftAvatarService;
 import com.skuri.skuri_backend.domain.minecraft.service.MinecraftBridgeOutboxService;
@@ -78,6 +79,9 @@ class ChatServiceTest {
     private MemberRepository memberRepository;
 
     @Mock
+    private DepartmentService departmentService;
+
+    @Mock
     private PartyMessageService partyMessageService;
 
     @Mock
@@ -104,6 +108,8 @@ class ChatServiceTest {
     @BeforeEach
     void setUp() {
         lenient().when(minecraftBridgeProperties.normalizedRoomId()).thenReturn("public:game:minecraft");
+        lenient().when(departmentService.normalizeOrOriginal(anyString()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.skuri.skuri_backend.domain.academic.dto.request.AdminBulkCourseReques
 import com.skuri.skuri_backend.domain.academic.dto.request.AdminBulkCourseScheduleRequest;
 import com.skuri.skuri_backend.domain.academic.dto.request.AdminBulkCoursesRequest;
 import com.skuri.skuri_backend.domain.academic.dto.response.AdminBulkCoursesResponse;
+import com.skuri.skuri_backend.domain.academic.dto.response.CourseFilterOptionsResponse;
 import com.skuri.skuri_backend.domain.academic.entity.Course;
 import com.skuri.skuri_backend.domain.academic.repository.CourseRepository;
 import com.skuri.skuri_backend.domain.academic.repository.CourseScheduleRepository;
@@ -16,6 +17,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Collections;
@@ -100,6 +104,57 @@ class CourseServiceTest {
             Course first = iterator.next();
             return "course-delete".equals(first.getId()) && !iterator.hasNext();
         }));
+    }
+
+    @Test
+    void getCourseFilterOptions_학기별중복제거값을반환한다() {
+        when(courseRepository.findDistinctDepartmentsBySemester("2026-1")).thenReturn(List.of("교양", "컴퓨터공학과"));
+        when(courseRepository.findDistinctGradesBySemester("2026-1")).thenReturn(List.of(1, 2));
+        when(courseRepository.findDistinctCategoriesBySemester("2026-1")).thenReturn(List.of("교양선택", "전공선택"));
+
+        CourseFilterOptionsResponse response = courseService.getCourseFilterOptions("2026-1");
+
+        assertEquals(List.of("교양", "컴퓨터공학과"), response.departments());
+        assertEquals(List.of(1, 2), response.grades());
+        assertEquals(List.of("교양선택", "전공선택"), response.categories());
+    }
+
+    @Test
+    void getCourses_축약카테고리필터를canonical값으로조회한다() {
+        PageRequest pageable = PageRequest.of(
+                0,
+                20,
+                Sort.by("department").ascending()
+                        .and(Sort.by("grade").ascending())
+                        .and(Sort.by("code").ascending())
+                        .and(Sort.by("division").ascending())
+        );
+        when(courseRepository.search(
+                "2026-1", null, "전공선택", null, null, null, null, pageable
+        )).thenReturn(Page.empty(pageable));
+
+        courseService.getCourses("2026-1", null, " 전선 ", null, null, null, null, 0, 20);
+
+        verify(courseRepository).search(
+                "2026-1", null, "전공선택", null, null, null, null, pageable
+        );
+    }
+
+    @Test
+    void bulkUpsertCourses_축약카테고리를canonical값으로저장한다() {
+        when(courseRepository.findAllBySemesterWithSchedules("2026-1")).thenReturn(List.of());
+        when(courseRepository.save(any(Course.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        courseService.bulkUpsertCourses(new AdminBulkCoursesRequest(
+                "2026-1",
+                List.of(new AdminBulkCourseRequest(
+                        "01255", "001", "민법총칙", 3, "문상혁", "법학과", 2,
+                        "전선", "영401", null, false,
+                        List.of(new AdminBulkCourseScheduleRequest(1, 3, 4))
+                ))
+        ));
+
+        verify(courseRepository).save(argThat(course -> "전공선택".equals(course.getCategory())));
     }
 
     @Test

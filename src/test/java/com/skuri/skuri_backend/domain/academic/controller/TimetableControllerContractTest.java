@@ -203,6 +203,7 @@ class TimetableControllerContractTest {
                                           "semester": "2026-1",
                                           "name": "플랫폼세미나",
                                           "professor": "",
+                                          "department": "컴퓨터공학과",
                                           "credits": 2,
                                           "isOnline": true,
                                           "locationLabel": null,
@@ -215,6 +216,7 @@ class TimetableControllerContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.courseCount").value(1))
                 .andExpect(jsonPath("$.data.courses[0].id").value("manual-1"))
+                .andExpect(jsonPath("$.data.courses[0].department").value("컴퓨터공학과"))
                 .andExpect(jsonPath("$.data.courses[0].isOnline").value(true))
                 .andExpect(jsonPath("$.data.slots").isArray())
                 .andExpect(jsonPath("$.data.slots").isEmpty());
@@ -351,6 +353,7 @@ class TimetableControllerContractTest {
                         "문상혁",
                         "영401",
                         "전공선택",
+                        "법학과",
                         3,
                         false,
                         List.of(new CourseScheduleResponse(1, 3, 4))
@@ -382,6 +385,7 @@ class TimetableControllerContractTest {
                         "직접 입력",
                         null,
                         null,
+                        "컴퓨터공학과",
                         2,
                         true,
                         List.of()
@@ -404,6 +408,7 @@ class TimetableControllerContractTest {
                         null,
                         null,
                         "교양선택",
+                        "교양",
                         3,
                         true,
                         List.of()

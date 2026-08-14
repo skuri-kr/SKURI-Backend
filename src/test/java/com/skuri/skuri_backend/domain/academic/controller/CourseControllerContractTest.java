@@ -4,6 +4,7 @@ import com.skuri.skuri_backend.common.dto.PageResponse;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.academic.dto.response.CourseScheduleResponse;
+import com.skuri.skuri_backend.domain.academic.dto.response.CourseFilterOptionsResponse;
 import com.skuri.skuri_backend.domain.academic.dto.response.CourseSummaryResponse;
 import com.skuri.skuri_backend.domain.academic.service.CourseService;
 import com.skuri.skuri_backend.infra.auth.config.ApiAccessDeniedHandler;
@@ -49,7 +50,7 @@ class CourseControllerContractTest {
     @Test
     void getCourses_정상요청_200() throws Exception {
         mockValidToken();
-        when(courseService.getCourses("2026-1", "법학과", "문상혁", "민법", 1, 2, null, null))
+        when(courseService.getCourses("2026-1", "법학과", "전공선택", "문상혁", "민법", 1, 2, null, null))
                 .thenReturn(PageResponse.from(new PageImpl<>(List.of(courseResponse(false)))));
 
         mockMvc.perform(
@@ -57,6 +58,7 @@ class CourseControllerContractTest {
                                 .header(AUTHORIZATION, "Bearer valid-token")
                                 .param("semester", "2026-1")
                                 .param("department", "법학과")
+                                .param("category", "전공선택")
                                 .param("professor", "문상혁")
                                 .param("search", "민법")
                                 .param("dayOfWeek", "1")
@@ -71,7 +73,7 @@ class CourseControllerContractTest {
     @Test
     void getCourses_공식온라인강의응답_200() throws Exception {
         mockValidToken();
-        when(courseService.getCourses("2026-1", null, null, "KCU", null, null, null, null))
+        when(courseService.getCourses("2026-1", null, null, null, "KCU", null, null, null, null))
                 .thenReturn(PageResponse.from(new PageImpl<>(List.of(courseResponse(true)))));
 
         mockMvc.perform(
@@ -97,13 +99,55 @@ class CourseControllerContractTest {
     @Test
     void getCourses_필터검증실패_422() throws Exception {
         mockValidToken();
-        when(courseService.getCourses(null, null, null, null, 0, null, null, null))
+        when(courseService.getCourses(null, null, null, null, null, 0, null, null, null))
                 .thenThrow(new BusinessException(ErrorCode.VALIDATION_ERROR, "dayOfWeek는 1 이상 6 이하여야 합니다."));
 
         mockMvc.perform(
                         get("/v1/courses")
                                 .header(AUTHORIZATION, "Bearer valid-token")
                                 .param("dayOfWeek", "0")
+                )
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void getCourseFilterOptions_정상요청_200() throws Exception {
+        mockValidToken();
+        when(courseService.getCourseFilterOptions("2026-1")).thenReturn(new CourseFilterOptionsResponse(
+                List.of("교양", "컴퓨터공학과"),
+                List.of(1, 2, 3, 4),
+                List.of("교양선택", "전공선택", "전공필수")
+        ));
+
+        mockMvc.perform(
+                        get("/v1/courses/filter-options")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                                .param("semester", "2026-1")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.departments[1]").value("컴퓨터공학과"))
+                .andExpect(jsonPath("$.data.grades[0]").value(1))
+                .andExpect(jsonPath("$.data.categories[2]").value("전공필수"));
+    }
+
+    @Test
+    void getCourseFilterOptions_비인증요청_401() throws Exception {
+        mockMvc.perform(get("/v1/courses/filter-options").param("semester", "2026-1"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    void getCourseFilterOptions_학기검증실패_422() throws Exception {
+        mockValidToken();
+        when(courseService.getCourseFilterOptions("invalid"))
+                .thenThrow(new BusinessException(ErrorCode.VALIDATION_ERROR, "semester 형식이 올바르지 않습니다."));
+
+        mockMvc.perform(
+                        get("/v1/courses/filter-options")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                                .param("semester", "invalid")
                 )
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
