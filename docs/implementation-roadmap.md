@@ -203,6 +203,7 @@ com.skuri.skuri_backend
 | `POST` | `/v1/members` | 회원 가입 (ID Token에서 정보 추출, 멱등) |
 | `GET` | `/v1/members/me` | 내 프로필 조회 (lastLogin 갱신) |
 | `PATCH` | `/v1/members/me` | 프로필 부분 수정 (닉네임, 학번, 학과, photoUrl) |
+| `GET` | `/v1/departments` | 활성 학과 master 조회 |
 | `DELETE` | `/v1/members/me/photo` | 프로필 사진 제거 (본인 소유 member-scoped PROFILE_IMAGE면 storage 원본/썸네일 정리) |
 | `PUT` | `/v1/members/me/bank-account` | 계좌 정보 수정 |
 | `PATCH` | `/v1/members/me/notification-settings` | 알림 설정 부분 수정 |
@@ -581,7 +582,8 @@ SSE 운영 제약:
 
 | Method | Path | 설명 |
 |--------|------|------|
-| `GET` | `/v1/courses` | 강의 검색 (학기, 학과, 교수, 키워드) |
+| `GET` | `/v1/courses` | 강의 검색 (학기, 학과, 학년, 이수구분, 교수, 키워드) |
+| `GET` | `/v1/courses/filter-options` | 학기별 강의 학과/학년/이수구분 중복 제거 옵션 |
 | `GET` | `/v1/timetables/my/semesters` | 내 시간표 학기 목록 조회 |
 | `GET` | `/v1/timetables/my` | 내 시간표 조회 |
 | `POST` | `/v1/timetables/my/courses` | 시간표에 강의 추가 |
@@ -597,7 +599,9 @@ SSE 운영 제약:
 
 #### 6-3. 완료 기준
 
-- [x] 강의 검색 필터(`semester`, `department`, `professor`, `search`, `dayOfWeek`, `grade`) 동작
+- [x] 강의 검색 필터(`semester`, `department`, `category`, `professor`, `search`, `dayOfWeek`, `grade`) 동작
+- [x] 해당 학기의 강의 데이터에서 학과/학년/이수구분 필터 옵션을 중복 제거해 반환
+- [x] bulk 강의 저장 시 이수구분 단축 표기(`전선`, `전필`, `교선`, `교필`)를 canonical 장문 표기로 정규화
 - [x] 내 시간표 학기 목록 조회 동작
 - [x] 내 시간표 조회/강의 추가/직접 입력 강의 추가/강의 삭제 동작
 - [x] 시간표 무결성 규칙 적용
@@ -622,6 +626,7 @@ SSE 운영 제약:
 - 시간표 조회/추가/삭제는 동일한 시간표 응답(`courses[] + slots[]`)을 반환한다.
 - `GET /v1/timetables/my/semesters`는 강의 카탈로그 학기와 사용자 시간표 학기의 합집합을 최신 학기 우선으로 반환한다.
 - 직접 입력 강의는 `Course` 마스터와 분리된 `UserTimetableManualCourse`로 저장한다.
+- 직접 입력 강의의 선택 학과는 `departments` master로 검증하고, 공식 강의 학과는 `courses.department` 원본을 사용한다.
 - `courses[]`는 공식 강의와 직접 입력 강의를 함께 반환하고, 각 항목에 실제 `isOnline` 값을 포함한다.
 - 온라인 강의는 공식 강의/직접 입력 강의를 막론하고 `slots[]`에 포함되지 않으며 시간 충돌 검사 대상이 아니다.
 - 시간표 색상 결정 책임은 백엔드가 아닌 프론트엔드(RN 앱)에 둔다.

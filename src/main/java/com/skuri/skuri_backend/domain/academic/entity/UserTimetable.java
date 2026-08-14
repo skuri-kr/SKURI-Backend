@@ -71,6 +71,7 @@ public class UserTimetable extends BaseTimeEntity {
     public void addManualCourse(
             String name,
             String professor,
+            String department,
             Integer credits,
             boolean isOnline,
             String location,
@@ -82,6 +83,7 @@ public class UserTimetable extends BaseTimeEntity {
                 this,
                 name,
                 professor,
+                department,
                 credits,
                 isOnline,
                 location,

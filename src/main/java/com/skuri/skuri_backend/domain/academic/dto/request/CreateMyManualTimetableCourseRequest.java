@@ -23,6 +23,10 @@ public record CreateMyManualTimetableCourseRequest(
         @Schema(description = "교수명", nullable = true, example = "정태현")
         String professor,
 
+        @Size(max = 50, message = "department는 50자 이하여야 합니다.")
+        @Schema(description = "학과", nullable = true, example = "컴퓨터공학과")
+        String department,
+
         @NotNull(message = "credits는 필수입니다.")
         @Min(value = 0, message = "credits는 0 이상이어야 합니다.")
         @Schema(description = "학점", example = "3")

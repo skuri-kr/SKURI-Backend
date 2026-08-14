@@ -5,6 +5,17 @@ public final class OpenApiMemberExamples {
     private OpenApiMemberExamples() {
     }
 
+    public static final String SUCCESS_DEPARTMENT_LIST = """
+            {
+              "success": true,
+              "data": [
+                {"name": "컴퓨터공학과"},
+                {"name": "정보통신공학과"},
+                {"name": "미디어소프트웨어학과"}
+              ]
+            }
+            """;
+
     public static final String SUCCESS_MEMBER_CREATE_CREATED = """
             {
               "success": true,

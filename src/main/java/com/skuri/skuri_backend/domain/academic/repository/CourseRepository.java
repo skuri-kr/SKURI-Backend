@@ -19,7 +19,8 @@ public interface CourseRepository extends JpaRepository<Course, String> {
             select c
             from Course c
             where (:semester is null or c.semester = :semester)
-              and (:department is null or lower(c.department) like lower(concat('%', :department, '%')))
+              and (:department is null or c.department = :department)
+              and (:category is null or c.category = :category)
               and (:professor is null or lower(coalesce(c.professor, '')) like lower(concat('%', :professor, '%')))
               and (:grade is null or c.grade = :grade)
               and (:search is null
@@ -39,6 +40,7 @@ public interface CourseRepository extends JpaRepository<Course, String> {
     Page<Course> search(
             @Param("semester") String semester,
             @Param("department") String department,
+            @Param("category") String category,
             @Param("professor") String professor,
             @Param("search") String search,
             @Param("dayOfWeek") Integer dayOfWeek,
@@ -93,4 +95,33 @@ public interface CourseRepository extends JpaRepository<Course, String> {
             where c.semester is not null
             """)
     List<String> findDistinctSemesters();
+
+    @Query("""
+            select distinct c.department
+            from Course c
+            where c.semester = :semester
+              and c.department is not null
+              and trim(c.department) <> ''
+            order by c.department
+            """)
+    List<String> findDistinctDepartmentsBySemester(@Param("semester") String semester);
+
+    @Query("""
+            select distinct c.grade
+            from Course c
+            where c.semester = :semester
+              and c.grade is not null
+            order by c.grade
+            """)
+    List<Integer> findDistinctGradesBySemester(@Param("semester") String semester);
+
+    @Query("""
+            select distinct c.category
+            from Course c
+            where c.semester = :semester
+              and c.category is not null
+              and trim(c.category) <> ''
+            order by c.category
+            """)
+    List<String> findDistinctCategoriesBySemester(@Param("semester") String semester);
 }

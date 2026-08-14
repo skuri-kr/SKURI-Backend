@@ -2,12 +2,14 @@ package com.skuri.skuri_backend.domain.chat.service;
 
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
-import com.skuri.skuri_backend.domain.member.constant.DepartmentCatalog;
+import com.skuri.skuri_backend.domain.member.service.DepartmentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +28,9 @@ public class PublicChatRoomSeedMigration {
     private static final String MINECRAFT_ROOM_ID = "public:game:minecraft";
 
     private final ChatRoomRepository chatRoomRepository;
+    private final DepartmentService departmentService;
 
+    @Order(Ordered.HIGHEST_PRECEDENCE + 1)
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void seed() {
@@ -46,7 +50,7 @@ public class PublicChatRoomSeedMigration {
                 "스쿠리 서버 채팅방입니다."
         );
 
-        for (String department : DepartmentCatalog.DEPARTMENTS) {
+        for (String department : departmentService.getActiveDepartmentNames()) {
             createdCount += seedIfAbsent(
                     departmentRoomId(department),
                     department + " 채팅방",

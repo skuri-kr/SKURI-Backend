@@ -1,6 +1,6 @@
 # Spring 백엔드 ERD (Entity Relationship Diagram)
 
-> 최종 수정일: 2026-03-30
+> 최종 수정일: 2026-08-14
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -21,12 +21,18 @@
 ```mermaid
 erDiagram
     %% ===== MEMBER 도메인 =====
+    departments {
+        varchar(50) name PK "canonical 학과명"
+        boolean active "NOT NULL DEFAULT true"
+        int display_order "NOT NULL"
+    }
+
     members {
         varchar(36) id PK "UUID or Firebase UID"
         varchar(255) email UK "NOT NULL"
         varchar(50) nickname
         varchar(20) student_id
-        varchar(50) department
+        varchar(50) department FK
         varchar(500) photo_url "nullable, 가입 시 null"
         varchar(50) realname
         boolean is_admin "DEFAULT false"
@@ -140,7 +146,7 @@ erDiagram
         varchar(100) id PK "UUID or party:partyId"
         varchar(100) name
         enum type "UNIVERSITY,DEPARTMENT,GAME,CUSTOM,PARTY"
-        varchar(50) department
+        varchar(50) department FK
         varchar(500) description
         varchar(36) created_by FK
         boolean is_public "DEFAULT true"
@@ -155,6 +161,9 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
+
+    departments ||--o{ members : "classifies"
+    departments ||--o{ chat_rooms : "classifies"
 
     chat_room_members {
         varchar(100) chat_room_id PK,FK
@@ -444,6 +453,10 @@ erDiagram
 ```mermaid
 erDiagram
     %% ===== ACADEMIC 도메인 =====
+    departments {
+        varchar(50) name PK "canonical 학과명"
+    }
+
     courses {
         varchar(36) id PK "UUID"
         int grade "1,2,3,4"
@@ -488,6 +501,7 @@ erDiagram
         varchar(36) timetable_id FK "NOT NULL"
         varchar(100) name "NOT NULL"
         varchar(50) professor
+        varchar(50) department FK
         int credits "NOT NULL"
         boolean is_online "NOT NULL"
         varchar(100) location
@@ -512,6 +526,7 @@ erDiagram
     user_timetables ||--o{ user_timetable_courses : "contains"
     user_timetables ||--o{ user_timetable_manual_courses : "contains"
     courses ||--o{ user_timetable_courses : "included in"
+    departments ||--o{ user_timetable_manual_courses : "classifies"
 
     %% runtime contract note:
     %% 강의 일괄 등록 계약은 credits + 강의 단위 location을 사용하며,
@@ -652,8 +667,17 @@ erDiagram
 
 | 테이블 | 설명 | 예상 레코드 수 |
 |--------|------|---------------|
+| `departments` | 활성 여부/표시 순서를 가진 canonical 학과 master | ~30 |
 | `members` | 회원 기본 정보 | ~5,000 |
 | `linked_accounts` | 연결된 소셜 계정 | ~5,000 |
+
+**departments 테이블 상세:**
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|------|------|---------|------|
+| name | VARCHAR(50) | PK | canonical 학과명 |
+| active | BOOLEAN | NOT NULL, DEFAULT true | 선택 가능 여부 |
+| display_order | INT | NOT NULL | 드롭다운 표시 순서 |
 
 **members 테이블 상세:**
 
@@ -663,7 +687,7 @@ erDiagram
 | email | VARCHAR(255) | UK, NOT NULL | 이메일 (로그인 식별자) |
 | nickname | VARCHAR(50) | | 앱 내 닉네임 |
 | student_id | VARCHAR(20) | | 학번 |
-| department | VARCHAR(50) | | 학과 |
+| department | VARCHAR(50) | FK, nullable | `departments.name` 학과 |
 | photo_url | VARCHAR(500) | | 프로필 이미지 URL (가입 시 기본 null) |
 | realname | VARCHAR(50) | | 실명 (계좌 예금주) |
 | is_admin | BOOLEAN | DEFAULT false | 관리자 여부 |
@@ -1016,6 +1040,9 @@ Taxi history 계약 메모:
 | 공지-북마크 | notices | notice_bookmarks | 1:N | 공지별 북마크 |
 | 앱 공지-읽음 | app_notices | app_notice_read_status | 1:N | 앱 공지별 읽음 상태 |
 | 캠퍼스 배너 | campus_banners | (없음) | 독립 테이블 | 홈 배너 콘텐츠/노출 기간/정렬 관리 |
+| 학과-회원 | departments | members | 1:N | canonical 학과에 여러 회원 |
+| 학과-공개채팅방 | departments | chat_rooms | 1:N | canonical 학과에 여러 채팅방 |
+| 학과-직접입력강의 | departments | user_timetable_manual_courses | 1:N | 직접 입력 강의의 선택 학과 |
 | 강의-시간 | courses | course_schedules | 1:N | 강의에 여러 시간 슬롯 |
 | 시간표-강의 | user_timetables | user_timetable_courses | 1:N | 시간표에 여러 강의 |
 | 시간표-직접입력강의 | user_timetables | user_timetable_manual_courses | 1:N | 시간표에 여러 직접 입력 강의 |
@@ -1026,6 +1053,11 @@ Taxi history 계약 메모:
 
 ```sql
 -- Member 도메인
+ALTER TABLE members
+  ADD CONSTRAINT fk_members_department
+  FOREIGN KEY (department) REFERENCES departments(name)
+  ON UPDATE RESTRICT ON DELETE RESTRICT;
+
 ALTER TABLE linked_accounts
   ADD CONSTRAINT fk_linked_accounts_member
   FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE;
@@ -1052,6 +1084,11 @@ ALTER TABLE join_requests
   FOREIGN KEY (requester_id) REFERENCES members(id);
 
 -- Chat 도메인
+ALTER TABLE chat_rooms
+  ADD CONSTRAINT fk_chat_rooms_department
+  FOREIGN KEY (department) REFERENCES departments(name)
+  ON UPDATE RESTRICT ON DELETE RESTRICT;
+
 ALTER TABLE chat_room_members
   ADD CONSTRAINT fk_chat_room_members_room
   FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE;
@@ -1097,7 +1134,15 @@ ALTER TABLE notice_likes
 ALTER TABLE notice_bookmarks
   ADD CONSTRAINT fk_notice_bookmarks_notice
   FOREIGN KEY (notice_id) REFERENCES notices(id) ON DELETE CASCADE;
+
+-- Academic 도메인
+ALTER TABLE user_timetable_manual_courses
+  ADD CONSTRAINT fk_user_timetable_manual_courses_department
+  FOREIGN KEY (department) REFERENCES departments(name)
+  ON UPDATE RESTRICT ON DELETE RESTRICT;
 ```
+
+`courses.department`는 대학 강의 원본의 자유 텍스트라 FK를 두지 않는다. `notices.department`도 회원 소속 학과가 아니라 공지 발행 부서/출처 의미이므로 FK 대상이 아니다.
 
 ---
 
@@ -1110,6 +1155,9 @@ ALTER TABLE notice_bookmarks
 CREATE UNIQUE INDEX idx_members_email ON members(email);
 CREATE INDEX idx_members_student_id ON members(student_id);
 CREATE INDEX idx_members_department ON members(department);
+
+-- departments
+CREATE INDEX idx_departments_active_order ON departments(active, display_order, name);
 
 -- linked_accounts
 CREATE UNIQUE INDEX uk_linked_account_member_provider ON linked_accounts(member_id, provider);
@@ -1256,6 +1304,7 @@ CREATE UNIQUE INDEX idx_user_timetables_user_semester ON user_timetables(user_id
 
 -- user_timetable_manual_courses
 CREATE INDEX idx_user_timetable_manual_courses_timetable ON user_timetable_manual_courses(timetable_id);
+CREATE INDEX idx_user_timetable_manual_courses_department ON user_timetable_manual_courses(department);
 
 -- academic_schedules
 CREATE INDEX idx_academic_schedules_date ON academic_schedules(start_date, end_date);

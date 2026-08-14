@@ -234,7 +234,10 @@ public class TimetableController {
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(name = "validation_error", value = OpenApiCommonExamples.ERROR_VALIDATION)
+                            examples = {
+                                    @ExampleObject(name = "unsupported_department", value = OpenApiAcademicExamples.ERROR_MANUAL_COURSE_DEPARTMENT_UNSUPPORTED),
+                                    @ExampleObject(name = "validation_error", value = OpenApiCommonExamples.ERROR_VALIDATION)
+                            }
                     )
             )
     })
@@ -251,6 +254,7 @@ public class TimetableController {
                                               "semester": "2026-1",
                                               "name": "캡스톤세미나",
                                               "professor": "정태현",
+                                              "department": "컴퓨터공학과",
                                               "credits": 3,
                                               "isOnline": false,
                                               "locationLabel": "공학관 502",
@@ -267,6 +271,7 @@ public class TimetableController {
                                               "semester": "2026-1",
                                               "name": "플랫폼세미나",
                                               "professor": "",
+                                              "department": null,
                                               "credits": 2,
                                               "isOnline": true,
                                               "locationLabel": null,

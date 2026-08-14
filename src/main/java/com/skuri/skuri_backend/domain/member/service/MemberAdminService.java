@@ -8,7 +8,6 @@ import com.skuri.skuri_backend.domain.board.repository.CommentRepository;
 import com.skuri.skuri_backend.domain.board.repository.PostRepository;
 import com.skuri.skuri_backend.domain.board.repository.PostSummaryProjection;
 import com.skuri.skuri_backend.domain.member.constant.AdminMemberSortField;
-import com.skuri.skuri_backend.domain.member.constant.DepartmentCatalog;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberAdminRoleRequest;
 import com.skuri.skuri_backend.domain.member.dto.response.AdminMemberActivityResponse;
 import com.skuri.skuri_backend.domain.member.dto.response.AdminMemberDetailResponse;
@@ -63,6 +62,7 @@ public class MemberAdminService {
     private final PartyRepository partyRepository;
     private final InquiryRepository inquiryRepository;
     private final ReportRepository reportRepository;
+    private final DepartmentService departmentService;
 
     @Transactional(readOnly = true)
     public PageResponse<AdminMemberSummaryResponse> getAdminMembers(
@@ -181,7 +181,7 @@ public class MemberAdminService {
         if (!StringUtils.hasText(department)) {
             return null;
         }
-        String normalizedDepartment = DepartmentCatalog.normalize(department);
+        String normalizedDepartment = departmentService.normalizeSupported(department);
         if (normalizedDepartment == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "지원하지 않는 department입니다.");
         }

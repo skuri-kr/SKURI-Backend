@@ -270,7 +270,9 @@ Spring 백엔드는 Access Token / Refresh Token을 직접 발급하거나 관�
     - 회원 탈퇴 이후에는 동일 필드에 탈퇴 마스킹 정책을 적용한 값만 조회한다.
     - 자유서술 `content`는 운영 추적을 위해 자동 마스킹하지 않는다.
 - Academic API 접근 정책:
+  - `GET /v1/departments`는 프로필/직접 입력 강의에서 공용으로 사용하는 인증 필요 학과 master 조회 경로다.
   - `GET /v1/courses`
+  - `GET /v1/courses/filter-options`
   - `GET /v1/timetables/my/semesters`
   - `GET /v1/timetables/my`
   - `POST /v1/timetables/my/courses`
@@ -280,6 +282,7 @@ Spring 백엔드는 Access Token / Refresh Token을 직접 발급하거나 관�
   - 위 경로는 모두 인증이 필요하며, 시간표 API는 인증된 사용자 본인 기준으로만 동작한다.
   - 시간표 API는 공식 강의 카탈로그와 직접 입력 강의를 서버에서 함께 조립해 `courses[] + slots[]`로 반환한다.
   - 공식 강의와 직접 입력 강의는 저장/소유권 모델을 분리한 채 유지한다.
+  - 공식 강의의 학과 필터는 `courses.department`의 중복 제거 값을 사용하고, 직접 입력 학과만 `departments` master를 사용한다.
   - 온라인 강의는 공식 강의/직접 입력 강의를 막론하고 `courses[].isOnline = true`로 명시하고 `slots[]`에는 포함하지 않는다.
   - 공식 온라인 강의는 현재 온라인 직접 입력 강의와 같은 의미로 취급하며, 시간 충돌 검사 대상에서도 제외한다.
 - 파티 권한 예시:

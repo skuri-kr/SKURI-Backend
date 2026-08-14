@@ -1,5 +1,7 @@
 package com.skuri.skuri_backend.domain.member.controller;
 
+import com.skuri.skuri_backend.common.exception.BusinessException;
+import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberProfileRequest;
 import com.skuri.skuri_backend.domain.member.dto.response.MemberBankAccountResponse;
 import com.skuri.skuri_backend.domain.member.dto.response.MemberCreateResponse;
@@ -211,6 +213,8 @@ class MemberControllerContractTest {
     @Test
     void patchMembersMe_지원하지않는학과면_422() throws Exception {
         mockValidToken();
+        when(memberService.updateMyProfile(eq("firebase-uid"), any(UpdateMemberProfileRequest.class)))
+                .thenThrow(new BusinessException(ErrorCode.VALIDATION_ERROR, "지원하지 않는 department입니다."));
 
         mockMvc.perform(
                         patch("/v1/members/me")
@@ -224,9 +228,7 @@ class MemberControllerContractTest {
                 )
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
-                .andExpect(jsonPath("$.message", containsString("department: 지원하지 않는 department입니다.")));
-
-        verifyNoInteractions(memberService);
+                .andExpect(jsonPath("$.message", containsString("지원하지 않는 department입니다.")));
     }
 
     @Test

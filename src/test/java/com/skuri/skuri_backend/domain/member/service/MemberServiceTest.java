@@ -62,6 +62,9 @@ class MemberServiceTest {
     @Mock
     private ProfileImageStorageService profileImageStorageService;
 
+    @Mock
+    private DepartmentService departmentService;
+
     @InjectMocks
     private MemberService memberService;
 
@@ -303,6 +306,7 @@ class MemberServiceTest {
         Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
         member.updateProfile("기존닉네임", "20201234", "컴퓨터공학과", null);
         when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
+        when(departmentService.normalizeSupported("경영학과")).thenReturn("경영학과");
 
         MemberMeResponse response = memberService.updateMyProfile(
                 "firebase-uid",
@@ -317,6 +321,7 @@ class MemberServiceTest {
     void updateMyProfile_레거시학과명은_정규화해서저장한다() {
         Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
         when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
+        when(departmentService.normalizeSupported("소프트웨어학과")).thenReturn("미디어소프트웨어학과");
 
         MemberMeResponse response = memberService.updateMyProfile(
                 "firebase-uid",
@@ -331,6 +336,7 @@ class MemberServiceTest {
     void updateMyProfile_지원하지않는학과면_VALIDATION_ERROR() {
         Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
         when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
+        when(departmentService.normalizeSupported("없는학과")).thenReturn(null);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,

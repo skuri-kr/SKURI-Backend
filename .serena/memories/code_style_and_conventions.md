@@ -58,7 +58,7 @@
 - cutover migration은 `users`를 source of truth로 보고, users export에 없는 timetable과 live MySQL `courses`에 없는 학기의 timetable은 적재하지 않고 `timetable-skips.json`에 남긴다. 마인크래프트 계정은 `users[].minecraftAccount.accounts[]`를 canonical source로 사용하고 RTDB whitelist export는 검증/보강용으로만 사용한다.
 - 관리자 회원 목록 API는 Support Admin 목록 규약과 동일하게 `AdminPageRequestPolicy`를 사용하고 필터는 `query/status/isAdmin/department`를 유지한다. 정렬은 `sortBy/sortDirection`으로 확장하되 기본값은 `joinedAt,DESC`, null 값은 항상 마지막이다. 이름 컬럼은 `members.realname`을 사용하고, `lastLoginOs`, `currentAppVersion`은 최근 활성 FCM 대표 토큰의 `fcm_tokens.platform`, `fcm_tokens.app_version`을 함께 사용한다.
 - `POST /v1/members/me/fcm-tokens`의 `appVersion`은 optional이다. 신규 토큰 등록 시 미전송하면 `null`로 저장하고, 같은 token 재등록 시 `null` 또는 빈 문자열이면 기존 값을 유지한다.
-- 관리자 회원 검색의 `department` 입력은 `DepartmentCatalog.normalize`로 정규화하고, 지원하지 않는 값은 `VALIDATION_ERROR`로 처리한다.
+- 회원/관리자 회원 검색/직접 입력 강의의 `department` 입력은 `DepartmentService.normalizeSupported`로 정규화하고, `departments.active = true`에 없는 값은 `VALIDATION_ERROR`로 처리한다.
 - 관리자 회원 활동 요약 API는 ACTIVE 회원만 허용하고, 현재 저장된 post/comment/party/inquiry/report 데이터만 읽는 read-only orchestration으로 구현한다. 댓글 집계/최근 댓글은 삭제되지 않은 comment이면서 부모 post도 삭제되지 않은 경우만 포함한다. 탈퇴 회원은 `CONFLICT + MEMBER_ACTIVITY_NOT_AVAILABLE_FOR_WITHDRAWN`으로 막고, 과거 활동 복원/상태 변경 로직을 넣지 않는다.
 - 회원 관리자 권한 변경은 Service에서만 판단하고, 탈퇴 회원은 `CONFLICT`, 자기 자신의 권한 변경은 `BAD_REQUEST + SELF_ADMIN_ROLE_CHANGE_NOT_ALLOWED`로 막는다.
 - 관리자 회원 상세 응답은 `bankAccount`, `notificationSetting`을 유지하되, 관리자 권한 변경 감사는 `@AdminAudit` + 최소 member snapshot(`id/email/nickname/isAdmin/status`)만 before/after diff에 남긴다.

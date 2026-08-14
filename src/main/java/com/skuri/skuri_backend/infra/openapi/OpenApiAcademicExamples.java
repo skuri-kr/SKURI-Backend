@@ -5,6 +5,17 @@ public final class OpenApiAcademicExamples {
     private OpenApiAcademicExamples() {
     }
 
+    public static final String SUCCESS_COURSE_FILTER_OPTIONS = """
+            {
+              "success": true,
+              "data": {
+                "departments": ["교양", "컴퓨터공학과"],
+                "grades": [1, 2, 3, 4],
+                "categories": ["교양선택", "교양필수", "전공선택", "전공필수"]
+              }
+            }
+            """;
+
     public static final String SUCCESS_COURSE_LIST_PAGE = """
             {
               "success": true,
@@ -97,6 +108,7 @@ public final class OpenApiAcademicExamples {
                     "professor": "문상혁",
                     "location": "영401",
                     "category": "전공선택",
+                    "department": "법학과",
                     "credits": 3,
                     "isOnline": false,
                     "schedule": [
@@ -141,6 +153,7 @@ public final class OpenApiAcademicExamples {
                     "professor": null,
                     "location": null,
                     "category": "교양선택",
+                    "department": "교양",
                     "credits": 3,
                     "isOnline": true,
                     "schedule": []
@@ -184,6 +197,7 @@ public final class OpenApiAcademicExamples {
                     "professor": "직접 입력",
                     "location": null,
                     "category": null,
+                    "department": "컴퓨터공학과",
                     "credits": 2,
                     "isOnline": true,
                     "schedule": []
@@ -286,6 +300,9 @@ public final class OpenApiAcademicExamples {
 
     public static final String ERROR_COURSE_ALREADY_IN_TIMETABLE =
             "{\"success\":false,\"message\":\"이미 시간표에 추가된 강의입니다.\",\"errorCode\":\"COURSE_ALREADY_IN_TIMETABLE\",\"timestamp\":\"2026-03-07T14:00:00\"}";
+
+    public static final String ERROR_MANUAL_COURSE_DEPARTMENT_UNSUPPORTED =
+            "{\"success\":false,\"message\":\"지원하지 않는 department입니다.\",\"errorCode\":\"VALIDATION_ERROR\",\"timestamp\":\"2026-08-14T10:00:00\"}";
 
     public static final String ERROR_ACADEMIC_SCHEDULE_NOT_FOUND =
             "{\"success\":false,\"message\":\"학사 일정을 찾을 수 없습니다.\",\"errorCode\":\"ACADEMIC_SCHEDULE_NOT_FOUND\",\"timestamp\":\"2026-03-07T14:00:00\"}";

@@ -19,6 +19,7 @@ import com.skuri.skuri_backend.domain.academic.exception.CourseNotFoundException
 import com.skuri.skuri_backend.domain.academic.exception.TimetableConflictException;
 import com.skuri.skuri_backend.domain.academic.repository.CourseRepository;
 import com.skuri.skuri_backend.domain.academic.repository.UserTimetableRepository;
+import com.skuri.skuri_backend.domain.member.service.DepartmentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,7 @@ public class TimetableService {
 
     private final UserTimetableRepository userTimetableRepository;
     private final CourseRepository courseRepository;
+    private final DepartmentService departmentService;
 
     @Transactional(readOnly = true)
     public List<TimetableSemesterOptionResponse> getMySemesters(String userId) {
@@ -92,9 +94,17 @@ public class TimetableService {
         }
 
         boolean isOnline = Boolean.TRUE.equals(request.isOnline());
+        String requestedDepartment = trimToNull(request.department());
+        String department = requestedDepartment == null
+                ? null
+                : departmentService.normalizeSupported(requestedDepartment);
+        if (requestedDepartment != null && department == null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "지원하지 않는 department입니다.");
+        }
         timetable.addManualCourse(
                 normalizeRequired(request.name(), "name"),
                 trimToNull(request.professor()),
+                department,
                 request.credits(),
                 isOnline,
                 isOnline ? null : trimToNull(request.locationLabel()),
@@ -256,6 +266,7 @@ public class TimetableService {
                 course.getProfessor(),
                 course.getLocation(),
                 course.getCategory(),
+                course.getDepartment(),
                 course.getCredits(),
                 course.isOnline(),
                 course.getSchedules().stream()
@@ -277,6 +288,7 @@ public class TimetableService {
                 displayProfessor(course.getProfessor()),
                 course.getLocation(),
                 null,
+                course.getDepartment(),
                 course.getCredits(),
                 course.isOnline(),
                 schedules

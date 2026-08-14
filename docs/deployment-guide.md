@@ -267,6 +267,251 @@ GROUP BY status;
 - `withdrawn_at`은 nullable 컬럼이라 기존 운영 DB에서는 Hibernate update에 맡겨도 되지만, 운영 표준 절차상 상태 컬럼 선행 마이그레이션은 필수로 본다.
 - 관련 정책 설명은 [`member-withdrawal-policy.md`](./member-withdrawal-policy.md)를 함께 참조한다.
 
+## 10.1 학과 master/FK 및 강의 이수구분 정규화
+
+학과 master와 강의 필터가 포함된 버전은 아래 순서로 운영 DB를 먼저 준비한 뒤 배포한다. 현재 런타임이 `spring.jpa.hibernate.ddl-auto=update`를 사용하더라도, 기존 데이터가 있는 컬럼의 FK와 데이터 정규화는 Hibernate에 맡기지 않는다.
+
+### 확인된 운영 데이터 기준
+
+2026-08-14에 전달받은 운영 조회 결과의 기준값은 다음과 같다. 이 값이 달라졌다면 이 문서의 기대 건수를 그대로 적용하지 말고 작업을 중단해 재검토한다.
+
+- `courses`: 2,179건
+- 단축 이수구분: `전선` 647건, `전필` 45건, `교선` 176건, `교필` 180건
+- 정규화 대상 합계: 1,048건
+- `members.department`: null 12건, non-null 1,001건, canonical master 밖의 값 0건
+- `chat_rooms.department`: 29개 canonical 학과가 각각 1건, master 밖의 값 0건
+
+이 수치는 사용자가 운영 DB에서 실행해 전달한 결과를 기준으로 하며, 문서 작성자가 별도 운영 DB 접속으로 재인증한 값은 아니다.
+
+### 준비된 SQL 파일
+
+- [`sql/2026-08-14-department-course-preflight.sql`](./sql/2026-08-14-department-course-preflight.sql): 대상 DB의 테이블/컬럼/collation/category 분포/FK를 읽기 전용으로 확인한다.
+- [`sql/2026-08-14-department-course-migration.sql`](./sql/2026-08-14-department-course-migration.sql): 환경 검증, 동적 collation 일치, 학과 seed, 직접 입력 학과 컬럼, category 정규화, FK 생성을 수행하는 procedure를 정의한다. 파일을 읽는 것만으로 migration이 실행되지는 않는다.
+- [`sql/2026-08-14-department-course-postcheck.sql`](./sql/2026-08-14-department-course-postcheck.sql): 적용 후 category 잔여값, 학과 orphan, FK 3개를 검증한다.
+
+비밀번호는 명령행에 직접 적지 않고 `mysql -p` 프롬프트 또는 운영자가 관리하는 MySQL login path를 사용한다. `.env` 파일을 `source`해서 shell 환경으로 펼치지 않는다.
+
+#### 로컬 DB 적용
+
+현재 Mac의 기본 로컬 대상은 `127.0.0.1:3306/skuri`다. 새 DB라면 먼저 현재 백엔드를 `JPA_DDL_AUTO=update`로 한 번 기동해 legacy 필수 테이블을 만든다. 기존 DB라면 바로 아래 절차를 사용한다.
+
+```bash
+mysql -h 127.0.0.1 -P 3306 -u <LOCAL_DB_USER> -p skuri
+```
+
+mysql prompt에서 실행한다.
+
+```sql
+SOURCE docs/sql/2026-08-14-department-course-preflight.sql;
+SOURCE docs/sql/2026-08-14-department-course-migration.sql;
+CALL migrate_department_course(-1);
+SOURCE docs/sql/2026-08-14-department-course-postcheck.sql;
+DROP PROCEDURE migrate_department_course;
+```
+
+- `-1`은 로컬 데이터의 실제 정규화 대상 건수를 허용한다는 의미다.
+- 지원하지 않는 category, canonical master로 해석할 수 없는 학과, FK schema 불일치는 로컬에서도 즉시 중단한다.
+- 로컬도 운영과 같은 FK 3개를 갖도록 맞춰야 개발/테스트 환경에서 무결성 차이를 발견할 수 있다.
+
+#### 운영 DB 적용
+
+앱을 내리고 백업을 확보한 뒤 SSH tunnel을 통해 운영 MySQL의 loopback 포트에 접속한다. 예시는 로컬 tunnel endpoint가 `127.0.0.1:3307`인 경우다.
+
+```bash
+mysql -h 127.0.0.1 -P 3307 -u <PROD_DB_USER> -p <PROD_DB_NAME>
+```
+
+mysql prompt에서 먼저 preflight 결과가 이 절의 운영 기준과 여전히 같은지 확인한 뒤 실행한다.
+
+```sql
+SOURCE docs/sql/2026-08-14-department-course-preflight.sql;
+SOURCE docs/sql/2026-08-14-department-course-migration.sql;
+CALL migrate_department_course(1048);
+SOURCE docs/sql/2026-08-14-department-course-postcheck.sql;
+DROP PROCEDURE migrate_department_course;
+```
+
+- 운영 `1048`은 전달받은 2026-08-14 조회 결과에 대한 안전장치다.
+- 실행 시점의 preflight 결과가 달라졌다면 숫자만 임의로 바꾸지 말고 신규 데이터 유입 원인을 확인한 뒤 기대값을 다시 승인한다.
+- MySQL DDL은 rollback되지 않으므로 백업과 앱 중지가 필수다. procedure는 가능한 오류를 DDL 전에 검사하지만, 실행 중 인프라 장애까지 원자적으로 되돌릴 수는 없다.
+- migration 성공 후에만 새 백엔드를 배포하고 API smoke test를 진행한다.
+
+### 1. 사전 조건과 스키마 확인
+
+1. 앱을 내리고 DB 백업을 확보한다.
+2. 아래 쿼리로 FK 양쪽 컬럼의 타입/문자셋/collation을 확인한다.
+3. `departments.name`은 참조 컬럼과 정확히 같은 `VARCHAR(50)`, character set, collation으로 만든다. 하나라도 다르면 FK를 추가하지 말고 먼저 스키마를 맞춘다.
+
+```sql
+SELECT table_name, column_name, column_type, character_set_name,
+       collation_name, is_nullable
+FROM information_schema.columns
+WHERE table_schema = DATABASE()
+  AND (
+    (table_name = 'members' AND column_name = 'department')
+    OR (table_name = 'chat_rooms' AND column_name = 'department')
+    OR (table_name = 'user_timetable_manual_courses' AND column_name = 'department')
+  )
+ORDER BY table_name;
+```
+
+### 2. 학과 master 생성과 seed
+
+아래 `CHARACTER SET`/`COLLATE` 값은 1단계에서 확인한 실제 운영 값으로 대체한다.
+
+```sql
+CREATE TABLE departments (
+    name VARCHAR(50) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    display_order INT NOT NULL,
+    PRIMARY KEY (name),
+    INDEX idx_departments_active_order (active, display_order, name)
+) ENGINE = InnoDB
+  DEFAULT CHARACTER SET = <MEMBERS_DEPARTMENT_CHARACTER_SET>
+  COLLATE = <MEMBERS_DEPARTMENT_COLLATION>;
+
+INSERT INTO departments (name, active, display_order) VALUES
+('신학과', TRUE, 1),
+('기독교교육상담학과', TRUE, 2),
+('문화선교학과', TRUE, 3),
+('영어영문학과', TRUE, 4),
+('중어중문학과', TRUE, 5),
+('국어국문학과', TRUE, 6),
+('사회복지학과', TRUE, 7),
+('국제개발협력학과', TRUE, 8),
+('행정학과', TRUE, 9),
+('관광학과', TRUE, 10),
+('경영학과', TRUE, 11),
+('글로벌물류학과', TRUE, 12),
+('산업경영공학과', TRUE, 13),
+('유아교육과', TRUE, 14),
+('체육교육과', TRUE, 15),
+('교직부', TRUE, 16),
+('컴퓨터공학과', TRUE, 17),
+('정보통신공학과', TRUE, 18),
+('미디어소프트웨어학과', TRUE, 19),
+('도시디자인정보공학과', TRUE, 20),
+('음악학부', TRUE, 21),
+('실용음악과', TRUE, 22),
+('공연음악예술학부', TRUE, 23),
+('연기예술학과', TRUE, 24),
+('영화영상학과', TRUE, 25),
+('연극영화학부', TRUE, 26),
+('뷰티디자인학과', TRUE, 27),
+('융합학부', TRUE, 28),
+('파이데이아학부', TRUE, 29);
+
+ALTER TABLE user_timetable_manual_courses
+    ADD COLUMN department VARCHAR(50)
+        CHARACTER SET <MEMBERS_DEPARTMENT_CHARACTER_SET>
+        COLLATE <MEMBERS_DEPARTMENT_COLLATION>
+        NULL AFTER professor;
+```
+
+`user_timetable_manual_courses.department`도 `departments.name`과 동일한 character set/collation이어야 한다. 컬럼이 이미 있으면 `ADD COLUMN`은 실행하지 않고, 1단계 조회를 다시 실행해 실제 속성을 확인한다.
+
+### 3. FK 전 orphan 검증
+
+모든 결과가 0건이어야 한다. `소프트웨어학과`가 발견되면 `미디어소프트웨어학과`로 명시적으로 정규화한 뒤 다시 검증한다. 그 외 값은 임의 매핑하지 않는다.
+
+```sql
+SELECT m.department, COUNT(*) AS count
+FROM members m
+LEFT JOIN departments d ON d.name = m.department
+WHERE m.department IS NOT NULL AND d.name IS NULL
+GROUP BY m.department;
+
+SELECT c.department, COUNT(*) AS count
+FROM chat_rooms c
+LEFT JOIN departments d ON d.name = c.department
+WHERE c.department IS NOT NULL AND d.name IS NULL
+GROUP BY c.department;
+
+SELECT mc.department, COUNT(*) AS count
+FROM user_timetable_manual_courses mc
+LEFT JOIN departments d ON d.name = mc.department
+WHERE mc.department IS NOT NULL AND d.name IS NULL
+GROUP BY mc.department;
+```
+
+### 4. 강의 이수구분 정규화
+
+이 단계만 별도 트랜잭션으로 실행한다. `normalized_count = 1048`이고 사후 집계가 아래 기대값과 일치할 때만 `COMMIT`한다. 다르면 `ROLLBACK`하고 원인을 확인한다.
+
+```sql
+START TRANSACTION;
+
+UPDATE courses
+SET category = CASE category
+    WHEN '전선' THEN '전공선택'
+    WHEN '전필' THEN '전공필수'
+    WHEN '교선' THEN '교양선택'
+    WHEN '교필' THEN '교양필수'
+    ELSE category
+END
+WHERE category IN ('전선', '전필', '교선', '교필');
+
+SELECT ROW_COUNT() AS normalized_count;
+
+SELECT category, COUNT(*) AS count
+FROM courses
+GROUP BY category
+ORDER BY category;
+
+-- 기대값:
+-- 교양선택 331, 교양필수 386, 교직 57,
+-- 전공선택 1294, 전공필수 111 (합계 2179)
+
+-- 검증 성공 시 운영자가 COMMIT;
+-- 검증 실패 시 운영자가 ROLLBACK;
+```
+
+신규 bulk 강의 입력은 애플리케이션에서도 같은 단축 표기를 canonical 장문 표기로 정규화하므로, 마이그레이션 뒤에 단축 표기가 다시 쌓이지 않는다.
+
+### 5. FK 추가
+
+orphan 검증이 모두 0건이고 세 컬럼의 타입/문자셋/collation이 같을 때만 실행한다. 학과명 변경/삭제가 회원·공개채팅방·직접 입력 강의에 암묵적으로 전파되지 않도록 `RESTRICT`를 사용한다.
+
+```sql
+ALTER TABLE members
+    ADD CONSTRAINT fk_members_department
+    FOREIGN KEY (department) REFERENCES departments(name)
+    ON UPDATE RESTRICT ON DELETE RESTRICT;
+
+ALTER TABLE chat_rooms
+    ADD CONSTRAINT fk_chat_rooms_department
+    FOREIGN KEY (department) REFERENCES departments(name)
+    ON UPDATE RESTRICT ON DELETE RESTRICT;
+
+CREATE INDEX idx_user_timetable_manual_courses_department
+    ON user_timetable_manual_courses(department);
+
+ALTER TABLE user_timetable_manual_courses
+    ADD CONSTRAINT fk_user_timetable_manual_courses_department
+    FOREIGN KEY (department) REFERENCES departments(name)
+    ON UPDATE RESTRICT ON DELETE RESTRICT;
+```
+
+- `courses.department`: 강의 원본의 자유 텍스트이므로 FK를 두지 않는다. 강의 화면 필터는 해당 학기 값의 중복 제거 목록을 사용한다.
+- `notices.department`: 회원 소속 학과가 아니라 공지 발행 부서/출처 의미이므로 FK를 두지 않는다.
+
+### 6. 애플리케이션 배포 후 확인
+
+```sql
+SELECT name, active, display_order
+FROM departments
+ORDER BY display_order, name;
+
+SELECT category, COUNT(*) AS count
+FROM courses
+GROUP BY category
+ORDER BY category;
+```
+
+- 인증 후 `GET /v1/departments`가 활성 29개 학과를 순서대로 반환하는지 확인한다.
+- `GET /v1/courses/filter-options?semester=<현재 학기>`가 강의 테이블 기반 학과/학년/이수구분을 반환하는지 확인한다.
+- 프로필 학과 저장과 직접 입력 강의 학과 저장에서 미지원 학과가 `422 VALIDATION_ERROR`로 거부되는지 확인한다.
+
 ## 11. 배포 후 체크리스트
 
 - `docker ps`에서 `skuri-backend` 정상 실행 확인

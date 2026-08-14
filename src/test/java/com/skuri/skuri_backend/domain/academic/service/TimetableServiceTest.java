@@ -10,6 +10,7 @@ import com.skuri.skuri_backend.domain.academic.entity.Course;
 import com.skuri.skuri_backend.domain.academic.entity.UserTimetable;
 import com.skuri.skuri_backend.domain.academic.repository.CourseRepository;
 import com.skuri.skuri_backend.domain.academic.repository.UserTimetableRepository;
+import com.skuri.skuri_backend.domain.member.service.DepartmentService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -22,6 +23,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -34,6 +36,9 @@ class TimetableServiceTest {
 
     @Mock
     private CourseRepository courseRepository;
+
+    @Mock
+    private DepartmentService departmentService;
 
     @InjectMocks
     private TimetableService timetableService;
@@ -167,7 +172,7 @@ class TimetableServiceTest {
 
         UserTimetableResponse response = timetableService.addManualCourse(
                 "user-1",
-                new CreateMyManualTimetableCourseRequest("2026-1", "플랫폼세미나", "", 2, true, null, null, null, null)
+                new CreateMyManualTimetableCourseRequest("2026-1", "플랫폼세미나", "", null, 2, true, null, null, null, null)
         );
 
         assertEquals(1, response.courseCount());
@@ -177,6 +182,62 @@ class TimetableServiceTest {
         assertEquals("직접 입력", response.courses().get(0).professor());
         assertEquals(0, response.courses().get(0).schedule().size());
         assertEquals(0, response.slots().size());
+    }
+
+    @Test
+    void addManualCourse_학과를canonical값으로저장하고응답한다() {
+        UserTimetable timetable = timetable("timetable-1", "user-1", "2026-1");
+        when(userTimetableRepository.findDetailByUserIdAndSemesterForUpdate("user-1", "2026-1"))
+                .thenReturn(Optional.of(timetable));
+        when(departmentService.normalizeSupported("소프트웨어학과")).thenReturn("미디어소프트웨어학과");
+
+        UserTimetableResponse response = timetableService.addManualCourse(
+                "user-1",
+                new CreateMyManualTimetableCourseRequest(
+                        "2026-1", "플랫폼세미나", "정태현", "소프트웨어학과", 2, true,
+                        null, null, null, null
+                )
+        );
+
+        assertEquals("미디어소프트웨어학과", response.courses().get(0).department());
+    }
+
+    @Test
+    void addManualCourse_빈학과는선택하지않은값으로저장한다() {
+        UserTimetable timetable = timetable("timetable-1", "user-1", "2026-1");
+        when(userTimetableRepository.findDetailByUserIdAndSemesterForUpdate("user-1", "2026-1"))
+                .thenReturn(Optional.of(timetable));
+
+        UserTimetableResponse response = timetableService.addManualCourse(
+                "user-1",
+                new CreateMyManualTimetableCourseRequest(
+                        "2026-1", "플랫폼세미나", "정태현", "  ", 2, true,
+                        null, null, null, null
+                )
+        );
+
+        assertNull(response.courses().get(0).department());
+    }
+
+    @Test
+    void addManualCourse_지원하지않는학과면_검증예외() {
+        UserTimetable timetable = timetable("timetable-1", "user-1", "2026-1");
+        when(userTimetableRepository.findDetailByUserIdAndSemesterForUpdate("user-1", "2026-1"))
+                .thenReturn(Optional.of(timetable));
+        when(departmentService.normalizeSupported("없는학과")).thenReturn(null);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> timetableService.addManualCourse(
+                        "user-1",
+                        new CreateMyManualTimetableCourseRequest(
+                                "2026-1", "플랫폼세미나", "정태현", "없는학과", 2, true,
+                                null, null, null, null
+                        )
+                )
+        );
+
+        assertEquals(ErrorCode.VALIDATION_ERROR, exception.getErrorCode());
     }
 
     @Test
@@ -193,7 +254,7 @@ class TimetableServiceTest {
                 BusinessException.class,
                 () -> timetableService.addManualCourse(
                         "user-1",
-                        new CreateMyManualTimetableCourseRequest("2026-1", "모바일프로그래밍", "김서윤", 2, false, "공학관 503", 6, 1, 3)
+                        new CreateMyManualTimetableCourseRequest("2026-1", "모바일프로그래밍", "김서윤", null, 2, false, "공학관 503", 6, 1, 3)
                 )
         );
 
@@ -279,7 +340,7 @@ class TimetableServiceTest {
             Integer startPeriod,
             Integer endPeriod
     ) {
-        timetable.addManualCourse(name, null, 2, isOnline, location, dayOfWeek, startPeriod, endPeriod);
+        timetable.addManualCourse(name, null, null, 2, isOnline, location, dayOfWeek, startPeriod, endPeriod);
         ReflectionTestUtils.setField(timetable.getManualCourses().get(timetable.getManualCourses().size() - 1), "id", courseId);
     }
 }

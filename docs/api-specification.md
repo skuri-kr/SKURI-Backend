@@ -341,6 +341,7 @@ Spring 서버 처리:
 - JSON `null`도 런타임에서는 "변경 없음"으로 해석합니다. 특히 `photoUrl: null`은 삭제가 아니라 기존 값을 유지합니다.
 - `nickname`은 `members.nickname`을 수정합니다.
 - `department`는 서버가 지원하는 학과 카탈로그 기준으로만 허용합니다.
+  - 학과 카탈로그의 runtime source of truth는 `departments` 테이블입니다.
   - legacy 표기(예: `소프트웨어학과`)는 canonical 값으로 정규화해 저장합니다.
   - 지원하지 않는 값은 `422 VALIDATION_ERROR`를 반환합니다.
 - `realname`은 회원 생성 시 provider 이름으로 초기화되며, 이 API로 수정할 수 없습니다.
@@ -356,6 +357,27 @@ Spring 서버 처리:
   "studentId": "20201234",
   "department": "컴퓨터공학과",
   "photoUrl": "https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg"
+}
+```
+
+#### GET /v1/departments
+활성 학과 목록 조회
+
+**인증:** Firebase ID Token 필수
+
+- 프론트의 프로필/직접 입력 강의 학과 드롭다운은 이 API를 사용합니다.
+- `departments.active = true`인 학과만 `displayOrder`, `name` 순으로 반환합니다.
+- 강의 검색용 학과 목록은 이 API가 아니라 해당 학기 `courses.department`의 중복 제거 값을 사용합니다.
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": [
+    { "name": "신학과" },
+    { "name": "국어국문학과" },
+    { "name": "영어영문학과" }
+  ]
 }
 ```
 
@@ -2838,7 +2860,8 @@ Authorization:Bearer <firebase_id_token>
 | 파라미터 | 타입 | 설명 |
 |---------|------|------|
 | `semester` | string | 학기 (예: `2026-1`, 미지정 시 전체 학기 검색) |
-| `department` | string | 학과 |
+| `department` | string | 학과 완전 일치 필터 |
+| `category` | string | 이수구분 완전 일치 필터 |
 | `professor` | string | 교수명 |
 | `search` | string | 강의명/과목코드/카테고리/교수/강의실/비고 키워드 검색 |
 | `dayOfWeek` | int | 요일 (1-6, 월-토) |
@@ -2909,6 +2932,32 @@ Authorization:Bearer <firebase_id_token>
 - 공식 강의도 `isOnline`을 가질 수 있다.
 - 공식 온라인 강의는 `schedule=[]`, `location=null`로 응답될 수 있다.
 - 공식 강의와 직접 입력 강의는 저장 모델은 분리하지만, 온라인 의미와 시간표 노출 규칙은 동일하게 맞춘다.
+- `category` 응답과 bulk 저장 값은 `전공선택`, `전공필수`, `교양선택`, `교양필수`, `교직` canonical 표기를 사용한다.
+- `courses.department`는 대학 강의 원본의 자유 텍스트이므로 `departments`에 대한 FK를 두지 않는다.
+
+#### GET /v1/courses/filter-options
+학기별 강의 필터 옵션 조회
+
+**Query Parameters:**
+
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| `semester` | string | 학기 (필수, 예: `2026-1`) |
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "departments": ["교양", "컴퓨터공학과"],
+    "grades": [1, 2, 3, 4],
+    "categories": ["전공선택", "전공필수", "교양선택", "교양필수", "교직"]
+  }
+}
+```
+
+- 각 목록은 요청 학기의 `courses` 값에서 `null`/공백을 제외하고 중복 제거해 반환한다.
+- 강의 학과는 별도 canonical 매핑을 하지 않으며 `courses.department` 값을 그대로 사용한다.
 
 ### 7.2 시간표
 
@@ -2954,6 +3003,7 @@ Authorization:Bearer <firebase_id_token>
         "division": "001",
         "name": "민법총칙",
         "professor": "문상혁",
+        "department": "법학과",
         "location": "영401",
         "category": "전공선택",
         "credits": 3,
@@ -2968,6 +3018,7 @@ Authorization:Bearer <firebase_id_token>
         "division": "001",
         "name": "사랑의인문학(KCU온라인강좌)",
         "professor": null,
+        "department": "교양",
         "location": null,
         "category": "교양선택",
         "credits": 3,
@@ -3021,6 +3072,7 @@ Authorization:Bearer <firebase_id_token>
   "semester": "2026-1",
   "name": "캡스톤세미나",
   "professor": "정태현",
+  "department": "컴퓨터공학과",
   "credits": 3,
   "isOnline": false,
   "locationLabel": "공학관 502",
@@ -3036,6 +3088,7 @@ Authorization:Bearer <firebase_id_token>
   "semester": "2026-1",
   "name": "플랫폼세미나",
   "professor": "",
+  "department": null,
   "credits": 2,
   "isOnline": true,
   "locationLabel": null,
@@ -3046,10 +3099,21 @@ Authorization:Bearer <firebase_id_token>
 ```
 
 검증 규칙:
+- `department`는 선택값이며, 생략하거나 `null`로 보내면 학과를 저장하지 않는다. 입력한 경우 `departments`의 활성 학과만 허용한다. legacy alias는 canonical 값으로 정규화해 저장한다.
 - `isOnline = true`면 `locationLabel`, `dayOfWeek`, `startPeriod`, `endPeriod`는 모두 선택값이다.
 - `isOnline = false`면 `locationLabel`, `dayOfWeek`, `startPeriod`, `endPeriod`가 모두 필요하다.
 - `dayOfWeek`는 `1-6 (월-토)` 범위를 사용한다.
 - 온라인 강의는 시간 충돌 검사 대상이 아니며 `slots[]`에 포함되지 않는다.
+
+지원하지 않는 `department`를 입력한 경우 `422 Unprocessable Content`:
+```json
+{
+  "success": false,
+  "message": "지원하지 않는 department입니다.",
+  "errorCode": "VALIDATION_ERROR",
+  "timestamp": "2026-08-14T10:00:00"
+}
+```
 
 **Response (200 OK):**
 
@@ -7226,6 +7290,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 ---
 
 > 변경 이력
+> - 2026-08-14: DB 기반 학과 master와 시간표 강의 필터 추가 — `GET /v1/departments`, `GET /v1/courses/filter-options`, 강의 `category` exact 필터, 직접 입력 강의 `department` 계약과 canonical 이수구분 정책을 반영
 > - 2026-03-30: Minecraft API 초안 추가 — `GET /v1/minecraft/overview`, `GET /v1/minecraft/players`, `GET/POST/DELETE /v1/members/me/minecraft-accounts*`, `GET /v1/sse/minecraft`, `/internal/minecraft/**` 및 shared secret 정책을 문서화
 > - 2026-03-29: Admin Dashboard API 계약 추가
 >   - `GET /v1/admin/dashboard/summary`, `GET /v1/admin/dashboard/activity`, `GET /v1/admin/dashboard/recent-items`를 추가

@@ -226,14 +226,14 @@ room/member/message와 summary를 함께 맞추는 ETL이 필요하다.
 
 이 모두 깨진다.
 
-### 5.4 학과방은 현재 DepartmentCatalog 기준과 맞춰야 한다
+### 5.4 학과방은 현재 departments master 기준과 맞춰야 한다
 
-현재 학과방 seed는 `DepartmentCatalog`를 기준으로 생성된다.
+현재 학과방 seed는 `departments.active = true`인 학과를 기준으로 생성된다.
 
 따라서 Firestore 학과방을 옮길 때:
 
 - 이름은 `{학과명} 채팅방`
-- department 값은 현재 catalog 값과 일치
+- department 값은 현재 `departments.name` 값과 일치
 - room id는 `public:department:<sha256-prefix>`
 
 로 맞춰야 한다.
