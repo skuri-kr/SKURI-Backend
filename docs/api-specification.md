@@ -3099,11 +3099,21 @@ Authorization:Bearer <firebase_id_token>
 ```
 
 검증 규칙:
-- `department`는 선택값이며, 입력한 경우 `departments`의 활성 학과만 허용한다. legacy alias는 canonical 값으로 정규화해 저장한다.
+- `department`는 선택값이며, 생략하거나 `null`로 보내면 학과를 저장하지 않는다. 입력한 경우 `departments`의 활성 학과만 허용한다. legacy alias는 canonical 값으로 정규화해 저장한다.
 - `isOnline = true`면 `locationLabel`, `dayOfWeek`, `startPeriod`, `endPeriod`는 모두 선택값이다.
 - `isOnline = false`면 `locationLabel`, `dayOfWeek`, `startPeriod`, `endPeriod`가 모두 필요하다.
 - `dayOfWeek`는 `1-6 (월-토)` 범위를 사용한다.
 - 온라인 강의는 시간 충돌 검사 대상이 아니며 `slots[]`에 포함되지 않는다.
+
+지원하지 않는 `department`를 입력한 경우 `422 Unprocessable Content`:
+```json
+{
+  "success": false,
+  "message": "지원하지 않는 department입니다.",
+  "errorCode": "VALIDATION_ERROR",
+  "timestamp": "2026-08-14T10:00:00"
+}
+```
 
 **Response (200 OK):**
 

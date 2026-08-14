@@ -234,7 +234,10 @@ public class TimetableController {
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(name = "validation_error", value = OpenApiCommonExamples.ERROR_VALIDATION)
+                            examples = {
+                                    @ExampleObject(name = "unsupported_department", value = OpenApiAcademicExamples.ERROR_MANUAL_COURSE_DEPARTMENT_UNSUPPORTED),
+                                    @ExampleObject(name = "validation_error", value = OpenApiCommonExamples.ERROR_VALIDATION)
+                            }
                     )
             )
     })

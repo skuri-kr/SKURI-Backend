@@ -301,6 +301,9 @@ public final class OpenApiAcademicExamples {
     public static final String ERROR_COURSE_ALREADY_IN_TIMETABLE =
             "{\"success\":false,\"message\":\"이미 시간표에 추가된 강의입니다.\",\"errorCode\":\"COURSE_ALREADY_IN_TIMETABLE\",\"timestamp\":\"2026-03-07T14:00:00\"}";
 
+    public static final String ERROR_MANUAL_COURSE_DEPARTMENT_UNSUPPORTED =
+            "{\"success\":false,\"message\":\"지원하지 않는 department입니다.\",\"errorCode\":\"VALIDATION_ERROR\",\"timestamp\":\"2026-08-14T10:00:00\"}";
+
     public static final String ERROR_ACADEMIC_SCHEDULE_NOT_FOUND =
             "{\"success\":false,\"message\":\"학사 일정을 찾을 수 없습니다.\",\"errorCode\":\"ACADEMIC_SCHEDULE_NOT_FOUND\",\"timestamp\":\"2026-03-07T14:00:00\"}";
 
