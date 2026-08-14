@@ -5,6 +5,17 @@ public final class OpenApiAcademicExamples {
     private OpenApiAcademicExamples() {
     }
 
+    public static final String SUCCESS_COURSE_FILTER_OPTIONS = """
+            {
+              "success": true,
+              "data": {
+                "departments": ["교양", "컴퓨터공학과"],
+                "grades": [1, 2, 3, 4],
+                "categories": ["교양선택", "교양필수", "전공선택", "전공필수"]
+              }
+            }
+            """;
+
     public static final String SUCCESS_COURSE_LIST_PAGE = """
             {
               "success": true,
@@ -97,6 +108,7 @@ public final class OpenApiAcademicExamples {
                     "professor": "문상혁",
                     "location": "영401",
                     "category": "전공선택",
+                    "department": "법학과",
                     "credits": 3,
                     "isOnline": false,
                     "schedule": [
@@ -141,6 +153,7 @@ public final class OpenApiAcademicExamples {
                     "professor": null,
                     "location": null,
                     "category": "교양선택",
+                    "department": "교양",
                     "credits": 3,
                     "isOnline": true,
                     "schedule": []
@@ -184,6 +197,7 @@ public final class OpenApiAcademicExamples {
                     "professor": "직접 입력",
                     "location": null,
                     "category": null,
+                    "department": "컴퓨터공학과",
                     "credits": 2,
                     "isOnline": true,
                     "schedule": []

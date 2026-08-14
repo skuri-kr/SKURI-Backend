@@ -27,6 +27,9 @@ public record TimetableCourseResponse(
         @Schema(description = "이수 구분", nullable = true, example = "전공선택")
         String category,
 
+        @Schema(description = "학과", nullable = true, example = "컴퓨터공학과")
+        String department,
+
         @Schema(description = "학점", example = "3")
         Integer credits,
 

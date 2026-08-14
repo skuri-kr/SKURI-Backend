@@ -40,6 +40,9 @@ public class UserTimetableManualCourse {
     @Column(length = 50)
     private String professor;
 
+    @Column(length = 50)
+    private String department;
+
     @Column(nullable = false)
     private Integer credits;
 
@@ -62,6 +65,7 @@ public class UserTimetableManualCourse {
             UserTimetable timetable,
             String name,
             String professor,
+            String department,
             Integer credits,
             boolean online,
             String location,
@@ -72,6 +76,7 @@ public class UserTimetableManualCourse {
         this.timetable = timetable;
         this.name = name;
         this.professor = professor;
+        this.department = department;
         this.credits = credits;
         this.online = online;
         this.location = location;
@@ -84,6 +89,7 @@ public class UserTimetableManualCourse {
             UserTimetable timetable,
             String name,
             String professor,
+            String department,
             Integer credits,
             boolean online,
             String location,
@@ -95,6 +101,7 @@ public class UserTimetableManualCourse {
                 timetable,
                 name,
                 professor,
+                department,
                 credits,
                 online,
                 location,

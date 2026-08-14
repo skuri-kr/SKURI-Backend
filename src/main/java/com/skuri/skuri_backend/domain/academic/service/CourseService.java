@@ -8,6 +8,7 @@ import com.skuri.skuri_backend.domain.academic.dto.request.AdminBulkCourseSchedu
 import com.skuri.skuri_backend.domain.academic.dto.request.AdminBulkCoursesRequest;
 import com.skuri.skuri_backend.domain.academic.dto.response.AdminBulkCoursesResponse;
 import com.skuri.skuri_backend.domain.academic.dto.response.CourseScheduleResponse;
+import com.skuri.skuri_backend.domain.academic.dto.response.CourseFilterOptionsResponse;
 import com.skuri.skuri_backend.domain.academic.dto.response.CourseSummaryResponse;
 import com.skuri.skuri_backend.domain.academic.entity.Course;
 import com.skuri.skuri_backend.domain.academic.entity.CourseSchedule;
@@ -46,6 +47,7 @@ public class CourseService {
     public PageResponse<CourseSummaryResponse> getCourses(
             String semester,
             String department,
+            String category,
             String professor,
             String search,
             Integer dayOfWeek,
@@ -58,6 +60,7 @@ public class CourseService {
         Page<Course> coursePage = courseRepository.search(
                 AcademicSemesterResolver.resolve(semester, false),
                 trimToNull(department),
+                CourseCategoryNormalizer.normalize(trimToNull(category)),
                 trimToNull(professor),
                 trimToNull(search),
                 dayOfWeek,
@@ -66,6 +69,16 @@ public class CourseService {
         );
         Map<String, Course> detailedCourses = fetchDetailedCourses(coursePage.getContent());
         return PageResponse.from(coursePage.map(course -> toCourseSummaryResponse(detailedCourses.getOrDefault(course.getId(), course))));
+    }
+
+    @Transactional(readOnly = true)
+    public CourseFilterOptionsResponse getCourseFilterOptions(String semester) {
+        String resolvedSemester = AcademicSemesterResolver.require(semester);
+        return new CourseFilterOptionsResponse(
+                courseRepository.findDistinctDepartmentsBySemester(resolvedSemester),
+                courseRepository.findDistinctGradesBySemester(resolvedSemester),
+                courseRepository.findDistinctCategoriesBySemester(resolvedSemester)
+        );
     }
 
     @Transactional
@@ -85,7 +98,9 @@ public class CourseService {
             String code = normalizeRequired(courseRequest.code(), "code", 20);
             String division = normalizeRequired(courseRequest.division(), "division", 10);
             String name = normalizeRequired(courseRequest.name(), "name", 100);
-            String category = normalizeRequired(courseRequest.category(), "category", 50);
+            String category = CourseCategoryNormalizer.normalize(
+                    normalizeRequired(courseRequest.category(), "category", 50)
+            );
             String department = normalizeRequired(courseRequest.department(), "department", 50);
             String professor = normalizeOptional(courseRequest.professor(), "professor", 50);
             String note = normalizeOptional(courseRequest.note(), "note", 500);
