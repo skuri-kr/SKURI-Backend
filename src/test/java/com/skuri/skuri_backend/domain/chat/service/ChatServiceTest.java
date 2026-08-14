@@ -22,7 +22,6 @@ import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
-import com.skuri.skuri_backend.domain.member.service.DepartmentService;
 import com.skuri.skuri_backend.domain.minecraft.config.MinecraftBridgeProperties;
 import com.skuri.skuri_backend.domain.minecraft.service.MinecraftAvatarService;
 import com.skuri.skuri_backend.domain.minecraft.service.MinecraftBridgeOutboxService;
@@ -79,9 +78,6 @@ class ChatServiceTest {
     private MemberRepository memberRepository;
 
     @Mock
-    private DepartmentService departmentService;
-
-    @Mock
     private PartyMessageService partyMessageService;
 
     @Mock
@@ -108,8 +104,6 @@ class ChatServiceTest {
     @BeforeEach
     void setUp() {
         lenient().when(minecraftBridgeProperties.normalizedRoomId()).thenReturn("public:game:minecraft");
-        lenient().when(departmentService.normalizeOrOriginal(anyString()))
-                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -128,6 +122,31 @@ class ChatServiceTest {
         assertEquals(2, rooms.size());
         assertEquals(List.of("public:university", "public:department:cs"), rooms.stream().map(ChatRoomSummaryResponse::id).toList());
         assertFalse(rooms.get(0).joined());
+        verify(memberRepository, times(1)).findActiveById("member-1");
+    }
+
+    @Test
+    void getChatRooms_legacy학과별칭은_DB추가조회없이canonical공개방과일치한다() {
+        Member member = activeMember("member-1", "소프트웨어학과");
+        ChatRoom departmentRoom = ChatRoom.create(
+                "public:department:software",
+                "미디어소프트웨어학과 채팅방",
+                ChatRoomType.DEPARTMENT,
+                "미디어소프트웨어학과",
+                null,
+                null,
+                true,
+                null
+        );
+
+        when(memberRepository.findActiveById("member-1")).thenReturn(Optional.of(member));
+        when(chatRoomRepository.findAll()).thenReturn(List.of(departmentRoom));
+        when(chatRoomMemberRepository.findById_MemberId("member-1")).thenReturn(List.of());
+
+        List<ChatRoomSummaryResponse> rooms = chatService.getChatRooms("member-1", null, null);
+
+        assertEquals(List.of("public:department:software"), rooms.stream().map(ChatRoomSummaryResponse::id).toList());
+        verify(memberRepository, times(1)).findActiveById("member-1");
     }
 
     @Test

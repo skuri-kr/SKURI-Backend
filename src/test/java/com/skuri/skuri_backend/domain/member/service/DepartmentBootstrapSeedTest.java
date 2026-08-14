@@ -7,7 +7,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -22,6 +26,16 @@ class DepartmentBootstrapSeedTest {
 
     @InjectMocks
     private DepartmentBootstrapSeed bootstrapSeed;
+
+    @Test
+    void seed_이벤트리스너메서드에최우선순서를지정한다() throws NoSuchMethodException {
+        Order order = DepartmentBootstrapSeed.class
+                .getDeclaredMethod("seed")
+                .getAnnotation(Order.class);
+
+        assertNotNull(order);
+        assertEquals(Ordered.HIGHEST_PRECEDENCE, order.value());
+    }
 
     @Test
     void seed_빈DB에는초기29개학과를생성한다() {

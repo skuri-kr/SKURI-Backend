@@ -7,7 +7,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.times;
@@ -25,6 +29,16 @@ class PublicChatRoomSeedMigrationTest {
 
     @InjectMocks
     private PublicChatRoomSeedMigration seedMigration;
+
+    @Test
+    void seed_학과bootstrap다음순서를이벤트리스너메서드에지정한다() throws NoSuchMethodException {
+        Order order = PublicChatRoomSeedMigration.class
+                .getDeclaredMethod("seed")
+                .getAnnotation(Order.class);
+
+        assertNotNull(order);
+        assertEquals(Ordered.HIGHEST_PRECEDENCE + 1, order.value());
+    }
 
     @Test
     void seed_공개방이없으면_공식방과학과방을생성한다() {
