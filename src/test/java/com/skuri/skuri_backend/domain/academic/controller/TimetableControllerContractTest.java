@@ -17,6 +17,7 @@ import com.skuri.skuri_backend.infra.auth.firebase.FirebaseAuthenticationFilter;
 import com.skuri.skuri_backend.infra.auth.firebase.FirebaseTokenClaims;
 import com.skuri.skuri_backend.infra.auth.firebase.FirebaseTokenVerifier;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -25,8 +26,10 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -220,6 +223,38 @@ class TimetableControllerContractTest {
                 .andExpect(jsonPath("$.data.courses[0].isOnline").value(true))
                 .andExpect(jsonPath("$.data.slots").isArray())
                 .andExpect(jsonPath("$.data.slots").isEmpty());
+    }
+
+    @Test
+    void addManualCourse_legacy요청에서학과를생략해도_200() throws Exception {
+        mockValidToken();
+        when(timetableService.addManualCourse(eq("firebase-uid"), any(CreateMyManualTimetableCourseRequest.class)))
+                .thenReturn(manualOnlineTimetableResponse());
+
+        mockMvc.perform(
+                        post("/v1/timetables/my/manual-courses")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                                .contentType(APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "semester": "2026-1",
+                                          "name": "플랫폼세미나",
+                                          "professor": "",
+                                          "credits": 2,
+                                          "isOnline": true,
+                                          "locationLabel": null,
+                                          "dayOfWeek": null,
+                                          "startPeriod": null,
+                                          "endPeriod": null
+                                        }
+                                        """)
+                )
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<CreateMyManualTimetableCourseRequest> requestCaptor =
+                ArgumentCaptor.forClass(CreateMyManualTimetableCourseRequest.class);
+        verify(timetableService).addManualCourse(eq("firebase-uid"), requestCaptor.capture());
+        assertNull(requestCaptor.getValue().department());
     }
 
     @Test
