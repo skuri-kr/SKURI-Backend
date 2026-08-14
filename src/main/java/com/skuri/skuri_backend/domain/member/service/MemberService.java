@@ -4,7 +4,6 @@ import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.chat.service.ChatService;
 import com.skuri.skuri_backend.domain.image.service.ProfileImageStorageService;
-import com.skuri.skuri_backend.domain.member.constant.DepartmentCatalog;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberBankAccountRequest;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberNotificationSettingsRequest;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberProfileRequest;
@@ -44,6 +43,7 @@ public class MemberService {
     private final LinkedAccountRepository linkedAccountRepository;
     private final ChatService chatService;
     private final ProfileImageStorageService profileImageStorageService;
+    private final DepartmentService departmentService;
 
     // Intentionally non-transactional: insert 충돌(DataIntegrityViolationException) 이후
     // 복구 조회를 새로운 JPA 세션/트랜잭션에서 수행해 Session 오염을 피한다.
@@ -82,7 +82,7 @@ public class MemberService {
         Member member = getMemberOrThrow(memberId);
         String previousDepartment = member.getDepartment();
         String normalizedDepartment = request.department() != null
-                ? DepartmentCatalog.normalize(request.department())
+                ? departmentService.normalizeSupported(request.department())
                 : null;
         if (request.department() != null && StringUtils.hasText(request.department()) && normalizedDepartment == null) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, "지원하지 않는 department입니다.");

@@ -28,7 +28,7 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
-import com.skuri.skuri_backend.domain.member.constant.DepartmentCatalog;
+import com.skuri.skuri_backend.domain.member.service.DepartmentService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
@@ -73,6 +73,7 @@ public class ChatService {
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final MemberRepository memberRepository;
+    private final DepartmentService departmentService;
     private final PartyMessageService partyMessageService;
     private final ChatMessageOrderGenerator chatMessageOrderGenerator;
     private final SimpMessagingTemplate messagingTemplate;
@@ -1013,8 +1014,7 @@ public class ChatService {
     }
 
     private String normalizeDepartment(String value) {
-        String normalized = DepartmentCatalog.normalize(value);
-        return normalized != null ? normalized : normalizeNullable(value);
+        return departmentService.normalizeOrOriginal(value);
     }
 
     private void removeMembership(ChatRoomMember membership, boolean notifyRemovedMember, boolean publishSummaryEvent) {
