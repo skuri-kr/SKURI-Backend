@@ -94,6 +94,8 @@ Hooks:
   - Member
     - uid, email, nickname, studentId, department
     - photoURL, realname, isAdmin, joinedAt, lastLogin
+  - Department
+    - name(PK), active, displayOrder
   - NotificationSetting
     - allNotifications, partyNotifications, noticeNotifications
     - boardLikeNotifications, commentNotifications, bookmarkedPostCommentNotifications
@@ -107,6 +109,11 @@ Hooks:
 
 특이사항:
   - 모든 도메인에서 참조하는 핵심 엔티티
+  - 학과 master의 runtime source of truth는 `departments` 테이블이며, 활성 학과 목록은 `GET /v1/departments`로 제공
+  - `members.department`, `chat_rooms.department`, `user_timetable_manual_courses.department`는 `departments.name` FK로 연결
+  - `courses.department`는 강의 원본 자유 텍스트이므로 FK 대상에서 제외
+  - `notices.department`는 회원 소속 학과가 아니라 공지 발행 부서/출처 의미이므로 FK 대상에서 제외
+  - legacy `소프트웨어학과` 입력은 `미디어소프트웨어학과`로 정규화하고, 그 외 지원 여부는 DB의 활성 학과로 검증
   - FCM 토큰 관리는 인프라(Notification)로 이동
   - 인증 필터에서 `email` 도메인(`@sungkyul.ac.kr`)을 강제 검증
   - 보호 API는 활성 회원(`members.status = ACTIVE`)만 접근 가능하며, 탈퇴 회원은 `403 MEMBER_WITHDRAWN`으로 차단
@@ -342,11 +349,11 @@ Hooks:
 역할:
   - 파티 채팅: TaxiParty 도메인이 규칙 관리, Chat은 엔진만 제공
   - 공개 채팅: Chat 도메인이 전체 관리
-  - 공식 공개방은 seed migration으로 `UNIVERSITY 1개 + GAME 1개 + 학과방들 + 사용자 생성 CUSTOM` 구조를 유지
+  - 공식 공개방은 seed migration으로 `UNIVERSITY 1개 + GAME 1개 + 활성 departments 학과방들 + 사용자 생성 CUSTOM` 구조를 유지
   - 공개방 visibility는 서버가 강제한다.
     - `UNIVERSITY`, `GAME`, `CUSTOM`: 전체 사용자 노출
     - `DEPARTMENT`: 본인 학과와 일치하는 방만 노출
-    - 회원 `department`는 서버 카탈로그 기준 canonical 값으로 정규화하고 legacy 학과명은 alias 매핑으로 흡수
+    - 회원 `department`는 `departments` 테이블 기준 canonical 값으로 정규화하고 legacy 학과명은 alias 매핑으로 흡수
   - 미참여 공개방도 목록/상세 조회는 가능하지만, 메시지 조회/읽음/mute는 참여자만 가능
   - 관리자 운영 조회는 별도 admin read API로 제공한다.
     - `GET /v1/admin/chat-rooms*`: `isPublic=true && type!=PARTY` 공개 채팅방 전체를 membership/학과 제한 없이 조회
@@ -668,7 +675,7 @@ Hooks:
   - UserTimetableCourse
     - timetableId, courseId
   - UserTimetableManualCourse
-    - id, timetableId, name, professor, credits
+    - id, timetableId, name, professor, department, credits
     - isOnline, location, dayOfWeek, startPeriod, endPeriod
     - 온라인 강의는 location/schedule 없이 저장 가능
   - AcademicSchedule
@@ -678,9 +685,14 @@ Hooks:
     - bulk sync 자연키는 `title + startDate + endDate + type`이며, 같은 자연키는 같은 일정으로 보고 `description`, `isPrimary`만 변경 가능 필드로 취급한다.
     - bulk sync는 legacy Firebase 스크립트 호환을 위해 `type: single | multi | SINGLE | MULTI`를 모두 허용한다.
   - Course 검색
-    - semester/department/professor/dayOfWeek(1-6)/grade 필터 지원
+    - semester/department/category/professor/dayOfWeek(1-6)/grade 필터 지원
+    - department/category는 선택값의 완전 일치 조건으로 조회
     - search는 강의명/과목코드/카테고리/교수/강의실/비고를 대상으로 한다
     - 공식 온라인 강의는 `isOnline=true`, `schedule=[]`, `location=null`로 정규화해 반환할 수 있다.
+    - `GET /v1/courses/filter-options`는 학기별 `courses.department`, `grade`, `category`를 null/공백 제외 후 중복 제거해 반환
+    - 강의 학과는 `courses.department` 원본 값이 source of truth이며 `departments` FK/canonical alias를 적용하지 않음
+    - 이수구분은 `전공선택`, `전공필수`, `교양선택`, `교양필수`, `교직` 장문 표기를 canonical 값으로 사용하고 bulk 입력의 `전선`, `전필`, `교선`, `교필`을 저장 전에 정규화
+    - 직접 입력 강의의 학과는 선택값이며 입력 시 `departments`의 활성 학과로 검증/정규화
   - Timetable 학기 옵션
     - `GET /v1/timetables/my/semesters`
     - 강의 카탈로그 학기 + 내 시간표 학기(직접 입력 포함)의 합집합을 최신 학기 우선으로 반환

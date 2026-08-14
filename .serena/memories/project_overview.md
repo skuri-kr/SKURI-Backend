@@ -18,7 +18,7 @@
 - minecraft: `public:game:minecraft` 공개 채팅방, plugin 전용 internal bridge(`/internal/minecraft/**` + SSE), 앱/플러그인 간 양방향 채팅, 서버 상태, 온라인 플레이어 스냅샷, 화이트리스트/JE·BE 검증 정책을 Spring이 source of truth로 관리하며, plugin inbound `eventId` idempotency와 outbox replay tie-breaker(`minecraft_bridge_events.id`)를 서버가 보장
 - board: 게시글/댓글/좋아요/북마크, 이미지 썸네일 규칙
 - notice: 학교 공지/댓글/읽음/북마크/앱 공지. `notices.thumbnail_url`는 `TEXT` 캐시 컬럼이며, `http/https` 또는 기존 상대경로 이미지 위주로만 저장한다. `data:`/`blob:`/과도하게 긴 값은 `null` 처리하고, `/v1/notices`는 projection query로 필요한 컬럼만 읽는다. 기존 row는 `NOTICE_THUMBNAILS` migration plan으로 DB `body_html`만 읽어 backfill한다.
-- academic: 강의/시간표/학사 일정, `GET /v1/timetables/my/semesters`, 직접 입력 강의(`UserTimetableManualCourse`), 공식 강의 `Course.isOnline`, 시간표 응답 `courses[] + slots[]` + `isOnline` 계약. 공식 온라인 강의는 직접 입력 온라인 강의와 같은 의미로 `slots[]`/충돌 검사에서 제외하지만 저장 모델은 분리 유지
+- academic: 강의/시간표/학사 일정, `GET /v1/timetables/my/semesters`, `GET /v1/courses/filter-options`, 직접 입력 강의(`UserTimetableManualCourse`), 공식 강의 `Course.isOnline`, 시간표 응답 `courses[] + slots[]` + `isOnline` 계약. 강의 필터 학과/학년/이수구분은 해당 학기 `courses` 값을 중복 제거해 제공하고 category 단축 표기는 bulk 저장 전에 장문 canonical 표기로 정규화한다. 직접 입력 학과는 `departments` master를 사용한다. 공식 온라인 강의는 직접 입력 온라인 강의와 같은 의미로 `slots[]`/충돌 검사에서 제외하지만 저장 모델은 분리 유지
 - campus: 캠퍼스 배너 공개/관리자 API
 - support: 문의/신고(게시글/댓글/회원/채팅 메시지/일반 채팅방/택시파티)/앱 버전/법적 문서/학식. 학식은 기존 `menus`와 함께 `categories`, `menuEntries`(stable weekly id, title, badges, 실제 `likeCount`/`dislikeCount`, `myReaction`)를 제공하며 가격은 계약에서 제외한다. 보조 태그는 관리자 입력 메타데이터로 저장하고, 관리자 요청의 `likeCount`/`dislikeCount`는 deprecated 입력으로 남기되 저장 시 무시한다. 같은 주 안의 동일 `category + title`은 날짜가 달라도 동일 메타데이터를 강제한다. 카테고리 코드는 메뉴 ID 안정성을 위해 영문/숫자/_/-만 허용한다. `menus` 검증 시 빈 카테고리 생략은 `menuEntries`의 빈 배열과 같은 의미로 본다. 사용자 반응은 `PUT /v1/cafeteria-menu-reactions/{menuId}` 한 개의 upsert API로 등록/전환/취소하며, source of truth는 `cafeteria_menu_reactions` row다. 반응 upsert는 같은 요청 재시도/더블탭에서도 500이 나지 않도록 주차 row lock으로 직렬화한다.
 - notification: 인앱 인박스, FCM, SSE, 이벤트 기반 알림 처리
@@ -55,6 +55,7 @@
 ## Admin Member API 메모
 - `member` 도메인은 관리자 백오피스 회원 관리 API를 제공한다: `GET /v1/admin/members`, `GET /v1/admin/members/{memberId}`, `GET /v1/admin/members/{memberId}/activity`, `PATCH /v1/admin/members/{memberId}/admin-role`.
 - 관리자 목록은 `query/status/isAdmin/department` 필터와 `sortBy/sortDirection` 정렬을 지원한다. 기본값은 `joinedAt desc`, null 값은 항상 마지막이며 이름 컬럼은 `realname`을 사용한다. `lastLoginOs`, `currentAppVersion`은 최근 활성 FCM 토큰(`coalesce(last_used_at, created_at)` 최신)의 `fcm_tokens.platform`, `fcm_tokens.app_version`을 같은 대표 토큰 기준으로 사용한다.
+- 학과 runtime source of truth는 `departments(name PK, active, displayOrder)`다. `GET /v1/departments`는 활성 학과를 반환하고, 회원/직접 입력 강의 검증과 공개 학과방 seed가 이를 사용한다. `members.department`, `chat_rooms.department`, `user_timetable_manual_courses.department`는 FK 적용 대상이며, 원본 자유 텍스트인 `courses.department`와 공지 발행부서 의미의 `notices.department`는 제외한다.
 - `POST /v1/members/me/fcm-tokens`는 optional `appVersion`을 받는다. 신규 토큰 등록 시 미전송하면 `null`로 저장하고, 같은 토큰 재등록 시 `null` 또는 빈 문자열이면 기존 값을 유지한다.
 - 관리자 상세는 목록 필드 외에 `photoUrl`, `withdrawnAt`, `bankAccount`, `notificationSetting`을 포함한다.
 - 관리자 활동 요약은 ACTIVE 회원만 제공하며, 현재 저장된 post/comment/party/inquiry/report 데이터 기준 count + domain별 recent 5건 read model을 반환한다. 댓글은 삭제되지 않은 comment이면서 부모 post도 삭제되지 않은 경우만 포함하고, 탈퇴 회원은 `409 MEMBER_ACTIVITY_NOT_AVAILABLE_FOR_WITHDRAWN`으로 비제공 처리한다.

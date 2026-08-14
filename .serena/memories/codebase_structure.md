@@ -8,10 +8,11 @@
 
 ## 주요 패키지 메모
 - `domain/taxiparty`: 파티 상태 전이, 정산 snapshot, taxi history/summary, 목록/SSE 요약 DTO가 `participantSummaries`로 현재 멤버 프로필 사진(`members.photo_url`)과 리더 여부를 함께 노출
-- `domain/chat`: 공개/파티 채팅, SYSTEM 메시지, 읽음 처리, 공개방 seed, `ChatService`가 REST/STOMP `ChatMessageResponse.senderPhotoUrl`을 `members.photo_url`로 매핑
+- `domain/chat`: 공개/파티 채팅, SYSTEM 메시지, 읽음 처리, 공개방 seed, `ChatService`가 REST/STOMP `ChatMessageResponse.senderPhotoUrl`을 `members.photo_url`로 매핑. 학과방 seed는 활성 `departments` row를 사용한다.
+- `domain/member`: 회원/프로필과 DB 기반 학과 master. `DepartmentService`가 활성 학과 목록, legacy alias 정규화, 회원/직접 입력 강의 검증을 담당하고 `DepartmentBootstrapSeed`는 초기 master 누락분만 보충한다.
 - `domain/board`: 게시글/댓글/좋아요/북마크, 이미지 연결
 - `domain/notice`: 학교 공지, 공지 댓글, 북마크, 앱 공지. `Notice.thumbnailUrl` 저장 컬럼과 `NoticeSummaryProjection` 기반 `/v1/notices` 목록 경량화가 들어가 있으며, 목록 경로는 `bodyHtml/bodyText/attachments`를 select하지 않는다.
-- `domain/academic`: 강의, 시간표, 학사 일정, 시간표 학기 목록/직접 입력 강의/온라인 강의 `isOnline` 계약; 공식 강의 `Course`도 `isOnline`을 가지며 bulk 업로드(`AdminBulkCourseRequest`)에서 온라인 강의를 받을 수 있다. `TimetableService`는 공식 온라인 강의와 직접 입력 온라인 강의를 모두 `slots[]`/충돌 검사에서 제외하고, `CourseService`는 온라인 공식 강의를 `schedule=[]`, `location=null`로 정규화한다.
+- `domain/academic`: 강의, 시간표, 학사 일정, 시간표 학기 목록/직접 입력 강의/온라인 강의 `isOnline` 계약; 공식 강의 `Course`도 `isOnline`을 가지며 bulk 업로드(`AdminBulkCourseRequest`)에서 온라인 강의를 받을 수 있다. `CourseService`는 학기별 학과/학년/이수구분 distinct 필터 옵션을 제공하고 bulk category 단축 표기를 장문 canonical 표기로 정규화한다. 공식 강의 학과는 `courses.department` 원본을 유지하며, 직접 입력 학과만 `departments` master로 검증한다. `TimetableService`는 공식 온라인 강의와 직접 입력 온라인 강의를 모두 `slots[]`/충돌 검사에서 제외하고, 온라인 공식 강의를 `schedule=[]`, `location=null`로 정규화한다.
 - `domain/campus`: 캠퍼스 배너 공개/관리자 API
 - `domain/support`: 문의, 신고(게시글/댓글/회원/채팅 메시지/일반 채팅방/택시파티), 앱 버전, 법적 문서, 학식; 학식은 `CafeteriaMenu.menu_entries` JSON 컬럼과 구조화 응답 `categories`, `menuEntries`를 함께 사용한다. `CafeteriaMenuService`가 저장 시 같은 주의 동일 `category + title` 메타데이터 일관성을 검증하고, `menus` 비교 시 빈 카테고리 생략을 `menuEntries` 빈 배열과 동치로 정규화한다. 실제 사용자 반응은 `CafeteriaMenuReaction`, `CafeteriaMenuReactionRepository`, `CafeteriaMenuReactionService`, `CafeteriaMenuReactionController`가 담당하며, stable weekly menu id(`weekId + category + title` 기반)와 `cafeteria_menu_reactions` 집계를 조회 응답 `likeCount`/`dislikeCount`/`myReaction`에 주입한다. 관리자 요청의 `likeCount`/`dislikeCount`는 deprecated 입력으로만 허용하고 저장 시 무시한다. `ReportService`가 board/chat/taxiparty 저장소를 조회해 `targetAuthorId`를 해석한다.
 - `domain/notification`: 인앱 알림, unread count, SSE snapshot

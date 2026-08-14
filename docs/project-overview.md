@@ -12,7 +12,7 @@
 - 학교 공지: 크롤링 공지, 읽음/좋아요/북마크, 댓글
 - 커뮤니티: 게시글/댓글/좋아요/이미지
 - 채팅: 공개 채팅방 + 택시 파티 채팅
-- 생활 정보: 시간표, 학식, 학사 일정, 마인크래프트 정보
+- 생활 정보: 학과 master, 강의 필터가 포함된 시간표, 학식, 학사 일정, 마인크래프트 정보
 
 대상 사용자는 `@sungkyul.ac.kr` 이메일 계정을 가진 성결대학교 학생이다.
 
@@ -61,12 +61,14 @@
 
 백엔드 패키지 구조는 도메인 중심이다.
 
+- [domain/member](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/member): 회원 프로필과 DB 기반 canonical 학과 master (`GET /v1/departments`)
 - [domain/taxiparty](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/taxiparty): 택시 파티, 동승 요청, 정산
 - [domain/chat](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/chat): 공개 채팅 + 파티 채팅
 - [domain/notice](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/notice): 학교 공지, 댓글, 북마크
 - [domain/support](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/support): 문의/신고, 문의 첨부 이미지 메타데이터, 앱 버전, 법적 문서, 학식
 - [domain/board](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/board): 커뮤니티 게시판
 - [domain/notification](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/notification): 인앱 알림 + 푸시
+- [domain/academic](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/academic): 강의/시간표/학사 일정, 학기별 학과·학년·이수구분 필터 옵션과 category canonical 정규화. 공식 강의 학과는 `courses.department` 원본, 직접 입력 강의 학과는 `departments` master를 사용
 - [infra](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/infra): auth, storage, openapi, admin 지원
 - [infra/migration](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/infra/migration): Firestore/RTDB export를 읽어 MySQL로 적재하는 1회성 notice/cutover migration 러너. cutover 시간표는 live MySQL에 없는 학기/unknown user를 skip하고 `timetable-skips.json`, `course-matches.json`으로 추적한다.
 
