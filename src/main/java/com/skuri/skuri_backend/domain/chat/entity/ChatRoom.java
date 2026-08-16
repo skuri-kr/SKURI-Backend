@@ -19,6 +19,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChatRoom extends BaseTimeEntity {
 
+    private static final int LAST_MESSAGE_TEXT_MAX_CODE_POINTS = 500;
+
     @Id
     @Column(length = 100)
     private String id;
@@ -148,10 +150,17 @@ public class ChatRoom extends BaseTimeEntity {
     }
 
     private void applyLastMessage(ChatMessage message) {
-        this.lastMessageText = message.getText();
+        this.lastMessageText = summarizeLastMessageText(message.getText());
         this.lastMessageSenderId = message.getSenderId();
         this.lastMessageSenderName = message.getSenderName();
         this.lastMessageType = message.getType();
         this.lastMessageTimestamp = message.getCreatedAt() != null ? message.getCreatedAt() : LocalDateTime.now();
+    }
+
+    private String summarizeLastMessageText(String text) {
+        if (text == null || text.codePointCount(0, text.length()) <= LAST_MESSAGE_TEXT_MAX_CODE_POINTS) {
+            return text;
+        }
+        return text.substring(0, text.offsetByCodePoints(0, LAST_MESSAGE_TEXT_MAX_CODE_POINTS));
     }
 }
