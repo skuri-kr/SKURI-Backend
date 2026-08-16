@@ -1542,8 +1542,8 @@ FCM 토큰 삭제
         "senderPhotoUrl": "https://cdn.skuri.app/uploads/profiles/profile.jpg",
         "text": "안녕하세요!",
         "type": "TEXT",
-        "createdAt": "2026-02-03T12:00:00Z",
-        "updatedAt": "2026-02-03T12:00:00Z",
+        "createdAt": "2026-02-03T12:00:00",
+        "updatedAt": "2026-02-03T12:00:00",
         "isDeleted": false
       },
       {
@@ -1554,14 +1554,14 @@ FCM 토큰 삭제
         "senderPhotoUrl": null,
         "text": "홍길동님이 입장했습니다.",
         "type": "SYSTEM",
-        "createdAt": "2026-02-03T11:59:00Z",
-        "updatedAt": "2026-02-03T11:59:00Z",
+        "createdAt": "2026-02-03T11:59:00",
+        "updatedAt": "2026-02-03T11:59:00",
         "isDeleted": false
       }
     ],
     "hasNext": true,
     "nextCursor": {
-      "createdAt": "2026-02-03T11:59:00Z",
+      "createdAt": "2026-02-03T11:59:00",
       "id": "message_uuid_2"
     }
   }

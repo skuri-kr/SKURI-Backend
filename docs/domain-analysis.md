@@ -373,7 +373,7 @@ Hooks:
     - 삭제: `TEXT`/`IMAGE`와 PARTY의 `ACCOUNT`만 tombstone 처리; history cursor 위치는 보존
     - Minecraft origin과 서버 생성 메시지는 수정/삭제 불가
     - 이미지 tombstone은 활성 참조와 신고 증거가 없을 때만 재시도 가능한 storage cleanup task로 처리한다. 원본·썸네일은 하나의 내부 이미지 자산으로 묶어 동일한 작업 잠금으로 참조 생성·신고 snapshot·정리를 직렬화하고, `chat_messages`·`reports`에는 같은 정규화 자산 키를 저장해 최신 커밋 기준의 인덱스 조회로 참조를 판정한다. 정리 완료 URL은 새 업로드 전까지 다시 전송하지 못하며, 새 `IMAGE` 메시지는 업로드 응답의 원본 `url`만 허용한다.
-    - 메시지 저장, 공개방 입·퇴장, 파티 멤버 동기화·탈퇴는 채팅방 행 잠금 뒤 최신 `memberCount`·마지막 메시지 요약을 갱신한다. 목록 요약은 행 잠금 아래에서 snapshot을 만든 뒤 트랜잭션 종료 후 전송하고, 단일 인스턴스에서는 같은 방의 발행 순서와 STOMP outbound publish 순서를 보장한다. `remember=true` 계좌 저장은 회원 잠금을 먼저 얻고 채팅방 잠금으로 진행해 회원 탈퇴와 같은 순서를 사용한다.
+    - 메시지 저장, 공개방 입·퇴장, 파티 멤버 동기화·탈퇴는 채팅방 행 잠금 뒤 최신 `memberCount`·마지막 메시지 요약을 갱신한다. 목록 요약은 행 잠금 아래에서 snapshot을 만든 뒤 트랜잭션 종료 후 전송하며, `lastReadAt`이 있는 멤버의 unread는 한 번의 집계 조회로 계산한다. 단일 인스턴스에서는 같은 방의 발행 순서와 STOMP outbound publish 순서를 보장한다. `lastMessageText`는 목록 미리보기여서 최대 500 code point만 저장하고 메시지 원문은 `chat_messages.text`에 보존한다. `remember=true` 계좌 저장은 회원 잠금을 먼저 얻고 채팅방 잠금으로 진행해 회원 탈퇴와 같은 순서를 사용한다.
   - 멤버 입장 직후 생성된 join `SYSTEM` 메시지는 해당 신규 멤버의 `lastReadAt`을 서버가 최신 메시지 시각으로 맞춰 unread가 0으로 유지되게 한다
   - 회원 프로필 학과 변경 시 기존 학과방 membership은 자동 제거하고, 새 학과방은 자동 참여시키지 않는다
   - 채팅방 목록 실시간: `/user/queue/chat-rooms` 사용자 전용 요약 채널 1개 구독
