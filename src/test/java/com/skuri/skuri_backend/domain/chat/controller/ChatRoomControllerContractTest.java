@@ -402,6 +402,42 @@ class ChatRoomControllerContractTest {
     }
 
     @Test
+    void updateMessage_토큰없음_401() throws Exception {
+        mockMvc.perform(
+                        patch("/v1/chat-rooms/room-1/messages/message-1")
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"text\":\"수정한 메시지입니다.\"}")
+                )
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        verifyNoInteractions(chatService);
+    }
+
+    @Test
+    void deleteMessage_토큰없음_401() throws Exception {
+        mockMvc.perform(delete("/v1/chat-rooms/room-1/messages/message-1"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        verifyNoInteractions(chatService);
+    }
+
+    @Test
+    void deleteMessage_삭제불가메시지면_409() throws Exception {
+        mockValidToken();
+        when(chatService.deleteMessage("firebase-uid", "room-1", "message-1"))
+                .thenThrow(new BusinessException(ErrorCode.CHAT_MESSAGE_DELETE_NOT_ALLOWED));
+
+        mockMvc.perform(
+                        delete("/v1/chat-rooms/room-1/messages/message-1")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("CHAT_MESSAGE_DELETE_NOT_ALLOWED"));
+    }
+
+    @Test
     void updateMessage_공백본문이면_422() throws Exception {
         mockValidToken();
 
