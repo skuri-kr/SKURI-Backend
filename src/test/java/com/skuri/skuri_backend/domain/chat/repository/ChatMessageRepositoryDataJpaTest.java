@@ -107,6 +107,41 @@ class ChatMessageRepositoryDataJpaTest {
         assertEquals("message-1", secondPage.get(0).getId());
     }
 
+    @Test
+    void 삭제된메시지도커서목록에는남고요약조회에서는제외한다() {
+        LocalDateTime createdAt = LocalDateTime.of(2026, 8, 16, 18, 0, 0);
+        String visibleMessageId = insertChatMessage("visible-message", "room-1", "현재 메시지", createdAt, 2L);
+        String deletedMessageId = insertChatMessage("deleted-message", "room-1", "삭제 전 메시지", createdAt.minusMinutes(1), 1L);
+        entityManager.createNativeQuery("""
+                update chat_messages
+                set text = null, deleted_at = :deletedAt
+                where id = :id
+                """)
+                .setParameter("deletedAt", createdAt)
+                .setParameter("id", deletedMessageId)
+                .executeUpdate();
+        entityManager.flush();
+        entityManager.clear();
+
+        List<ChatMessage> page = chatMessageRepository.findByCursor(
+                "room-1",
+                null,
+                null,
+                null,
+                PageRequest.of(0, 10)
+        );
+
+        assertEquals(List.of(visibleMessageId, deletedMessageId), page.stream().map(ChatMessage::getId).toList());
+        assertEquals(1L, chatMessageRepository.countByChatRoomIdAndDeletedAtIsNull("room-1"));
+        assertEquals(
+                visibleMessageId,
+                chatMessageRepository
+                        .findTopByChatRoomIdAndDeletedAtIsNullOrderByCreatedAtDescMessageOrderDescIdDesc("room-1")
+                        .orElseThrow()
+                        .getId()
+        );
+    }
+
     private String insertChatMessage(String chatRoomId, String text, LocalDateTime createdAt, Long messageOrder) {
         return insertChatMessage(UUID.randomUUID().toString(), chatRoomId, text, createdAt, messageOrder);
     }

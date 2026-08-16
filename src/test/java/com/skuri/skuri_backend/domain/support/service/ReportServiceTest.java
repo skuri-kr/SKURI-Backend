@@ -32,6 +32,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
+import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -152,18 +153,20 @@ class ReportServiceTest {
     @Test
     void createReport_chatMessage_발신자를대상작성자로저장() {
         ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
+        ChatMessage message = ChatMessage.create(
+                "room-1",
+                "sender-1",
+                "보낸이",
+                "광고 메시지",
+                ChatMessageType.TEXT,
+                null,
+                null
+        );
+        ReflectionTestUtils.setField(message, "id", "message-1");
+        ReflectionTestUtils.setField(message, "createdAt", LocalDateTime.of(2026, 8, 16, 10, 0));
         when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId("user-1", ReportTargetType.CHAT_MESSAGE, "message-1"))
                 .thenReturn(false);
-        when(chatMessageRepository.findById("message-1"))
-                .thenReturn(Optional.of(ChatMessage.create(
-                        "room-1",
-                        "sender-1",
-                        "보낸이",
-                        "광고 메시지",
-                        ChatMessageType.TEXT,
-                        null,
-                        null
-                )));
+        when(chatMessageRepository.findByIdForUpdate("message-1")).thenReturn(Optional.of(message));
         when(reportRepository.saveAndFlush(captor.capture()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -179,6 +182,40 @@ class ReportServiceTest {
 
         assertEquals("sender-1", captor.getValue().getTargetAuthorId());
         assertEquals("SPAM", captor.getValue().getCategory());
+        assertEquals("광고 메시지", captor.getValue().getTargetSnapshot().text());
+        assertEquals(LocalDateTime.of(2026, 8, 16, 10, 0), captor.getValue().getTargetSnapshot().createdAt());
+    }
+
+    @Test
+    void createReport_삭제된채팅메시지는신고할수없다() {
+        ChatMessage deletedMessage = ChatMessage.create(
+                "room-1",
+                "sender-1",
+                "보낸이",
+                "이미 지운 메시지",
+                ChatMessageType.TEXT,
+                null,
+                null
+        );
+        deletedMessage.delete(LocalDateTime.of(2026, 8, 16, 10, 5));
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId("user-1", ReportTargetType.CHAT_MESSAGE, "message-1"))
+                .thenReturn(false);
+        when(chatMessageRepository.findByIdForUpdate("message-1")).thenReturn(Optional.of(deletedMessage));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> reportService.createReport(
+                        "user-1",
+                        new CreateReportRequest(
+                                ReportTargetType.CHAT_MESSAGE,
+                                "message-1",
+                                "SPAM",
+                                "삭제된 메시지 신고"
+                        )
+                )
+        );
+
+        assertEquals(ErrorCode.CHAT_MESSAGE_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test

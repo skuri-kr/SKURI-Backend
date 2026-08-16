@@ -3,6 +3,7 @@ package com.skuri.skuri_backend.domain.chat.integration;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessagePageResponse;
+import com.skuri.skuri_backend.domain.chat.dto.request.UpdateChatMessageRequest;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessage;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
@@ -280,6 +281,56 @@ class ChatWebSocketIntegrationTest {
         assertEquals("SYSTEM", page.messages().get(0).type().name());
         assertEquals("모집이 마감되었어요.", page.messages().get(0).text());
         assertEquals("https://cdn.skuri.app/uploads/profiles/ws-member.jpg", page.messages().get(0).senderPhotoUrl());
+
+        session.disconnect();
+    }
+
+    @Test
+    void 메시지수정은_변경이벤트토픽으로전달된다() throws Exception {
+        ChatMessage message = chatMessageRepository.save(ChatMessage.create(
+                "room-ws",
+                "ws-member",
+                "웹소켓테스터",
+                1L,
+                "수정 전 메시지",
+                com.skuri.skuri_backend.domain.chat.entity.ChatMessageType.TEXT,
+                null,
+                null
+        ));
+
+        String url = "http://localhost:" + port + "/ws";
+        StompHeaders connectHeaders = new StompHeaders();
+        connectHeaders.add("Authorization", "Bearer valid-token");
+        StompSession session = stompClient
+                .connectAsync(url, new WebSocketHttpHeaders(), connectHeaders, new StompSessionHandlerAdapter() {})
+                .get(5, TimeUnit.SECONDS);
+
+        LinkedBlockingQueue<Map<String, Object>> received = new LinkedBlockingQueue<>();
+        session.subscribe("/topic/chat/room-ws/events", new StompFrameHandler() {
+            @Override
+            public Type getPayloadType(StompHeaders headers) {
+                return Map.class;
+            }
+
+            @Override
+            public void handleFrame(StompHeaders headers, Object payload) {
+                received.offer((Map<String, Object>) payload);
+            }
+        });
+        Thread.sleep(300);
+
+        chatService.updateMessage(
+                "ws-member",
+                "room-ws",
+                message.getId(),
+                new UpdateChatMessageRequest("수정 후 메시지")
+        );
+
+        Map<String, Object> payload = received.poll(5, TimeUnit.SECONDS);
+        assertNotNull(payload);
+        assertEquals("MESSAGE_UPDATED", payload.get("eventType"));
+        assertEquals("수정 후 메시지", ((Map<?, ?>) payload.get("message")).get("text"));
+        assertEquals(false, ((Map<?, ?>) payload.get("message")).get("isDeleted"));
 
         session.disconnect();
     }

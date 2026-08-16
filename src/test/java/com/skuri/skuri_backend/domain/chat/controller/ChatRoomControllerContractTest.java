@@ -3,6 +3,7 @@ package com.skuri.skuri_backend.domain.chat.controller;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.chat.dto.request.CreateChatRoomRequest;
+import com.skuri.skuri_backend.domain.chat.dto.request.UpdateChatMessageRequest;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessagePageResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessageResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatReadUpdateResponse;
@@ -325,6 +326,95 @@ class ChatRoomControllerContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.messages[0].senderPhotoUrl").value("https://cdn.skuri.app/uploads/profiles/member-1.jpg"))
                 .andExpect(jsonPath("$.data.messages[1].senderPhotoUrl").value(Matchers.nullValue()));
+    }
+
+    @Test
+    void updateMessage_작성자텍스트수정_200() throws Exception {
+        mockValidToken();
+        when(chatService.updateMessage(eq("firebase-uid"), eq("room-1"), eq("message-1"), any(UpdateChatMessageRequest.class)))
+                .thenReturn(new ChatMessageResponse(
+                        "message-1",
+                        "room-1",
+                        "firebase-uid",
+                        "홍길동",
+                        null,
+                        com.skuri.skuri_backend.domain.chat.entity.ChatMessageType.TEXT,
+                        "수정한 메시지입니다.",
+                        null,
+                        null,
+                        null,
+                        LocalDateTime.of(2026, 3, 28, 14, 30),
+                        LocalDateTime.of(2026, 3, 28, 14, 32),
+                        LocalDateTime.of(2026, 3, 28, 14, 32),
+                        null,
+                        false
+                ));
+
+        mockMvc.perform(
+                        patch("/v1/chat-rooms/room-1/messages/message-1")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"text\":\"수정한 메시지입니다.\"}")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.text").value("수정한 메시지입니다."))
+                .andExpect(jsonPath("$.data.editedAt").value("2026-03-28T14:32:00"))
+                .andExpect(jsonPath("$.data.isDeleted").value(false));
+
+        verify(chatService).updateMessage(
+                "firebase-uid",
+                "room-1",
+                "message-1",
+                new UpdateChatMessageRequest("수정한 메시지입니다.")
+        );
+    }
+
+    @Test
+    void deleteMessage_tombstone응답_200() throws Exception {
+        mockValidToken();
+        when(chatService.deleteMessage("firebase-uid", "room-1", "message-1"))
+                .thenReturn(new ChatMessageResponse(
+                        "message-1",
+                        "room-1",
+                        "firebase-uid",
+                        "홍길동",
+                        null,
+                        com.skuri.skuri_backend.domain.chat.entity.ChatMessageType.TEXT,
+                        "삭제된 메시지입니다.",
+                        null,
+                        null,
+                        null,
+                        LocalDateTime.of(2026, 3, 28, 14, 30),
+                        LocalDateTime.of(2026, 3, 28, 14, 33),
+                        null,
+                        LocalDateTime.of(2026, 3, 28, 14, 33),
+                        true
+                ));
+
+        mockMvc.perform(
+                        delete("/v1/chat-rooms/room-1/messages/message-1")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.text").value("삭제된 메시지입니다."))
+                .andExpect(jsonPath("$.data.deletedAt").value("2026-03-28T14:33:00"))
+                .andExpect(jsonPath("$.data.isDeleted").value(true));
+    }
+
+    @Test
+    void updateMessage_공백본문이면_422() throws Exception {
+        mockValidToken();
+
+        mockMvc.perform(
+                        patch("/v1/chat-rooms/room-1/messages/message-1")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"text\":\"   \"}")
+                )
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+
+        verifyNoInteractions(chatService);
     }
 
     @Test

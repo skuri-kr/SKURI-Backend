@@ -9,6 +9,7 @@ import com.skuri.skuri_backend.domain.support.dto.request.UpdateReportStatusRequ
 import com.skuri.skuri_backend.domain.support.dto.response.AdminReportResponse;
 import com.skuri.skuri_backend.domain.support.entity.ReportStatus;
 import com.skuri.skuri_backend.domain.support.entity.ReportTargetType;
+import com.skuri.skuri_backend.domain.support.model.ChatMessageReportSnapshot;
 import com.skuri.skuri_backend.domain.support.service.ReportService;
 import com.skuri.skuri_backend.infra.auth.config.ApiAccessDeniedHandler;
 import com.skuri.skuri_backend.infra.auth.config.ApiAuthenticationEntryPoint;
@@ -93,6 +94,20 @@ class ReportAdminControllerContractTest {
                                 ReportTargetType.CHAT_MESSAGE,
                                 "message-1",
                                 "sender-1",
+                                new ChatMessageReportSnapshot(
+                                        "message-1",
+                                        "room-1",
+                                        "sender-1",
+                                        "보낸이",
+                                        com.skuri.skuri_backend.domain.chat.entity.ChatMessageType.TEXT,
+                                        "광고 메시지",
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        LocalDateTime.of(2026, 3, 29, 12, 0),
+                                        null
+                                ),
                                 "SPAM",
                                 "광고성 메시지입니다.",
                                 ReportStatus.PENDING,
@@ -116,7 +131,8 @@ class ReportAdminControllerContractTest {
                                 .param("targetType", "CHAT_MESSAGE")
                 )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.content[0].targetType").value("CHAT_MESSAGE"));
+                .andExpect(jsonPath("$.data.content[0].targetType").value("CHAT_MESSAGE"))
+                .andExpect(jsonPath("$.data.content[0].targetSnapshot.text").value("광고 메시지"));
     }
 
     @Test
