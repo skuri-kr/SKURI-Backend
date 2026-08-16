@@ -442,7 +442,8 @@ public class ChatRoomController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
                             @ExampleObject(name = "not_allowed", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_EDIT_NOT_ALLOWED),
                             @ExampleObject(name = "expired", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_EDIT_WINDOW_EXPIRED),
-                            @ExampleObject(name = "already_deleted", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_ALREADY_DELETED)
+                            @ExampleObject(name = "already_deleted", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_ALREADY_DELETED),
+                            @ExampleObject(name = "minecraft_message", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_MUTATION_NOT_ALLOWED)
                     })
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -495,7 +496,10 @@ public class ChatRoomController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
                     description = "삭제할 수 없는 메시지 타입 또는 마인크래프트 연동 메시지",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "not_allowed", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_DELETE_NOT_ALLOWED))
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "not_allowed", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_DELETE_NOT_ALLOWED),
+                            @ExampleObject(name = "minecraft_message", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_MUTATION_NOT_ALLOWED)
+                    })
             )
     })
     public ResponseEntity<ApiResponse<ChatMessageResponse>> deleteMessage(

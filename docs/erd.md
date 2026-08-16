@@ -200,7 +200,7 @@ erDiagram
     media_cleanup_tasks {
         varchar(36) id PK "UUID"
         varchar(500) relative_path UK "storage relative path"
-        enum status "PENDING,COMPLETED"
+        enum status "ACTIVE,PENDING,COMPLETED"
         int attempt_count
         datetime next_attempt_at "IDX(status,next_attempt_at)"
         datetime completed_at

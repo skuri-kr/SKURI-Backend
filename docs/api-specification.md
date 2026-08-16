@@ -1542,7 +1542,8 @@ FCM 토큰 삭제
         "senderPhotoUrl": "https://cdn.skuri.app/uploads/profiles/profile.jpg",
         "text": "안녕하세요!",
         "type": "TEXT",
-        "createdAt": "2026-02-03T12:00:00Z"
+        "createdAt": "2026-02-03T12:00:00Z",
+        "isDeleted": false
       },
       {
         "id": "message_uuid_2",
@@ -1552,7 +1553,8 @@ FCM 토큰 삭제
         "senderPhotoUrl": null,
         "text": "홍길동님이 입장했습니다.",
         "type": "SYSTEM",
-        "createdAt": "2026-02-03T11:59:00Z"
+        "createdAt": "2026-02-03T11:59:00Z",
+        "isDeleted": false
       }
     ],
     "hasNext": true,
@@ -1584,7 +1586,7 @@ FCM 토큰 삭제
 - 해당 채팅방 멤버이면서 메시지 작성자 본인만 요청할 수 있습니다.
 - `TEXT`, `IMAGE`, 그리고 `PARTY` 방의 `ACCOUNT` 메시지만 삭제할 수 있습니다. 서버 생성 `SYSTEM`/`ARRIVED`/`END`와 마인크래프트 연동 메시지는 삭제할 수 없습니다.
 - 삭제는 행을 제거하지 않는 tombstone 처리입니다. 동일 작성자의 재요청은 성공한 tombstone 응답을 다시 반환합니다.
-- 삭제된 이미지의 원본·썸네일은 활성 메시지 참조와 `CHAT_MESSAGE` 신고 증거가 모두 없을 때에만 비동기 정리 작업에 넣습니다. 실패한 파일 삭제는 DB 작업 큐에서 지수 backoff로 재시도합니다.
+- 삭제된 이미지의 원본·썸네일은 활성 메시지 참조와 `CHAT_MESSAGE` 신고 증거가 모두 없을 때에만 비동기 정리 작업에 넣습니다. 내부 채팅 이미지 경로는 참조 생성·정리를 같은 작업 잠금으로 직렬화하고, 이미 정리된 내부 URL은 새 업로드 없이 다시 전송할 수 없습니다. 실패한 파일 삭제는 DB 작업 큐에서 지수 backoff로 재시도합니다.
 - 성공 시 커밋 뒤 `/topic/chat/{chatRoomId}/events`로 `MESSAGE_DELETED` 이벤트를 보냅니다.
 
 **삭제 응답 예시:**
@@ -1727,6 +1729,7 @@ Authorization:Bearer <firebase_id_token>
 ```
 
 - `IMAGE` 메시지의 `imageUrl`은 `POST /v1/images`의 `CHAT_IMAGE` 업로드 결과 URL을 그대로 사용합니다.
+- 정리 완료된 내부 `CHAT_IMAGE` URL을 다시 전송하면 `CHAT_IMAGE_UNAVAILABLE` 오류가 발생하므로, 이미지를 다시 업로드해야 합니다.
 - 실시간 수신 payload와 `GET /v1/chat-rooms/{chatRoomId}/messages`의 `messages[]` item shape는 동일합니다.
 - 일반 채팅 메시지의 `senderPhotoUrl`은 앱 사용자 메시지는 `members.photo_url`, Minecraft origin 메시지는 Minotar URL을 사용합니다.
 
@@ -1920,6 +1923,7 @@ Authorization:Bearer <firebase_id_token>
 | `CHAT_MESSAGE_DELETE_NOT_ALLOWED` | 삭제할 수 없는 서버/연동 메시지 타입 |
 | `CHAT_MESSAGE_ALREADY_DELETED` | 이미 삭제된 메시지를 수정하려는 경우 |
 | `CHAT_MESSAGE_MUTATION_NOT_ALLOWED` | 마인크래프트 연동 메시지를 수정/삭제하려는 경우 |
+| `CHAT_IMAGE_UNAVAILABLE` | 정리 완료된 내부 채팅 이미지 URL을 다시 전송하려는 경우 |
 | `CHAT_ROOM_FULL` | 채팅방 정원 초과 |
 | `ALREADY_CHAT_ROOM_MEMBER` | 이미 참여 중인 채팅방 |
 | `STOMP_AUTH_FAILED` | WebSocket STOMP 연결 인증 실패 (토큰 검증 오류) |
@@ -5947,7 +5951,8 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "senderPhotoUrl": null,
         "type": "TEXT",
         "text": "스터디 인원 구합니다.",
-        "createdAt": "2026-04-06T17:40:00"
+        "createdAt": "2026-04-06T17:40:00",
+        "isDeleted": false
       },
       {
         "id": "chat-message-1",
@@ -5957,7 +5962,8 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "senderPhotoUrl": "https://cdn.skuri.app/profiles/member-3.png",
         "type": "TEXT",
         "text": "오늘 저녁에 모집할게요.",
-        "createdAt": "2026-04-06T17:20:00"
+        "createdAt": "2026-04-06T17:20:00",
+        "isDeleted": false
       }
     ],
     "nextCursor": {
@@ -6480,6 +6486,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 
 - `page < 0` 또는 `size < 1 || size > 100`이면 `422 VALIDATION_ERROR`
 - `status`, `targetType`이 enum 범위를 벗어나면 `400 INVALID_REQUEST`
+- `CHAT_MESSAGE` 신고는 접수 시점의 메시지 본문·이미지 URL·계좌 payload·작성/수정 시각을 `targetSnapshot`으로 보존합니다. snapshot 도입 전 신고와 다른 신고 타입은 `null`입니다.
 
 **Response (200 OK):**
 ```json
@@ -6493,6 +6500,20 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "targetType": "CHAT_MESSAGE",
         "targetId": "message_uuid",
         "targetAuthorId": "target_user_uuid",
+        "targetSnapshot": {
+          "messageId": "message_uuid",
+          "chatRoomId": "party:party-1",
+          "senderId": "target_user_uuid",
+          "senderName": "스쿠리 유저",
+          "originalType": "IMAGE",
+          "text": null,
+          "imageUrl": "https://cdn.skuri.app/chat/2026/08/16/message-image.png",
+          "accountData": null,
+          "direction": null,
+          "source": null,
+          "createdAt": "2026-08-16T20:00:00",
+          "editedAt": null
+        },
         "category": "SPAM",
         "reason": "광고성 메시지입니다.",
         "status": "PENDING",
@@ -6507,6 +6528,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "targetType": "CHAT_ROOM",
         "targetId": "chat_room_uuid",
         "targetAuthorId": "room_owner_uuid",
+        "targetSnapshot": null,
         "category": "ABUSE",
         "reason": "부적절한 목적의 채팅방입니다.",
         "status": "PENDING",
@@ -6521,6 +6543,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "targetType": "TAXI_PARTY",
         "targetId": "party_uuid",
         "targetAuthorId": "party_host_uuid",
+        "targetSnapshot": null,
         "category": "FRAUD",
         "reason": "운행/정산 방식이 부적절합니다.",
         "status": "PENDING",
@@ -6562,6 +6585,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
     "targetType": "POST",
     "targetId": "post_uuid",
     "targetAuthorId": "target_user_uuid",
+    "targetSnapshot": null,
     "category": "SPAM",
     "reason": "광고성 게시글입니다.",
     "status": "ACTIONED",
@@ -6754,7 +6778,8 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "senderPhotoUrl": null,
         "type": "TEXT",
         "text": "정문 앞 도착했습니다.",
-        "createdAt": "2026-03-04T20:55:00"
+        "createdAt": "2026-03-04T20:55:00",
+        "isDeleted": false
       },
       {
         "id": "party-message-2",
@@ -6764,7 +6789,8 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "senderPhotoUrl": null,
         "type": "SYSTEM",
         "text": "김철수님이 입장했어요.",
-        "createdAt": "2026-03-04T20:50:00"
+        "createdAt": "2026-03-04T20:50:00",
+        "isDeleted": false
       }
     ],
     "nextCursor": {

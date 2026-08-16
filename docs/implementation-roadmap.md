@@ -369,7 +369,7 @@ SSE 운영 제약:
 | 채팅방 목록 요약 스트림 | 목록 화면은 `/user/queue/chat-rooms` 단일 구독으로 카드 요약(이름/인원/마지막 메시지/미읽음) 수신 |
 | 읽음 처리 | `ChatRoomMember.lastReadAt` 기반 미읽음 수 계산 |
 | 메시지 수정/삭제 | 15분 이내 TEXT 수정, tombstone 삭제, 마지막 메시지 요약·미읽음 재계산, 커밋 후 mutation event 발행 |
-| 이미지 정리 재시도 | 삭제 이미지가 활성 참조·신고 증거에 쓰이지 않을 때만 `media_cleanup_tasks`에 적재하고 지수 backoff로 삭제 재시도 |
+| 이미지 정리 재시도 | 내부 채팅 이미지 경로를 작업 잠금으로 직렬화하고, 삭제 이미지가 활성 참조·신고 증거에 쓰이지 않을 때만 `media_cleanup_tasks`에 적재한다. 정리 완료 URL은 재업로드 전까지 다시 전송할 수 없으며, 삭제 실패는 지수 backoff로 재시도한다. |
 
 #### 3-3. API (REST + WebSocket)
 
