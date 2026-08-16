@@ -24,6 +24,7 @@ import lombok.NoArgsConstructor;
         name = "chat_messages",
         indexes = {
                 @Index(name = "idx_chat_messages_room_cursor", columnList = "chat_room_id, created_at, message_order, id"),
+                @Index(name = "idx_chat_messages_room_visible_latest", columnList = "chat_room_id, deleted_at, created_at, message_order, id"),
                 @Index(name = "uk_chat_messages_source_event_id", columnList = "source_event_id", unique = true)
         }
 )
@@ -79,6 +80,12 @@ public class ChatMessage extends BaseTimeEntity {
 
     @Column(name = "source_event_id", unique = true, length = 36)
     private String sourceEventId;
+
+    @Column(name = "edited_at")
+    private java.time.LocalDateTime editedAt;
+
+    @Column(name = "deleted_at")
+    private java.time.LocalDateTime deletedAt;
 
     private ChatMessage(
             String chatRoomId,
@@ -162,6 +169,22 @@ public class ChatMessage extends BaseTimeEntity {
 
     public boolean isMinecraftOrigin() {
         return hasSource(SOURCE_MINECRAFT);
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    public void editText(String text, java.time.LocalDateTime editedAt) {
+        this.text = text;
+        this.editedAt = editedAt;
+    }
+
+    public void delete(java.time.LocalDateTime deletedAt) {
+        this.text = null;
+        this.accountData = null;
+        this.arrivalData = null;
+        this.deletedAt = deletedAt;
     }
 
     public void updateArrivalData(ChatArrivalData arrivalData) {

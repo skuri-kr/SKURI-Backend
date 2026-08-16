@@ -5,10 +5,13 @@ import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.chat.dto.request.CreateChatRoomRequest;
 import com.skuri.skuri_backend.domain.chat.dto.request.SendChatMessageRequest;
+import com.skuri.skuri_backend.domain.chat.dto.request.UpdateChatMessageRequest;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatAccountDataResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatArrivalDataResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatArrivalSettlementMemberResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessageCursorResponse;
+import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessageMutationEventResponse;
+import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessageMutationEventType;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessagePageResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessageResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatReadUpdateResponse;
@@ -28,6 +31,8 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
+import com.skuri.skuri_backend.domain.image.service.MediaCleanupTaskService;
+import com.skuri.skuri_backend.domain.image.storage.StorageRepository;
 import com.skuri.skuri_backend.domain.member.constant.DepartmentAliasNormalizer;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
@@ -36,6 +41,8 @@ import com.skuri.skuri_backend.domain.minecraft.config.MinecraftBridgeProperties
 import com.skuri.skuri_backend.domain.minecraft.service.MinecraftAvatarService;
 import com.skuri.skuri_backend.domain.minecraft.service.MinecraftBridgeOutboxService;
 import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
+import com.skuri.skuri_backend.domain.support.entity.ReportTargetType;
+import com.skuri.skuri_backend.domain.support.repository.ReportRepository;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +58,7 @@ import org.springframework.util.StringUtils;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -68,6 +76,10 @@ public class ChatService {
     private static final int DEFAULT_MESSAGE_PAGE_SIZE = 50;
     private static final int MAX_MESSAGE_PAGE_SIZE = 100;
     private static final ZoneId CHAT_TIME_ZONE = ZoneId.of("Asia/Seoul");
+    private static final String DELETED_MESSAGE_TEXT = "삭제된 메시지입니다.";
+    private static final int MESSAGE_EDIT_WINDOW_MINUTES = 15;
+    private static final String CHAT_STORAGE_DIRECTORY_PREFIX = "chat/";
+    private static final List<String> CHAT_THUMBNAIL_EXTENSIONS = List.of(".jpg", ".png", ".webp");
 
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
@@ -80,6 +92,9 @@ public class ChatService {
     private final MinecraftAvatarService minecraftAvatarService;
     private final MinecraftBridgeOutboxService minecraftBridgeOutboxService;
     private final MinecraftBridgeProperties minecraftBridgeProperties;
+    private final ReportRepository reportRepository;
+    private final StorageRepository storageRepository;
+    private final MediaCleanupTaskService mediaCleanupTaskService;
 
     @Transactional
     public void createPartyChatRoom(Party party) {
@@ -324,6 +339,81 @@ public class ChatService {
     }
 
     @Transactional
+    public ChatMessageResponse updateMessage(
+            String memberId,
+            String chatRoomId,
+            String messageId,
+            UpdateChatMessageRequest request
+    ) {
+        ChatRoom room = findRoomOrThrow(chatRoomId);
+        requireChatRoomMember(chatRoomId, memberId);
+        ChatMessage message = chatMessageRepository.findByIdAndChatRoomIdForUpdate(messageId, chatRoomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_MESSAGE_NOT_FOUND));
+
+        validateMessageMutationActor(room, message, memberId);
+        if (message.isDeleted()) {
+            throw new BusinessException(ErrorCode.CHAT_MESSAGE_ALREADY_DELETED);
+        }
+        if (message.getType() != ChatMessageType.TEXT) {
+            throw new BusinessException(ErrorCode.CHAT_MESSAGE_EDIT_NOT_ALLOWED);
+        }
+
+        LocalDateTime now = LocalDateTime.now(CHAT_TIME_ZONE);
+        if (message.getCreatedAt() == null
+                || now.isAfter(message.getCreatedAt().plusMinutes(MESSAGE_EDIT_WINDOW_MINUTES))) {
+            throw new BusinessException(ErrorCode.CHAT_MESSAGE_EDIT_WINDOW_EXPIRED);
+        }
+
+        message.editText(requireText(request.text()), now);
+        ChatMessage saved = chatMessageRepository.saveAndFlush(message);
+        boolean refreshSummary = isLatestVisibleMessage(chatRoomId, saved.getId());
+        if (refreshSummary) {
+            refreshRoomMessageSummary(room);
+        }
+
+        ChatMessageResponse response = toMessageResponse(saved, resolveSenderPhotoUrl(saved));
+        publishMessageMutationAfterCommit(
+                room,
+                ChatMessageMutationEventType.MESSAGE_UPDATED,
+                response,
+                refreshSummary
+        );
+        return response;
+    }
+
+    @Transactional
+    public ChatMessageResponse deleteMessage(String memberId, String chatRoomId, String messageId) {
+        ChatRoom room = findRoomOrThrow(chatRoomId);
+        requireChatRoomMember(chatRoomId, memberId);
+        ChatMessage message = chatMessageRepository.findByIdAndChatRoomIdForUpdate(messageId, chatRoomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_MESSAGE_NOT_FOUND));
+
+        validateMessageMutationActor(room, message, memberId);
+        if (message.isDeleted()) {
+            return toMessageResponse(message, resolveSenderPhotoUrl(message));
+        }
+        if (!isDeletableMessage(room, message)) {
+            throw new BusinessException(ErrorCode.CHAT_MESSAGE_DELETE_NOT_ALLOWED);
+        }
+
+        String imageUrl = message.getType() == ChatMessageType.IMAGE ? message.getText() : null;
+        message.delete(LocalDateTime.now(CHAT_TIME_ZONE));
+        ChatMessage saved = chatMessageRepository.saveAndFlush(message);
+        refreshRoomMessageSummary(room);
+
+        List<String> cleanupTaskIds = enqueueImageCleanupIfEligible(saved, imageUrl);
+        ChatMessageResponse response = toMessageResponse(saved, resolveSenderPhotoUrl(saved));
+        publishMessageMutationAfterCommit(
+                room,
+                ChatMessageMutationEventType.MESSAGE_DELETED,
+                response,
+                true
+        );
+        publishAfterCommit(() -> cleanupTaskIds.forEach(mediaCleanupTaskService::processNow));
+        return response;
+    }
+
+    @Transactional
     public ChatMessageResponse createPartySystemMessage(Party party, String senderId, String text) {
         Member sender = memberRepository.findById(senderId).orElseThrow(MemberNotFoundException::new);
         ChatRoom room = findRoomOrThrow("party:" + party.getId());
@@ -443,7 +533,7 @@ public class ChatService {
             return;
         }
 
-        chatMessageRepository.findTopByChatRoomIdAndTypeOrderByCreatedAtDescMessageOrderDescIdDesc(
+        chatMessageRepository.findTopByChatRoomIdAndTypeAndDeletedAtIsNullOrderByCreatedAtDescMessageOrderDescIdDesc(
                         "party:" + party.getId(),
                         ChatMessageType.ARRIVED
                 )
@@ -540,6 +630,92 @@ public class ChatService {
         publisher.run();
     }
 
+    private void publishMessageMutationAfterCommit(
+            ChatRoom room,
+            ChatMessageMutationEventType eventType,
+            ChatMessageResponse message,
+            boolean publishSummary
+    ) {
+        publishAfterCommit(() -> {
+            messagingTemplate.convertAndSend(
+                    "/topic/chat/" + room.getId() + "/events",
+                    new ChatMessageMutationEventResponse(eventType, message)
+            );
+            if (publishSummary) {
+                publishChatRoomSummaryEvent(room);
+            }
+        });
+    }
+
+    private void validateMessageMutationActor(ChatRoom room, ChatMessage message, String memberId) {
+        if (!Objects.equals(message.getSenderId(), memberId)) {
+            throw new BusinessException(ErrorCode.NOT_CHAT_MESSAGE_AUTHOR);
+        }
+        if (minecraftBridgeProperties.normalizedRoomId().equals(room.getId()) || message.isMinecraftOrigin()) {
+            throw new BusinessException(ErrorCode.CHAT_MESSAGE_MUTATION_NOT_ALLOWED);
+        }
+    }
+
+    private boolean isDeletableMessage(ChatRoom room, ChatMessage message) {
+        if (message.getType() == ChatMessageType.TEXT || message.getType() == ChatMessageType.IMAGE) {
+            return true;
+        }
+        return room.getType() == ChatRoomType.PARTY && message.getType() == ChatMessageType.ACCOUNT;
+    }
+
+    private boolean isLatestVisibleMessage(String chatRoomId, String messageId) {
+        return chatMessageRepository
+                .findTopByChatRoomIdAndDeletedAtIsNullOrderByCreatedAtDescMessageOrderDescIdDesc(chatRoomId)
+                .map(message -> Objects.equals(message.getId(), messageId))
+                .orElse(false);
+    }
+
+    private void refreshRoomMessageSummary(ChatRoom room) {
+        long visibleMessageCount = chatMessageRepository.countByChatRoomIdAndDeletedAtIsNull(room.getId());
+        ChatMessage latestVisibleMessage = chatMessageRepository
+                .findTopByChatRoomIdAndDeletedAtIsNullOrderByCreatedAtDescMessageOrderDescIdDesc(room.getId())
+                .orElse(null);
+        room.refreshMessageSummary(visibleMessageCount, latestVisibleMessage);
+        chatRoomRepository.save(room);
+    }
+
+    private List<String> enqueueImageCleanupIfEligible(ChatMessage deletedMessage, String imageUrl) {
+        if (deletedMessage.getType() != ChatMessageType.IMAGE || !StringUtils.hasText(imageUrl)) {
+            return List.of();
+        }
+        if (reportRepository.existsByTargetTypeAndTargetId(ReportTargetType.CHAT_MESSAGE, deletedMessage.getId())) {
+            return List.of();
+        }
+        if (chatMessageRepository.existsByTypeAndTextAndDeletedAtIsNull(
+                ChatMessageType.IMAGE,
+                imageUrl
+        )) {
+            return List.of();
+        }
+        return storageRepository.resolveRelativePath(imageUrl)
+                .filter(path -> path.startsWith(CHAT_STORAGE_DIRECTORY_PREFIX))
+                .map(this::buildChatImageCleanupPaths)
+                .map(mediaCleanupTaskService::enqueue)
+                .orElseGet(List::of);
+    }
+
+    private List<String> buildChatImageCleanupPaths(String originalPath) {
+        List<String> paths = new ArrayList<>();
+        paths.add(originalPath);
+
+        int extensionIndex = originalPath.lastIndexOf('.');
+        if (extensionIndex <= originalPath.lastIndexOf('/')) {
+            return paths;
+        }
+        String thumbnailPathPrefix = originalPath.substring(0, extensionIndex) + "_thumb";
+        CHAT_THUMBNAIL_EXTENSIONS.forEach(extension -> paths.add(thumbnailPathPrefix + extension));
+        return paths;
+    }
+
+    private String resolveSenderPhotoUrl(ChatMessage message) {
+        return resolveSenderPhotoUrls(List.of(message)).get(message.getSenderId());
+    }
+
     private ChatRoomMember requireChatRoomMember(String chatRoomId, String memberId) {
         return requireChatRoomMember(findMembership(chatRoomId, memberId));
     }
@@ -584,7 +760,7 @@ public class ChatService {
         if (lastReadAt == null) {
             return room.getMessageCount();
         }
-        return chatMessageRepository.countByChatRoomIdAndCreatedAtAfter(room.getId(), lastReadAt);
+        return chatMessageRepository.countByChatRoomIdAndDeletedAtIsNullAndCreatedAtAfter(room.getId(), lastReadAt);
     }
 
     private LocalDateTime clampLastReadAt(ChatRoom room, Instant requestedLastReadAt) {
@@ -691,6 +867,26 @@ public class ChatService {
     }
 
     private ChatMessageResponse toMessageResponse(ChatMessage message, String senderPhotoUrl) {
+        if (message.isDeleted()) {
+            return new ChatMessageResponse(
+                    message.getId(),
+                    message.getChatRoomId(),
+                    message.getSenderId(),
+                    message.getSenderName(),
+                    senderPhotoUrl,
+                    ChatMessageType.TEXT,
+                    DELETED_MESSAGE_TEXT,
+                    null,
+                    null,
+                    null,
+                    message.getCreatedAt(),
+                    message.getUpdatedAt(),
+                    message.getEditedAt(),
+                    message.getDeletedAt(),
+                    true
+            );
+        }
+
         ChatAccountDataResponse accountDataResponse = null;
         if (message.getAccountData() != null) {
             accountDataResponse = new ChatAccountDataResponse(
@@ -746,7 +942,11 @@ public class ChatService {
                 imageUrl,
                 accountDataResponse,
                 arrivalDataResponse,
-                message.getCreatedAt()
+                message.getCreatedAt(),
+                message.getUpdatedAt(),
+                message.getEditedAt(),
+                message.getDeletedAt(),
+                false
         );
     }
 

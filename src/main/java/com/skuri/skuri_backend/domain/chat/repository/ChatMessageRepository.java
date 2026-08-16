@@ -2,7 +2,9 @@ package com.skuri.skuri_backend.domain.chat.repository;
 
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessage;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -51,14 +53,46 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, String
 
     long countByChatRoomId(String chatRoomId);
 
-    long countByChatRoomIdAndCreatedAtAfter(String chatRoomId, LocalDateTime createdAt);
+    long countByChatRoomIdAndDeletedAtIsNull(String chatRoomId);
+
+    long countByChatRoomIdAndDeletedAtIsNullAndCreatedAtAfter(String chatRoomId, LocalDateTime createdAt);
 
     long deleteByChatRoomId(String chatRoomId);
 
     Optional<ChatMessage> findBySourceEventId(String sourceEventId);
 
-    java.util.Optional<ChatMessage> findTopByChatRoomIdAndTypeOrderByCreatedAtDescMessageOrderDescIdDesc(
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select m
+            from ChatMessage m
+            where m.id = :messageId
+              and m.chatRoomId = :chatRoomId
+            """)
+    Optional<ChatMessage> findByIdAndChatRoomIdForUpdate(
+            @Param("messageId") String messageId,
+            @Param("chatRoomId") String chatRoomId
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select m
+            from ChatMessage m
+            where m.id = :messageId
+            """)
+    Optional<ChatMessage> findByIdForUpdate(@Param("messageId") String messageId);
+
+    Optional<ChatMessage> findTopByChatRoomIdAndDeletedAtIsNullOrderByCreatedAtDescMessageOrderDescIdDesc(
+            String chatRoomId
+    );
+
+    Optional<ChatMessage> findTopByChatRoomIdAndTypeAndDeletedAtIsNullOrderByCreatedAtDescMessageOrderDescIdDesc(
             String chatRoomId,
             ChatMessageType type
     );
+
+    boolean existsByTypeAndTextAndDeletedAtIsNull(
+            ChatMessageType type,
+            String text
+    );
+
 }

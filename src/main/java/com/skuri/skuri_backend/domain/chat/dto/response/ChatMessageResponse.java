@@ -1,6 +1,7 @@
 package com.skuri.skuri_backend.domain.chat.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -31,6 +32,47 @@ public record ChatMessageResponse(
         @Schema(description = "도착 정보(ARRIVED 타입)", nullable = true)
         ChatArrivalDataResponse arrivalData,
         @Schema(description = "메시지 생성 시각", example = "2026-03-05T21:10:00")
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        @Schema(description = "메시지 최신 변경 시각", example = "2026-03-05T21:12:00", nullable = true)
+        LocalDateTime updatedAt,
+        @Schema(description = "메시지 수정 시각(TEXT 수정 시)", example = "2026-03-05T21:12:00", nullable = true)
+        LocalDateTime editedAt,
+        @Schema(description = "메시지 삭제 시각(삭제 tombstone일 때)", example = "2026-03-05T21:13:00", nullable = true)
+        LocalDateTime deletedAt,
+        @JsonProperty("isDeleted")
+        @Schema(description = "삭제된 메시지 여부", example = "false")
+        boolean isDeleted
 ) {
+
+    public ChatMessageResponse(
+            String id,
+            String chatRoomId,
+            String senderId,
+            String senderName,
+            String senderPhotoUrl,
+            ChatMessageType type,
+            String text,
+            String imageUrl,
+            ChatAccountDataResponse accountData,
+            ChatArrivalDataResponse arrivalData,
+            LocalDateTime createdAt
+    ) {
+        this(
+                id,
+                chatRoomId,
+                senderId,
+                senderName,
+                senderPhotoUrl,
+                type,
+                text,
+                imageUrl,
+                accountData,
+                arrivalData,
+                createdAt,
+                null,
+                null,
+                null,
+                false
+        );
+    }
 }

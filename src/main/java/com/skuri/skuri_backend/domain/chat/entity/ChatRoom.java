@@ -131,6 +131,23 @@ public class ChatRoom extends BaseTimeEntity {
 
     public void applyNewMessage(ChatMessage message) {
         this.messageCount += 1;
+        applyLastMessage(message);
+    }
+
+    public void refreshMessageSummary(long messageCount, ChatMessage lastMessage) {
+        this.messageCount = Math.toIntExact(Math.max(0L, messageCount));
+        if (lastMessage == null) {
+            this.lastMessageText = null;
+            this.lastMessageSenderId = null;
+            this.lastMessageSenderName = null;
+            this.lastMessageType = null;
+            this.lastMessageTimestamp = null;
+            return;
+        }
+        applyLastMessage(lastMessage);
+    }
+
+    private void applyLastMessage(ChatMessage message) {
         this.lastMessageText = message.getText();
         this.lastMessageSenderId = message.getSenderId();
         this.lastMessageSenderName = message.getSenderName();

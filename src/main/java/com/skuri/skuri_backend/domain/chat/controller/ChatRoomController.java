@@ -2,9 +2,11 @@ package com.skuri.skuri_backend.domain.chat.controller;
 
 import com.skuri.skuri_backend.common.dto.ApiResponse;
 import com.skuri.skuri_backend.domain.chat.dto.request.CreateChatRoomRequest;
+import com.skuri.skuri_backend.domain.chat.dto.request.UpdateChatMessageRequest;
 import com.skuri.skuri_backend.domain.chat.dto.request.UpdateChatRoomReadRequest;
 import com.skuri.skuri_backend.domain.chat.dto.request.UpdateChatRoomSettingsRequest;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessagePageResponse;
+import com.skuri.skuri_backend.domain.chat.dto.response.ChatMessageResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatReadUpdateResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomDetailResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomSettingsResponse;
@@ -400,6 +402,111 @@ public class ChatRoomController {
                 cursorCreatedAt,
                 cursorId,
                 size
+        );
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PatchMapping("/{id}/messages/{messageId}")
+    @Operation(summary = "내 텍스트 메시지 수정", description = "작성자 본인만 전송 뒤 15분 이내의 TEXT 메시지를 수정할 수 있습니다. 마인크래프트 연동 메시지와 삭제된 메시지는 수정할 수 없습니다. 성공하면 REST 응답과 별도로 /topic/chat/{roomId}/events에 MESSAGE_UPDATED 이벤트가 발행됩니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "수정 성공",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = OpenApiChatSchemas.ChatMessageApiResponse.class),
+                            examples = @ExampleObject(name = "default", value = OpenApiChatExamples.SUCCESS_CHAT_MESSAGE_UPDATE)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "채팅방 멤버가 아니거나 메시지 작성자가 아님",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "not_member", value = OpenApiChatExamples.ERROR_NOT_CHAT_ROOM_MEMBER),
+                            @ExampleObject(name = "not_author", value = OpenApiChatExamples.ERROR_NOT_CHAT_MESSAGE_AUTHOR)
+                    })
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "채팅방 또는 메시지 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "message_not_found", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_NOT_FOUND))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "수정할 수 없는 메시지 상태",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "not_allowed", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_EDIT_NOT_ALLOWED),
+                            @ExampleObject(name = "expired", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_EDIT_WINDOW_EXPIRED),
+                            @ExampleObject(name = "already_deleted", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_ALREADY_DELETED)
+                    })
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "422",
+                    description = "요청 검증 실패",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION))
+            )
+    })
+    public ResponseEntity<ApiResponse<ChatMessageResponse>> updateMessage(
+            @AuthenticationPrincipal AuthenticatedMember authenticatedMember,
+            @PathVariable("id") String chatRoomId,
+            @PathVariable String messageId,
+            @Valid @RequestBody UpdateChatMessageRequest request
+    ) {
+        ChatMessageResponse response = chatService.updateMessage(
+                requireAuthenticatedMember(authenticatedMember).uid(),
+                chatRoomId,
+                messageId,
+                request
+        );
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @DeleteMapping("/{id}/messages/{messageId}")
+    @Operation(summary = "내 메시지 삭제", description = "작성자 본인이 TEXT·IMAGE 메시지와 파티 채팅방의 ACCOUNT 메시지를 tombstone으로 삭제합니다. 삭제된 자리와 커서는 유지하며, /topic/chat/{roomId}/events에 MESSAGE_DELETED 이벤트가 발행됩니다. 이미지 파일은 활성 참조·신고 증거가 없을 때에만 재시도 큐로 정리합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "삭제 성공 또는 이미 삭제됨(멱등)",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiChatSchemas.ChatMessageApiResponse.class), examples = @ExampleObject(name = "default", value = OpenApiChatExamples.SUCCESS_CHAT_MESSAGE_DELETE))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "인증 실패",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "채팅방 멤버가 아니거나 메시지 작성자가 아님",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "not_member", value = OpenApiChatExamples.ERROR_NOT_CHAT_ROOM_MEMBER),
+                            @ExampleObject(name = "not_author", value = OpenApiChatExamples.ERROR_NOT_CHAT_MESSAGE_AUTHOR)
+                    })
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "채팅방 또는 메시지 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "message_not_found", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_NOT_FOUND))
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "삭제할 수 없는 메시지 타입 또는 마인크래프트 연동 메시지",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "not_allowed", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_DELETE_NOT_ALLOWED))
+            )
+    })
+    public ResponseEntity<ApiResponse<ChatMessageResponse>> deleteMessage(
+            @AuthenticationPrincipal AuthenticatedMember authenticatedMember,
+            @PathVariable("id") String chatRoomId,
+            @PathVariable String messageId
+    ) {
+        ChatMessageResponse response = chatService.deleteMessage(
+                requireAuthenticatedMember(authenticatedMember).uid(),
+                chatRoomId,
+                messageId
         );
         return ResponseEntity.ok(ApiResponse.success(response));
     }
