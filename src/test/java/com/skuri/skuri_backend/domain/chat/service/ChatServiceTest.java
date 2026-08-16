@@ -501,16 +501,14 @@ class ChatServiceTest {
     void removeMemberFromDepartmentChatRooms_학과방멤버십만정리한다() {
         ChatRoom departmentRoom = ChatRoom.create("public:department:cs", "컴퓨터공학과 채팅방", ChatRoomType.DEPARTMENT, "컴퓨터공학과", null, null, true, null);
         ReflectionTestUtils.setField(departmentRoom, "memberCount", 1);
-        ChatRoom customRoom = ChatRoom.create("room-1", "시험기간 밤샘 메이트", ChatRoomType.CUSTOM, null, null, null, true, null);
-        ReflectionTestUtils.setField(customRoom, "memberCount", 1);
         ChatRoomMember departmentMembership = membership(departmentRoom, "public:department:cs", "member-1");
-        ChatRoomMember customMembership = membership(customRoom, "room-1", "member-1");
 
         when(memberRepository.findActiveById("member-1")).thenReturn(Optional.of(activeMember("member-1", "컴퓨터공학과")));
-        when(chatRoomMemberRepository.findChatRoomIdsByMemberId("member-1"))
-                .thenReturn(List.of("public:department:cs", "room-1"));
-        when(chatRoomRepository.findById("public:department:cs")).thenReturn(Optional.of(departmentRoom));
-        when(chatRoomRepository.findById("room-1")).thenReturn(Optional.of(customRoom));
+        when(chatRoomMemberRepository.findChatRoomIdsByMemberIdAndChatRoomType(
+                "member-1",
+                ChatRoomType.DEPARTMENT
+        )).thenReturn(List.of("public:department:cs"));
+        when(chatRoomRepository.findByIdForUpdate("public:department:cs")).thenReturn(Optional.of(departmentRoom));
         when(chatRoomMemberRepository.findById_ChatRoomIdAndId_MemberId("public:department:cs", "member-1"))
                 .thenReturn(Optional.of(departmentMembership));
         when(chatMessageOrderGenerator.nextOrder()).thenReturn(44L);
@@ -526,11 +524,28 @@ class ChatServiceTest {
 
         verify(chatRoomMemberRepository).delete(departmentMembership);
         verify(chatRoomMemberRepository, times(1)).delete(any(ChatRoomMember.class));
+        verify(chatRoomRepository, never()).findByIdForUpdate("room-1");
+        verify(chatRoomMemberRepository, never()).findChatRoomIdsByMemberId("member-1");
         ArgumentCaptor<ChatMessage> departmentLeaveCaptor = ArgumentCaptor.forClass(ChatMessage.class);
         verify(chatMessageRepository).save(departmentLeaveCaptor.capture());
         assertEquals(ChatMessage.SOURCE_MEMBER_LEAVE, departmentLeaveCaptor.getValue().getSource());
         assertEquals("홍길동님이 나갔어요.", departmentLeaveCaptor.getValue().getText());
         verify(messagingTemplate).convertAndSend(eq("/topic/chat/public:department:cs"), any(ChatMessageResponse.class));
+    }
+
+    @Test
+    void removeMemberFromDepartmentChatRooms_동시에삭제된학과방은건너뛴다() {
+        when(memberRepository.findActiveById("member-1")).thenReturn(Optional.of(activeMember("member-1", "컴퓨터공학과")));
+        when(chatRoomMemberRepository.findChatRoomIdsByMemberIdAndChatRoomType(
+                "member-1",
+                ChatRoomType.DEPARTMENT
+        )).thenReturn(List.of("public:department:cs"));
+        when(chatRoomRepository.findByIdForUpdate("public:department:cs")).thenReturn(Optional.empty());
+
+        chatService.removeMemberFromDepartmentChatRooms("member-1");
+
+        verify(chatRoomMemberRepository, never()).delete(any(ChatRoomMember.class));
+        verify(chatMessageRepository, never()).save(any(ChatMessage.class));
     }
 
     @Test

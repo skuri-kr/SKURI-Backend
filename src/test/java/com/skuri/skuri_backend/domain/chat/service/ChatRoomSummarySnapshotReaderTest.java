@@ -5,7 +5,6 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
-import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
 import org.junit.jupiter.api.Test;
@@ -20,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -30,9 +30,6 @@ class ChatRoomSummarySnapshotReaderTest {
 
     @Mock
     private ChatRoomMemberRepository chatRoomMemberRepository;
-
-    @Mock
-    private ChatMessageRepository chatMessageRepository;
 
     @InjectMocks
     private ChatRoomSummarySnapshotReader snapshotReader;
@@ -81,13 +78,26 @@ class ChatRoomSummarySnapshotReaderTest {
 
         when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(room));
         when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
-        when(chatMessageRepository.countByChatRoomIdAndDeletedAtIsNullAndCreatedAtAfter(
-                "room-1",
-                LocalDateTime.of(2026, 8, 17, 12, 5)
-        )).thenReturn(2L);
+        when(chatRoomMemberRepository.countUnreadByChatRoomId("room-1"))
+                .thenReturn(List.of(unreadCount("member-1", 2L)));
 
         List<ChatRoomSummaryDelivery> deliveries = snapshotReader.readCurrent("room-1");
 
         assertEquals(2L, deliveries.getFirst().payload().unreadCount());
+        verify(chatRoomMemberRepository).countUnreadByChatRoomId("room-1");
+    }
+
+    private ChatRoomMemberRepository.ChatRoomMemberUnreadCountProjection unreadCount(String memberId, long unreadCount) {
+        return new ChatRoomMemberRepository.ChatRoomMemberUnreadCountProjection() {
+            @Override
+            public String getMemberId() {
+                return memberId;
+            }
+
+            @Override
+            public long getUnreadCount() {
+                return unreadCount;
+            }
+        };
     }
 }
