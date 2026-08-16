@@ -42,6 +42,18 @@ public interface ReportRepository extends JpaRepository<Report, String> {
             @Param("targetImageAssetKey") String targetImageAssetKey
     );
 
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update Report r
+            set r.targetImageAssetKey = :targetImageAssetKey
+            where r.id = :reportId
+              and r.targetImageAssetKey is null
+            """)
+    int fillMissingTargetImageAssetKeyById(
+            @Param("reportId") String reportId,
+            @Param("targetImageAssetKey") String targetImageAssetKey
+    );
+
     long countByStatus(ReportStatus status);
 
     long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(

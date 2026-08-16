@@ -60,8 +60,8 @@ public class ChatImageAssetKeySeedMigration {
             if (batch == null || batch.isEmpty()) {
                 break;
             }
-            updatedMessageCount += batch.messageCount();
-            updatedReportCount += batch.reportCount();
+            updatedMessageCount += batch.updatedMessageCount();
+            updatedReportCount += batch.updatedReportCount();
         }
 
         try {
@@ -83,31 +83,33 @@ public class ChatImageAssetKeySeedMigration {
         );
         List<Report> reports = reportRepository.findByTargetImageAssetKeyIsNull(PageRequest.of(0, BATCH_SIZE));
 
-        List<String> messageAssetKeys = messages.stream()
-                .map(ChatMessage::getText)
-                .map(this::resolveImageAssetKey)
+        List<ImageAssetKeyBackfill> messageBackfills = messages.stream()
+                .map(message -> new ImageAssetKeyBackfill(message.getId(), resolveImageAssetKey(message.getText())))
                 .toList();
         Map<String, ChatMessage> reportTargetMessages = findLegacyReportTargetMessages(reports);
-        List<String> reportAssetKeys = reports.stream()
-                .map(report -> resolveReportImageAssetKey(report, reportTargetMessages))
+        List<ImageAssetKeyBackfill> reportBackfills = reports.stream()
+                .map(report -> new ImageAssetKeyBackfill(
+                        report.getId(),
+                        resolveReportImageAssetKey(report, reportTargetMessages)
+                ))
                 .toList();
 
-        lockManagedAssets(messageAssetKeys, reportAssetKeys);
+        lockManagedAssets(messageBackfills, reportBackfills);
 
-        for (int index = 0; index < messages.size(); index++) {
-            messages.get(index).markImageAssetKey(messageAssetKeys.get(index));
-        }
-        for (int index = 0; index < reports.size(); index++) {
-            reports.get(index).markTargetImageAssetKey(reportAssetKeys.get(index));
-        }
-        if (!messages.isEmpty()) {
-            chatMessageRepository.saveAll(messages);
-        }
-        if (!reports.isEmpty()) {
-            reportRepository.saveAll(reports);
-        }
+        int updatedMessageCount = messageBackfills.stream()
+                .mapToInt(backfill -> chatMessageRepository.fillMissingImageAssetKey(
+                        backfill.id(),
+                        backfill.assetKey()
+                ))
+                .sum();
+        int updatedReportCount = reportBackfills.stream()
+                .mapToInt(backfill -> reportRepository.fillMissingTargetImageAssetKeyById(
+                        backfill.id(),
+                        backfill.assetKey()
+                ))
+                .sum();
 
-        return new BackfillBatch(messages.size(), reports.size());
+        return new BackfillBatch(messages.size(), reports.size(), updatedMessageCount, updatedReportCount);
     }
 
     private Map<String, ChatMessage> findLegacyReportTargetMessages(List<Report> reports) {
@@ -147,8 +149,12 @@ public class ChatImageAssetKeySeedMigration {
         return resolveImageAssetKey(targetMessage.getText());
     }
 
-    private void lockManagedAssets(List<String> messageAssetKeys, List<String> reportAssetKeys) {
-        List<String> cleanupPaths = java.util.stream.Stream.concat(messageAssetKeys.stream(), reportAssetKeys.stream())
+    private void lockManagedAssets(
+            List<ImageAssetKeyBackfill> messageBackfills,
+            List<ImageAssetKeyBackfill> reportBackfills
+    ) {
+        List<String> cleanupPaths = java.util.stream.Stream.concat(messageBackfills.stream(), reportBackfills.stream())
+                .map(ImageAssetKeyBackfill::assetKey)
                 .filter(assetKey -> !ChatImageAssetPolicy.NO_MANAGED_ASSET_KEY.equals(assetKey))
                 .flatMap(assetKey -> ChatImageAssetPolicy.cleanupPathsForFamilyKey(assetKey).stream())
                 .distinct()
@@ -169,7 +175,15 @@ public class ChatImageAssetKeySeedMigration {
                 .orElse(ChatImageAssetPolicy.NO_MANAGED_ASSET_KEY);
     }
 
-    private record BackfillBatch(int messageCount, int reportCount) {
+    private record ImageAssetKeyBackfill(String id, String assetKey) {
+    }
+
+    private record BackfillBatch(
+            int messageCount,
+            int reportCount,
+            int updatedMessageCount,
+            int updatedReportCount
+    ) {
 
         private boolean isEmpty() {
             return messageCount == 0 && reportCount == 0;
