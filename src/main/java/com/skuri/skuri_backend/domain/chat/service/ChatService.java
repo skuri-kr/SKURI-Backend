@@ -323,6 +323,10 @@ public class ChatService {
             arrivalData = payload.arrivalData();
         }
 
+        Optional<ChatImageAsset> managedImageAsset = type == ChatMessageType.IMAGE
+                ? requireManagedChatImageAsset(text)
+                : Optional.empty();
+
         ChatRoom room = lockChatRoomForMutation(chatRoomId);
         requireChatRoomMember(chatRoomId, senderId);
         if (type == ChatMessageType.ACCOUNT && room.getType() != ChatRoomType.PARTY) {
@@ -330,9 +334,6 @@ public class ChatService {
         }
         Member sender = memberRepository.findById(senderId).orElseThrow(MemberNotFoundException::new);
 
-        Optional<ChatImageAsset> managedImageAsset = type == ChatMessageType.IMAGE
-                ? requireManagedChatImageAsset(text)
-                : Optional.empty();
         managedImageAsset.ifPresent(asset -> mediaCleanupTaskService.retain(asset.cleanupPaths()));
 
         return saveAndPublishMessage(
@@ -409,7 +410,14 @@ public class ChatService {
 
         String imageUrl = message.getType() == ChatMessageType.IMAGE ? message.getText() : null;
         Optional<ChatImageAsset> managedImageAsset = resolveManagedChatImageAsset(imageUrl);
-        managedImageAsset.ifPresent(asset -> mediaCleanupTaskService.lock(asset.cleanupPaths()));
+        managedImageAsset.ifPresent(asset -> {
+            mediaCleanupTaskService.lock(asset.cleanupPaths());
+            reportRepository.fillMissingTargetImageAssetKey(
+                    ReportTargetType.CHAT_MESSAGE,
+                    message.getId(),
+                    asset.familyKey()
+            );
+        });
         message.delete(LocalDateTime.now(CHAT_TIME_ZONE));
         ChatMessage saved = chatMessageRepository.saveAndFlush(message);
         refreshRoomMessageSummary(room);
@@ -749,7 +757,7 @@ public class ChatService {
     }
 
     private Optional<ChatImageAsset> requireManagedChatImageAsset(String imageUrl) {
-        Optional<String> resolvedRelativePath = storageRepository.resolveRelativePath(imageUrl);
+        Optional<String> resolvedRelativePath = storageRepository.resolveVerifiedRelativePath(imageUrl);
         if (resolvedRelativePath.isEmpty()) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, CHAT_IMAGE_URL_MESSAGE);
         }

@@ -10,6 +10,7 @@ import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -46,13 +47,26 @@ public class FirebaseStorageRepository implements StorageRepository {
 
     @Override
     public Optional<String> resolveRelativePath(String publicUrl) {
+        return parseDownloadUrl(publicUrl).map(FirebaseDownloadUrl::relativePath);
+    }
+
+    @Override
+    public Optional<String> resolveVerifiedRelativePath(String publicUrl) {
+        return parseDownloadUrl(publicUrl)
+                .filter(FirebaseDownloadUrl::hasDownloadToken)
+                .filter(this::matchesStoredDownloadToken)
+                .map(FirebaseDownloadUrl::relativePath);
+    }
+
+    private Optional<FirebaseDownloadUrl> parseDownloadUrl(String publicUrl) {
         if (publicUrl == null || publicUrl.isBlank()) {
             return Optional.empty();
         }
 
         try {
             URI uri = URI.create(publicUrl.trim());
-            if (!"firebasestorage.googleapis.com".equalsIgnoreCase(uri.getHost())) {
+            if (!"https".equalsIgnoreCase(uri.getScheme())
+                    || !"firebasestorage.googleapis.com".equalsIgnoreCase(uri.getHost())) {
                 return Optional.empty();
             }
             String path = uri.getPath();
@@ -64,10 +78,40 @@ public class FirebaseStorageRepository implements StorageRepository {
             if (encodedRelativePath.isBlank()) {
                 return Optional.empty();
             }
-            return Optional.of(URLDecoder.decode(encodedRelativePath, StandardCharsets.UTF_8));
+            return Optional.of(new FirebaseDownloadUrl(
+                    URLDecoder.decode(encodedRelativePath, StandardCharsets.UTF_8),
+                    parseQueryParameters(uri.getRawQuery())
+            ));
         } catch (IllegalArgumentException e) {
             return Optional.empty();
         }
+    }
+
+    private boolean matchesStoredDownloadToken(FirebaseDownloadUrl downloadUrl) {
+        String token = downloadUrl.queryParameters().get("token");
+        Blob blob = bucket.get(downloadUrl.relativePath());
+        if (blob == null || blob.getMetadata() == null) {
+            return false;
+        }
+        String configuredTokens = blob.getMetadata().get(DOWNLOAD_TOKEN_METADATA_KEY);
+        return configuredTokens != null
+                && Arrays.stream(configuredTokens.split(","))
+                .map(String::trim)
+                .anyMatch(token::equals);
+    }
+
+    private Map<String, String> parseQueryParameters(String rawQuery) {
+        if (rawQuery == null || rawQuery.isBlank()) {
+            return Map.of();
+        }
+        return Arrays.stream(rawQuery.split("&"))
+                .map(parameter -> parameter.split("=", 2))
+                .filter(parameter -> parameter.length == 2)
+                .collect(java.util.stream.Collectors.toMap(
+                        parameter -> URLDecoder.decode(parameter[0], StandardCharsets.UTF_8),
+                        parameter -> URLDecoder.decode(parameter[1], StandardCharsets.UTF_8),
+                        (first, ignored) -> first
+                ));
     }
 
     private String buildDownloadUrl(String relativePath, String downloadToken) {
@@ -75,5 +119,13 @@ public class FirebaseStorageRepository implements StorageRepository {
                 .replace("+", "%20");
         return "https://firebasestorage.googleapis.com/v0/b/%s/o/%s?alt=media&token=%s"
                 .formatted(bucket.getName(), encodedPath, downloadToken);
+    }
+
+    private record FirebaseDownloadUrl(String relativePath, Map<String, String> queryParameters) {
+
+        private boolean hasDownloadToken() {
+            String token = queryParameters.get("token");
+            return "media".equals(queryParameters.get("alt")) && token != null && !token.isBlank();
+        }
     }
 }

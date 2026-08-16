@@ -50,18 +50,42 @@ public final class ChatImageAssetPolicy {
                 return Optional.empty();
             }
 
-            Set<String> cleanupPaths = new LinkedHashSet<>();
-            IMAGE_EXTENSIONS.forEach(extension -> cleanupPaths.add(familyKey + extension));
-            IMAGE_EXTENSIONS.forEach(extension -> cleanupPaths.add(familyKey + THUMBNAIL_SUFFIX + extension));
-            cleanupPaths.add(normalized);
-
             return Optional.of(new ChatImageAsset(
                     familyKey,
-                    cleanupPaths.stream().sorted().toList(),
+                    cleanupPathsForFamilyKey(familyKey, normalized),
                     thumbnailReference
             ));
         } catch (InvalidPathException e) {
             return Optional.empty();
         }
+    }
+
+    public static List<String> cleanupPathsForFamilyKey(String familyKey) {
+        if (!StringUtils.hasText(familyKey)) {
+            return List.of();
+        }
+        try {
+            Path normalizedPath = Path.of(familyKey.replace('\\', '/')).normalize();
+            if (normalizedPath.isAbsolute()) {
+                return List.of();
+            }
+            String normalizedFamilyKey = normalizedPath.toString().replace('\\', '/');
+            if (!normalizedFamilyKey.startsWith(CHAT_STORAGE_DIRECTORY_PREFIX)) {
+                return List.of();
+            }
+            return cleanupPathsForFamilyKey(normalizedFamilyKey, null);
+        } catch (InvalidPathException e) {
+            return List.of();
+        }
+    }
+
+    private static List<String> cleanupPathsForFamilyKey(String familyKey, String additionalPath) {
+        Set<String> cleanupPaths = new LinkedHashSet<>();
+        IMAGE_EXTENSIONS.forEach(extension -> cleanupPaths.add(familyKey + extension));
+        IMAGE_EXTENSIONS.forEach(extension -> cleanupPaths.add(familyKey + THUMBNAIL_SUFFIX + extension));
+        if (StringUtils.hasText(additionalPath)) {
+            cleanupPaths.add(additionalPath);
+        }
+        return cleanupPaths.stream().sorted().toList();
     }
 }

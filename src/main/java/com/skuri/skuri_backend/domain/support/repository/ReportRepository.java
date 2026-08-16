@@ -6,6 +6,7 @@ import com.skuri.skuri_backend.domain.support.entity.ReportTargetType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -26,6 +27,20 @@ public interface ReportRepository extends JpaRepository<Report, String> {
     List<Report> findByTargetImageAssetKeyIsNull(Pageable pageable);
 
     List<Report> findByTargetTypeAndTargetImageAssetKeyIsNull(ReportTargetType targetType);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update Report r
+            set r.targetImageAssetKey = :targetImageAssetKey
+            where r.targetType = :targetType
+              and r.targetId = :targetId
+              and r.targetImageAssetKey is null
+            """)
+    int fillMissingTargetImageAssetKey(
+            @Param("targetType") ReportTargetType targetType,
+            @Param("targetId") String targetId,
+            @Param("targetImageAssetKey") String targetImageAssetKey
+    );
 
     long countByStatus(ReportStatus status);
 

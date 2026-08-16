@@ -6,8 +6,10 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatMessage;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.image.policy.ChatImageAssetPolicy;
+import com.skuri.skuri_backend.domain.image.service.MediaCleanupTaskService;
 import com.skuri.skuri_backend.domain.image.storage.StorageRepository;
 import com.skuri.skuri_backend.domain.support.entity.Report;
+import com.skuri.skuri_backend.domain.support.entity.ReportTargetType;
 import com.skuri.skuri_backend.domain.support.model.ChatMessageReportSnapshot;
 import com.skuri.skuri_backend.domain.support.repository.ReportRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +25,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -38,6 +42,7 @@ public class ChatImageAssetKeySeedMigration {
     private final ChatMessageRepository chatMessageRepository;
     private final ReportRepository reportRepository;
     private final StorageRepository storageRepository;
+    private final MediaCleanupTaskService mediaCleanupTaskService;
     private final SeedMigrationRepository seedMigrationRepository;
     private final TransactionTemplate transactionTemplate;
 
@@ -76,20 +81,82 @@ public class ChatImageAssetKeySeedMigration {
                 ChatMessageType.IMAGE,
                 PageRequest.of(0, BATCH_SIZE)
         );
-        messages.forEach(message -> message.markImageAssetKey(resolveImageAssetKey(message.getText())));
-        chatMessageRepository.saveAll(messages);
-
         List<Report> reports = reportRepository.findByTargetImageAssetKeyIsNull(PageRequest.of(0, BATCH_SIZE));
-        reports.forEach(report -> report.markTargetImageAssetKey(resolveImageAssetKey(report.getTargetSnapshot())));
-        reportRepository.saveAll(reports);
+
+        List<String> messageAssetKeys = messages.stream()
+                .map(ChatMessage::getText)
+                .map(this::resolveImageAssetKey)
+                .toList();
+        Map<String, ChatMessage> reportTargetMessages = findLegacyReportTargetMessages(reports);
+        List<String> reportAssetKeys = reports.stream()
+                .map(report -> resolveReportImageAssetKey(report, reportTargetMessages))
+                .toList();
+
+        lockManagedAssets(messageAssetKeys, reportAssetKeys);
+
+        for (int index = 0; index < messages.size(); index++) {
+            messages.get(index).markImageAssetKey(messageAssetKeys.get(index));
+        }
+        for (int index = 0; index < reports.size(); index++) {
+            reports.get(index).markTargetImageAssetKey(reportAssetKeys.get(index));
+        }
+        if (!messages.isEmpty()) {
+            chatMessageRepository.saveAll(messages);
+        }
+        if (!reports.isEmpty()) {
+            reportRepository.saveAll(reports);
+        }
 
         return new BackfillBatch(messages.size(), reports.size());
     }
 
-    private String resolveImageAssetKey(ChatMessageReportSnapshot snapshot) {
-        return snapshot == null
-                ? ChatImageAssetPolicy.NO_MANAGED_ASSET_KEY
-                : resolveImageAssetKey(snapshot.imageUrl());
+    private Map<String, ChatMessage> findLegacyReportTargetMessages(List<Report> reports) {
+        List<String> targetIds = reports.stream()
+                .filter(report -> report.getTargetType() == ReportTargetType.CHAT_MESSAGE)
+                .filter(report -> report.getTargetSnapshot() == null)
+                .map(Report::getTargetId)
+                .distinct()
+                .toList();
+        if (targetIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, ChatMessage> targetMessages = new LinkedHashMap<>();
+        chatMessageRepository.findAllById(targetIds)
+                .forEach(message -> targetMessages.put(message.getId(), message));
+        return targetMessages;
+    }
+
+    private String resolveReportImageAssetKey(Report report, Map<String, ChatMessage> targetMessages) {
+        ChatMessageReportSnapshot snapshot = report.getTargetSnapshot();
+        if (snapshot != null) {
+            return resolveImageAssetKey(snapshot.imageUrl());
+        }
+        if (report.getTargetType() != ReportTargetType.CHAT_MESSAGE) {
+            return ChatImageAssetPolicy.NO_MANAGED_ASSET_KEY;
+        }
+
+        ChatMessage targetMessage = targetMessages.get(report.getTargetId());
+        if (targetMessage == null || targetMessage.getType() != ChatMessageType.IMAGE) {
+            return ChatImageAssetPolicy.NO_MANAGED_ASSET_KEY;
+        }
+        if (StringUtils.hasText(targetMessage.getImageAssetKey())
+                && !ChatImageAssetPolicy.NO_MANAGED_ASSET_KEY.equals(targetMessage.getImageAssetKey())) {
+            return targetMessage.getImageAssetKey();
+        }
+        return resolveImageAssetKey(targetMessage.getText());
+    }
+
+    private void lockManagedAssets(List<String> messageAssetKeys, List<String> reportAssetKeys) {
+        List<String> cleanupPaths = java.util.stream.Stream.concat(messageAssetKeys.stream(), reportAssetKeys.stream())
+                .filter(assetKey -> !ChatImageAssetPolicy.NO_MANAGED_ASSET_KEY.equals(assetKey))
+                .flatMap(assetKey -> ChatImageAssetPolicy.cleanupPathsForFamilyKey(assetKey).stream())
+                .distinct()
+                .sorted()
+                .toList();
+        if (!cleanupPaths.isEmpty()) {
+            mediaCleanupTaskService.lock(cleanupPaths);
+        }
     }
 
     private String resolveImageAssetKey(String imageUrl) {
