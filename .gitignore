@@ -37,6 +37,7 @@ out/
 
 ### Local Agent/Tool Config ###
 .claude/
+.serena/
 
 ### Logs ###
 *.log
