@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -42,7 +43,7 @@ class PartyMessageServiceTest {
         Party party = sampleParty("leader-1", true);
         Member member = Member.create("leader-1", "leader-1@sungkyul.ac.kr", "리더", LocalDateTime.now());
         when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
-        when(memberRepository.findById("leader-1")).thenReturn(Optional.of(member));
+        when(memberRepository.findActiveByIdForUpdate("leader-1")).thenReturn(Optional.of(member));
 
         PartySpecialMessagePayload payload = partyMessageService.buildClientPayload(
                 "party:party-1",
@@ -69,6 +70,7 @@ class PartyMessageServiceTest {
         assertNotNull(member.getBankAccount());
         assertEquals("홍길동", member.getBankAccount().getAccountHolder());
         assertTrue(member.getBankAccount().getHideName());
+        verify(memberRepository).findActiveByIdForUpdate("leader-1");
     }
 
     @Test

@@ -12,6 +12,8 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
+import com.skuri.skuri_backend.domain.image.service.MediaCleanupTaskService;
+import com.skuri.skuri_backend.domain.image.storage.StorageRepository;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.domain.support.dto.request.CreateReportRequest;
 import com.skuri.skuri_backend.domain.support.dto.request.UpdateReportStatusRequest;
@@ -26,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -33,11 +36,13 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -64,6 +69,12 @@ class ReportServiceTest {
 
     @Mock
     private PartyRepository partyRepository;
+
+    @Mock
+    private StorageRepository storageRepository;
+
+    @Mock
+    private MediaCleanupTaskService mediaCleanupTaskService;
 
     @InjectMocks
     private ReportService reportService;
@@ -184,6 +195,52 @@ class ReportServiceTest {
         assertEquals("SPAM", captor.getValue().getCategory());
         assertEquals("광고 메시지", captor.getValue().getTargetSnapshot().text());
         assertEquals(LocalDateTime.of(2026, 8, 16, 10, 0), captor.getValue().getTargetSnapshot().createdAt());
+    }
+
+    @Test
+    void createReport_채팅이미지는정리작업잠금을확보한뒤스냅샷을저장한다() {
+        String imageUrl = "https://cdn.skuri.app/chat/2026/08/image.png";
+        ChatMessage message = ChatMessage.create(
+                "room-1",
+                "sender-1",
+                "보낸이",
+                imageUrl,
+                ChatMessageType.IMAGE,
+                null,
+                null
+        );
+        ReflectionTestUtils.setField(message, "id", "message-1");
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId("user-1", ReportTargetType.CHAT_MESSAGE, "message-1"))
+                .thenReturn(false);
+        when(chatMessageRepository.findByIdForUpdate("message-1")).thenReturn(Optional.of(message));
+        when(storageRepository.resolveRelativePath(imageUrl)).thenReturn(Optional.of("chat/2026/08/image.png"));
+        when(reportRepository.saveAndFlush(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        reportService.createReport(
+                "user-1",
+                new CreateReportRequest(
+                        ReportTargetType.CHAT_MESSAGE,
+                        "message-1",
+                        "SPAM",
+                        "광고성 이미지입니다."
+                )
+        );
+
+        ArgumentCaptor<java.util.Collection<String>> pathsCaptor = ArgumentCaptor.forClass(java.util.Collection.class);
+        InOrder verificationOrder = inOrder(mediaCleanupTaskService, reportRepository);
+        verificationOrder.verify(mediaCleanupTaskService).retain(pathsCaptor.capture());
+        verificationOrder.verify(reportRepository).saveAndFlush(any(Report.class));
+        assertEquals(
+                List.of(
+                        "chat/2026/08/image.jpg",
+                        "chat/2026/08/image.png",
+                        "chat/2026/08/image.webp",
+                        "chat/2026/08/image_thumb.jpg",
+                        "chat/2026/08/image_thumb.png",
+                        "chat/2026/08/image_thumb.webp"
+                ),
+                List.copyOf(pathsCaptor.getValue())
+        );
     }
 
     @Test

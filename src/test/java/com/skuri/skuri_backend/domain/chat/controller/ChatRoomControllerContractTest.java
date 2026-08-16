@@ -358,6 +358,7 @@ class ChatRoomControllerContractTest {
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.text").value("수정한 메시지입니다."))
+                .andExpect(jsonPath("$.data.updatedAt").value("2026-03-28T14:32:00"))
                 .andExpect(jsonPath("$.data.editedAt").value("2026-03-28T14:32:00"))
                 .andExpect(jsonPath("$.data.isDeleted").value(false));
 
@@ -397,6 +398,7 @@ class ChatRoomControllerContractTest {
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.text").value("삭제된 메시지입니다."))
+                .andExpect(jsonPath("$.data.updatedAt").value("2026-03-28T14:33:00"))
                 .andExpect(jsonPath("$.data.deletedAt").value("2026-03-28T14:33:00"))
                 .andExpect(jsonPath("$.data.isDeleted").value(true));
     }
@@ -435,6 +437,36 @@ class ChatRoomControllerContractTest {
                 )
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("CHAT_MESSAGE_DELETE_NOT_ALLOWED"));
+    }
+
+    @Test
+    void updateMessage_채팅방이없으면_404() throws Exception {
+        mockValidToken();
+        when(chatService.updateMessage(eq("firebase-uid"), eq("room-missing"), eq("message-1"), any(UpdateChatMessageRequest.class)))
+                .thenThrow(new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        mockMvc.perform(
+                        patch("/v1/chat-rooms/room-missing/messages/message-1")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"text\":\"수정한 메시지입니다.\"}")
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("CHAT_ROOM_NOT_FOUND"));
+    }
+
+    @Test
+    void deleteMessage_채팅방이없으면_404() throws Exception {
+        mockValidToken();
+        when(chatService.deleteMessage("firebase-uid", "room-missing", "message-1"))
+                .thenThrow(new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+
+        mockMvc.perform(
+                        delete("/v1/chat-rooms/room-missing/messages/message-1")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("CHAT_ROOM_NOT_FOUND"));
     }
 
     @Test
