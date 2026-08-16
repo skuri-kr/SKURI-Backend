@@ -11,6 +11,8 @@ import java.util.Set;
 
 public final class ChatImageAssetPolicy {
 
+    public static final String NO_MANAGED_ASSET_KEY = "__no_managed_chat_image__";
+
     private static final String CHAT_STORAGE_DIRECTORY_PREFIX = "chat/";
     private static final String THUMBNAIL_SUFFIX = "_thumb";
     private static final List<String> IMAGE_EXTENSIONS = List.of(".jpg", ".png", ".webp");

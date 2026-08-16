@@ -79,6 +79,9 @@ public class ReportService {
                     normalizedTargetId,
                     target.authorId(),
                     target.snapshot(),
+                    target.chatImageAsset() == null
+                            ? ChatImageAssetPolicy.NO_MANAGED_ASSET_KEY
+                            : target.chatImageAsset().familyKey(),
                     normalizeCode(request.category()),
                     normalizeRequired(request.reason()),
                     reporterId

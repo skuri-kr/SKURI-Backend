@@ -3,10 +3,8 @@ package com.skuri.skuri_backend.domain.support.repository;
 import com.skuri.skuri_backend.domain.support.entity.Report;
 import com.skuri.skuri_backend.domain.support.entity.ReportStatus;
 import com.skuri.skuri_backend.domain.support.entity.ReportTargetType;
-import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,13 +18,14 @@ public interface ReportRepository extends JpaRepository<Report, String> {
 
     List<Report> findByTargetType(ReportTargetType targetType);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("""
-            select r
-            from Report r
-            where r.targetType = :targetType
-            """)
-    List<Report> findByTargetTypeForUpdate(@Param("targetType") ReportTargetType targetType);
+    boolean existsByTargetTypeAndTargetImageAssetKey(
+            ReportTargetType targetType,
+            String targetImageAssetKey
+    );
+
+    List<Report> findByTargetImageAssetKeyIsNull(Pageable pageable);
+
+    List<Report> findByTargetTypeAndTargetImageAssetKeyIsNull(ReportTargetType targetType);
 
     long countByStatus(ReportStatus status);
 

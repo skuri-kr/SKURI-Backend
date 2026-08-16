@@ -25,6 +25,7 @@ import lombok.NoArgsConstructor;
         indexes = {
                 @Index(name = "idx_chat_messages_room_cursor", columnList = "chat_room_id, created_at, message_order, id"),
                 @Index(name = "idx_chat_messages_room_visible_latest", columnList = "chat_room_id, deleted_at, created_at, message_order, id"),
+                @Index(name = "idx_chat_messages_image_asset_active", columnList = "type, image_asset_key, deleted_at"),
                 @Index(name = "uk_chat_messages_source_event_id", columnList = "source_event_id", unique = true)
         }
 )
@@ -80,6 +81,9 @@ public class ChatMessage extends BaseTimeEntity {
 
     @Column(name = "source_event_id", unique = true, length = 36)
     private String sourceEventId;
+
+    @Column(name = "image_asset_key", length = 255)
+    private String imageAssetKey;
 
     @Column(name = "edited_at")
     private java.time.LocalDateTime editedAt;
@@ -161,6 +165,10 @@ public class ChatMessage extends BaseTimeEntity {
 
     public void markSourceEventId(String sourceEventId) {
         this.sourceEventId = sourceEventId;
+    }
+
+    public void markImageAssetKey(String imageAssetKey) {
+        this.imageAssetKey = imageAssetKey;
     }
 
     public boolean hasSource(String source) {

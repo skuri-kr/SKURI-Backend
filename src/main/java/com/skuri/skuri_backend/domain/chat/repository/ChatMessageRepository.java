@@ -90,6 +90,16 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, String
             ChatMessageType type
     );
 
-    List<ChatMessage> findByTypeAndDeletedAtIsNull(ChatMessageType type);
+    boolean existsByTypeAndImageAssetKeyAndDeletedAtIsNull(
+            ChatMessageType type,
+            String imageAssetKey
+    );
+
+    List<ChatMessage> findByTypeAndImageAssetKeyIsNull(
+            ChatMessageType type,
+            Pageable pageable
+    );
+
+    List<ChatMessage> findByTypeAndImageAssetKeyIsNullAndDeletedAtIsNull(ChatMessageType type);
 
 }

@@ -3,6 +3,7 @@ package com.skuri.skuri_backend.domain.support.entity;
 import com.skuri.skuri_backend.common.entity.BaseTimeEntity;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.domain.image.policy.ChatImageAssetPolicy;
 import com.skuri.skuri_backend.domain.support.entity.converter.ChatMessageReportSnapshotJsonConverter;
 import com.skuri.skuri_backend.domain.support.model.ChatMessageReportSnapshot;
 import jakarta.persistence.Column;
@@ -30,7 +31,8 @@ import lombok.NoArgsConstructor;
                 )
         },
         indexes = {
-                @jakarta.persistence.Index(name = "idx_reports_target", columnList = "target_type, target_id")
+                @jakarta.persistence.Index(name = "idx_reports_target", columnList = "target_type, target_id"),
+                @jakarta.persistence.Index(name = "idx_reports_chat_image_asset", columnList = "target_type, target_image_asset_key")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -54,6 +56,9 @@ public class Report extends BaseTimeEntity {
     @Convert(converter = ChatMessageReportSnapshotJsonConverter.class)
     @Column(name = "target_snapshot", columnDefinition = "json")
     private ChatMessageReportSnapshot targetSnapshot;
+
+    @Column(name = "target_image_asset_key", length = 255)
+    private String targetImageAssetKey;
 
     @Column(nullable = false, length = 50)
     private String category;
@@ -79,6 +84,7 @@ public class Report extends BaseTimeEntity {
             String targetId,
             String targetAuthorId,
             ChatMessageReportSnapshot targetSnapshot,
+            String targetImageAssetKey,
             String category,
             String reason,
             String reporterId
@@ -87,6 +93,7 @@ public class Report extends BaseTimeEntity {
         this.targetId = targetId;
         this.targetAuthorId = targetAuthorId;
         this.targetSnapshot = targetSnapshot;
+        this.targetImageAssetKey = targetImageAssetKey;
         this.category = category;
         this.reason = reason;
         this.reporterId = reporterId;
@@ -101,7 +108,16 @@ public class Report extends BaseTimeEntity {
             String reason,
             String reporterId
     ) {
-        return new Report(targetType, targetId, targetAuthorId, null, category, reason, reporterId);
+        return new Report(
+                targetType,
+                targetId,
+                targetAuthorId,
+                null,
+                ChatImageAssetPolicy.NO_MANAGED_ASSET_KEY,
+                category,
+                reason,
+                reporterId
+        );
     }
 
     public static Report create(
@@ -113,7 +129,42 @@ public class Report extends BaseTimeEntity {
             String reason,
             String reporterId
     ) {
-        return new Report(targetType, targetId, targetAuthorId, targetSnapshot, category, reason, reporterId);
+        return create(
+                targetType,
+                targetId,
+                targetAuthorId,
+                targetSnapshot,
+                ChatImageAssetPolicy.NO_MANAGED_ASSET_KEY,
+                category,
+                reason,
+                reporterId
+        );
+    }
+
+    public static Report create(
+            ReportTargetType targetType,
+            String targetId,
+            String targetAuthorId,
+            ChatMessageReportSnapshot targetSnapshot,
+            String targetImageAssetKey,
+            String category,
+            String reason,
+            String reporterId
+    ) {
+        return new Report(
+                targetType,
+                targetId,
+                targetAuthorId,
+                targetSnapshot,
+                targetImageAssetKey,
+                category,
+                reason,
+                reporterId
+        );
+    }
+
+    public void markTargetImageAssetKey(String targetImageAssetKey) {
+        this.targetImageAssetKey = targetImageAssetKey;
     }
 
     public void updateReview(ReportStatus status, String action, String adminMemo) {

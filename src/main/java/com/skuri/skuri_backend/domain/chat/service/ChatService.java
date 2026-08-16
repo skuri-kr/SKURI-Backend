@@ -54,6 +54,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -343,7 +344,8 @@ public class ChatService {
                 type,
                 accountData,
                 arrivalData,
-                null
+                null,
+                managedImageAsset.map(ChatImageAsset::familyKey).orElse(null)
         );
     }
 
@@ -390,7 +392,7 @@ public class ChatService {
         return response;
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public ChatMessageResponse deleteMessage(String memberId, String chatRoomId, String messageId) {
         ChatRoom room = lockChatRoomForMutation(chatRoomId);
         requireChatRoomMember(chatRoomId, memberId);
@@ -715,7 +717,13 @@ public class ChatService {
     }
 
     private boolean hasActiveChatImageReference(String familyKey) {
-        return chatMessageRepository.findByTypeAndDeletedAtIsNull(ChatMessageType.IMAGE).stream()
+        if (chatMessageRepository.existsByTypeAndImageAssetKeyAndDeletedAtIsNull(
+                ChatMessageType.IMAGE,
+                familyKey
+        )) {
+            return true;
+        }
+        return chatMessageRepository.findByTypeAndImageAssetKeyIsNullAndDeletedAtIsNull(ChatMessageType.IMAGE).stream()
                 .map(ChatMessage::getText)
                 .map(this::resolveManagedChatImageAsset)
                 .flatMap(Optional::stream)
@@ -724,7 +732,13 @@ public class ChatService {
     }
 
     private boolean hasChatImageReportReference(String familyKey) {
-        return reportRepository.findByTargetTypeForUpdate(ReportTargetType.CHAT_MESSAGE).stream()
+        if (reportRepository.existsByTargetTypeAndTargetImageAssetKey(
+                ReportTargetType.CHAT_MESSAGE,
+                familyKey
+        )) {
+            return true;
+        }
+        return reportRepository.findByTargetTypeAndTargetImageAssetKeyIsNull(ReportTargetType.CHAT_MESSAGE).stream()
                 .map(Report::getTargetSnapshot)
                 .filter(Objects::nonNull)
                 .map(ChatMessageReportSnapshot::imageUrl)
@@ -737,7 +751,7 @@ public class ChatService {
     private Optional<ChatImageAsset> requireManagedChatImageAsset(String imageUrl) {
         Optional<String> resolvedRelativePath = storageRepository.resolveRelativePath(imageUrl);
         if (resolvedRelativePath.isEmpty()) {
-            return Optional.empty();
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, CHAT_IMAGE_URL_MESSAGE);
         }
         ChatImageAsset imageAsset = ChatImageAssetPolicy.resolve(resolvedRelativePath.get())
                 .orElseThrow(() -> new BusinessException(ErrorCode.VALIDATION_ERROR, CHAT_IMAGE_URL_MESSAGE));
@@ -1044,9 +1058,36 @@ public class ChatService {
                 accountData,
                 arrivalData,
                 source,
-                null,
-                null,
                 null
+        );
+    }
+
+    private ChatMessageResponse saveAndPublishMessage(
+            ChatRoom room,
+            String senderId,
+            String senderName,
+            String senderPhotoUrl,
+            String text,
+            ChatMessageType type,
+            ChatAccountData accountData,
+            ChatArrivalData arrivalData,
+            String source,
+            String imageAssetKey
+    ) {
+        return saveAndPublishMessage(
+                room,
+                senderId,
+                senderName,
+                senderPhotoUrl,
+                text,
+                type,
+                accountData,
+                arrivalData,
+                source,
+                null,
+                null,
+                null,
+                imageAssetKey
         );
     }
 
@@ -1064,6 +1105,38 @@ public class ChatService {
             String minecraftUuid,
             String sourceEventId
     ) {
+        return saveAndPublishMessage(
+                room,
+                senderId,
+                senderName,
+                senderPhotoUrl,
+                text,
+                type,
+                accountData,
+                arrivalData,
+                source,
+                direction,
+                minecraftUuid,
+                sourceEventId,
+                null
+        );
+    }
+
+    private ChatMessageResponse saveAndPublishMessage(
+            ChatRoom room,
+            String senderId,
+            String senderName,
+            String senderPhotoUrl,
+            String text,
+            ChatMessageType type,
+            ChatAccountData accountData,
+            ChatArrivalData arrivalData,
+            String source,
+            ChatMessageDirection direction,
+            String minecraftUuid,
+            String sourceEventId,
+            String imageAssetKey
+    ) {
         String chatRoomId = room.getId();
         ChatMessage message = ChatMessage.create(
                 chatRoomId,
@@ -1076,6 +1149,9 @@ public class ChatService {
                 arrivalData
         );
         message.markSource(source);
+        if (StringUtils.hasText(imageAssetKey)) {
+            message.markImageAssetKey(imageAssetKey);
+        }
         if (direction != null) {
             message.markDirection(direction);
         }
