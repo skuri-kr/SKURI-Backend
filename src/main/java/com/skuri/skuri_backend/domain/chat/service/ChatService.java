@@ -99,6 +99,7 @@ public class ChatService {
     private final ReportRepository reportRepository;
     private final StorageRepository storageRepository;
     private final MediaCleanupTaskService mediaCleanupTaskService;
+    private final ChatRoomSummaryEventPublisher chatRoomSummaryEventPublisher;
 
     @Transactional
     public void createPartyChatRoom(Party party) {
@@ -240,7 +241,7 @@ public class ChatService {
         chatRoomMemberRepository.save(member);
         saved.increaseMemberCount();
         chatRoomRepository.save(saved);
-        publishAfterCommit(() -> publishChatRoomSummaryEvent(saved));
+        publishAfterCommit(() -> chatRoomSummaryEventPublisher.publishCurrent(saved.getId()));
         return toDetailResponse(saved, member);
     }
 
@@ -249,6 +250,7 @@ public class ChatService {
         Member memberProfile = requireActiveMember(memberId);
         ChatRoom room = lockChatRoomForMutation(chatRoomId);
         validatePublicRoomMembershipAction(room, "참여");
+        validateDepartmentRoomVisibility(room, memberProfile.getDepartment());
 
         if (findMembership(chatRoomId, memberId) != null) {
             throw new BusinessException(ErrorCode.ALREADY_CHAT_ROOM_MEMBER);
@@ -385,7 +387,7 @@ public class ChatService {
 
         ChatMessageResponse response = toMessageResponse(saved, resolveSenderPhotoUrl(saved));
         publishMessageMutationAfterCommit(
-                room,
+                room.getId(),
                 ChatMessageMutationEventType.MESSAGE_UPDATED,
                 response,
                 refreshSummary
@@ -425,7 +427,7 @@ public class ChatService {
         List<String> cleanupTaskIds = enqueueImageCleanupIfEligible(saved, managedImageAsset);
         ChatMessageResponse response = toMessageResponse(saved, resolveSenderPhotoUrl(saved));
         publishMessageMutationAfterCommit(
-                room,
+                room.getId(),
                 ChatMessageMutationEventType.MESSAGE_DELETED,
                 response,
                 true
@@ -615,23 +617,6 @@ public class ChatService {
         }
     }
 
-    private void publishChatRoomSummaryEvent(ChatRoom room) {
-        List<ChatRoomMember> members = chatRoomMemberRepository.findById_ChatRoomId(room.getId());
-        for (ChatRoomMember member : members) {
-            long unreadCount = calculateUnreadCount(room, member);
-            ChatRoomSummaryEventResponse payload = new ChatRoomSummaryEventResponse(
-                    "CHAT_ROOM_UPSERT",
-                    room.getId(),
-                    room.getName(),
-                    room.getMemberCount(),
-                    unreadCount,
-                    toLastMessage(room),
-                    LocalDateTime.now()
-            );
-            messagingTemplate.convertAndSendToUser(member.getMemberId(), "/queue/chat-rooms", payload);
-        }
-    }
-
     private void publishChatRoomRemovedEvent(ChatRoom room, String memberId) {
         ChatRoomSummaryEventResponse payload = new ChatRoomSummaryEventResponse(
                 "CHAT_ROOM_REMOVED",
@@ -659,18 +644,18 @@ public class ChatService {
     }
 
     private void publishMessageMutationAfterCommit(
-            ChatRoom room,
+            String chatRoomId,
             ChatMessageMutationEventType eventType,
             ChatMessageResponse message,
             boolean publishSummary
     ) {
         publishAfterCommit(() -> {
             messagingTemplate.convertAndSend(
-                    "/topic/chat/" + room.getId() + "/events",
+                    "/topic/chat/" + chatRoomId + "/events",
                     new ChatMessageMutationEventResponse(eventType, message)
             );
             if (publishSummary) {
-                publishChatRoomSummaryEvent(room);
+                chatRoomSummaryEventPublisher.publishCurrent(chatRoomId);
             }
         });
     }
@@ -1191,7 +1176,7 @@ public class ChatService {
         ChatMessageResponse response = toMessageResponse(saved, senderPhotoUrl);
         publishAfterCommit(() -> {
             messagingTemplate.convertAndSend("/topic/chat/" + chatRoomId, response);
-            publishChatRoomSummaryEvent(room);
+            chatRoomSummaryEventPublisher.publishCurrent(chatRoomId);
         });
         eventPublisher.publish(new NotificationDomainEvent.ChatMessageCreated(chatRoomId, saved.getId()));
         if (minecraftBridgeProperties.normalizedRoomId().equals(chatRoomId) && !saved.isMinecraftOrigin()) {
@@ -1263,9 +1248,7 @@ public class ChatService {
         if (!room.isPublic()) {
             throw new BusinessException(ErrorCode.NOT_CHAT_ROOM_MEMBER);
         }
-        if (room.getType() == ChatRoomType.DEPARTMENT && !matchesDepartment(room.getDepartment(), findCurrentDepartment(memberId))) {
-            throw new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND);
-        }
+        validateDepartmentRoomVisibility(room, findCurrentDepartment(memberId));
         return new ChatRoomAccess(room, null);
     }
 
@@ -1319,6 +1302,13 @@ public class ChatService {
         }
     }
 
+    private void validateDepartmentRoomVisibility(ChatRoom room, String currentDepartment) {
+        if (room.getType() == ChatRoomType.DEPARTMENT
+                && !matchesDepartment(room.getDepartment(), currentDepartment)) {
+            throw new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND);
+        }
+    }
+
     private LocalDateTime initialLastReadAt(ChatRoom room) {
         return room.getLastMessageTimestamp() != null ? room.getLastMessageTimestamp() : LocalDateTime.now(CHAT_TIME_ZONE);
     }
@@ -1360,7 +1350,7 @@ public class ChatService {
         chatRoomRepository.save(room);
         publishAfterCommit(() -> {
             if (publishSummaryEvent) {
-                publishChatRoomSummaryEvent(room);
+                chatRoomSummaryEventPublisher.publishCurrent(room.getId());
             }
             if (notifyRemovedMember) {
                 publishChatRoomRemovedEvent(room, memberId);
