@@ -1,13 +1,6 @@
 package com.skuri.skuri_backend.domain.chat.service;
 
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomSummaryEventResponse;
-import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
-import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
-import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
-import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
-import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
-import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
-import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -15,14 +8,22 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,13 +31,7 @@ import static org.mockito.Mockito.when;
 class ChatRoomSummaryEventPublisherTest {
 
     @Mock
-    private ChatRoomRepository chatRoomRepository;
-
-    @Mock
-    private ChatRoomMemberRepository chatRoomMemberRepository;
-
-    @Mock
-    private ChatMessageRepository chatMessageRepository;
+    private ChatRoomSummarySnapshotReader snapshotReader;
 
     @Mock
     private SimpMessagingTemplate messagingTemplate;
@@ -45,58 +40,70 @@ class ChatRoomSummaryEventPublisherTest {
     private ChatRoomSummaryEventPublisher publisher;
 
     @Test
-    void publishCurrent_잠금조회한최신방상태로요약을발행한다() {
-        ChatRoom room = ChatRoom.create(
-                "room-1",
-                "시험기간 밤샘 메이트",
-                ChatRoomType.CUSTOM,
-                null,
-                null,
-                null,
-                true,
-                null
-        );
-        LocalDateTime lastMessageAt = LocalDateTime.of(2026, 8, 17, 12, 0);
-        ReflectionTestUtils.setField(room, "memberCount", 3);
-        ReflectionTestUtils.setField(room, "messageCount", 7);
-        ReflectionTestUtils.setField(room, "lastMessageText", "최신 메시지");
-        ReflectionTestUtils.setField(room, "lastMessageSenderName", "홍길동");
-        ReflectionTestUtils.setField(room, "lastMessageType", ChatMessageType.TEXT);
-        ReflectionTestUtils.setField(room, "lastMessageTimestamp", lastMessageAt);
-        ChatRoomMember member = ChatRoomMember.create(room, "member-1", lastMessageAt.minusMinutes(1));
-
-        when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(room));
-        when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
+    void publishCurrent_잠금밖에서만든요약을각멤버에게전송한다() {
+        ChatRoomSummaryEventResponse payload = summaryPayload("room-1");
+        when(snapshotReader.readCurrent("room-1"))
+                .thenReturn(List.of(new ChatRoomSummaryDelivery("member-1", payload)));
 
         publisher.publishCurrent("room-1");
 
         ArgumentCaptor<ChatRoomSummaryEventResponse> eventCaptor = ArgumentCaptor.forClass(ChatRoomSummaryEventResponse.class);
         verify(messagingTemplate).convertAndSendToUser(eq("member-1"), eq("/queue/chat-rooms"), eventCaptor.capture());
-        ChatRoomSummaryEventResponse event = eventCaptor.getValue();
-        assertEquals("CHAT_ROOM_UPSERT", event.eventType());
-        assertEquals(3, event.memberCount());
-        assertEquals(7L, event.unreadCount());
-        assertEquals("최신 메시지", event.lastMessage().text());
-        assertEquals(lastMessageAt, event.lastMessage().createdAt());
+        assertEquals(payload, eventCaptor.getValue());
     }
 
     @Test
-    void publishCurrent_읽음시각이있으면현재메시지수로미읽음을계산한다() {
-        ChatRoom room = ChatRoom.create("room-1", "공개방", ChatRoomType.UNIVERSITY, null, null, null, true, null);
-        ChatRoomMember member = ChatRoomMember.create(room, "member-1", LocalDateTime.of(2026, 8, 17, 12, 0));
-        member.advanceLastReadAt(LocalDateTime.of(2026, 8, 17, 12, 5));
+    void publishCurrent_같은방의후속발행은이전전송뒤에시작한다() throws Exception {
+        CountDownLatch firstSendStarted = new CountDownLatch(1);
+        CountDownLatch releaseFirstSend = new CountDownLatch(1);
+        CountDownLatch secondReadStarted = new CountDownLatch(1);
+        AtomicInteger readCount = new AtomicInteger();
+        AtomicInteger sendCount = new AtomicInteger();
+        ChatRoomSummaryEventResponse payload = summaryPayload("room-1");
 
-        when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(room));
-        when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
-        when(chatMessageRepository.countByChatRoomIdAndDeletedAtIsNullAndCreatedAtAfter(
-                "room-1",
-                LocalDateTime.of(2026, 8, 17, 12, 5)
-        )).thenReturn(2L);
+        when(snapshotReader.readCurrent("room-1")).thenAnswer(invocation -> {
+            if (readCount.incrementAndGet() == 2) {
+                secondReadStarted.countDown();
+            }
+            return List.of(new ChatRoomSummaryDelivery("member-1", payload));
+        });
+        doAnswer(invocation -> {
+            if (sendCount.incrementAndGet() == 1) {
+                firstSendStarted.countDown();
+                assertTrue(releaseFirstSend.await(1, TimeUnit.SECONDS));
+            }
+            return null;
+        }).when(messagingTemplate).convertAndSendToUser(eq("member-1"), eq("/queue/chat-rooms"), any());
 
-        publisher.publishCurrent("room-1");
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = executor.submit(() -> publisher.publishCurrent("room-1"));
+            assertTrue(firstSendStarted.await(1, TimeUnit.SECONDS));
 
-        ArgumentCaptor<ChatRoomSummaryEventResponse> eventCaptor = ArgumentCaptor.forClass(ChatRoomSummaryEventResponse.class);
-        verify(messagingTemplate).convertAndSendToUser(eq("member-1"), eq("/queue/chat-rooms"), eventCaptor.capture());
-        assertEquals(2L, eventCaptor.getValue().unreadCount());
+            Future<?> second = executor.submit(() -> publisher.publishCurrent("room-1"));
+            assertFalse(secondReadStarted.await(150, TimeUnit.MILLISECONDS));
+
+            releaseFirstSend.countDown();
+            first.get(1, TimeUnit.SECONDS);
+            second.get(1, TimeUnit.SECONDS);
+
+            assertTrue(secondReadStarted.await(1, TimeUnit.SECONDS));
+            assertEquals(2, readCount.get());
+            assertEquals(2, sendCount.get());
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private ChatRoomSummaryEventResponse summaryPayload(String chatRoomId) {
+        return new ChatRoomSummaryEventResponse(
+                "CHAT_ROOM_UPSERT",
+                chatRoomId,
+                "시험기간 밤샘 메이트",
+                3,
+                7L,
+                null,
+                LocalDateTime.of(2026, 8, 17, 12, 0)
+        );
     }
 }
