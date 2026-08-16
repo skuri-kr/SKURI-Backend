@@ -434,7 +434,10 @@ public class ChatRoomController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",
                     description = "채팅방 또는 메시지 없음",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "message_not_found", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_NOT_FOUND))
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "chat_room_not_found", value = OpenApiChatExamples.ERROR_CHAT_ROOM_NOT_FOUND),
+                            @ExampleObject(name = "message_not_found", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_NOT_FOUND)
+                    })
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
@@ -491,7 +494,10 @@ public class ChatRoomController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "404",
                     description = "채팅방 또는 메시지 없음",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "message_not_found", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_NOT_FOUND))
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "chat_room_not_found", value = OpenApiChatExamples.ERROR_CHAT_ROOM_NOT_FOUND),
+                            @ExampleObject(name = "message_not_found", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_NOT_FOUND)
+                    })
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",

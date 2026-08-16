@@ -1543,6 +1543,7 @@ FCM 토큰 삭제
         "text": "안녕하세요!",
         "type": "TEXT",
         "createdAt": "2026-02-03T12:00:00Z",
+        "updatedAt": null,
         "isDeleted": false
       },
       {
@@ -1554,6 +1555,7 @@ FCM 토큰 삭제
         "text": "홍길동님이 입장했습니다.",
         "type": "SYSTEM",
         "createdAt": "2026-02-03T11:59:00Z",
+        "updatedAt": null,
         "isDeleted": false
       }
     ],
@@ -1577,6 +1579,7 @@ FCM 토큰 삭제
 - 해당 채팅방 멤버이면서 메시지 작성자 본인만 요청할 수 있습니다.
 - 전송 후 15분 이내 `TEXT` 메시지만 수정할 수 있습니다.
 - 삭제된 메시지와 마인크래프트 연동 메시지는 수정할 수 없습니다.
+- 존재하지 않는 채팅방은 `404 CHAT_ROOM_NOT_FOUND`, 존재하지 않는 메시지는 `404 CHAT_MESSAGE_NOT_FOUND`를 반환합니다.
 - 성공 응답은 변경 뒤의 `ChatMessageResponse`이며, `editedAt`, `updatedAt`, `isDeleted=false`를 포함합니다.
 - 성공 시 커밋 뒤 `/topic/chat/{chatRoomId}/events`로 `MESSAGE_UPDATED` 이벤트를 보냅니다.
 
@@ -1586,7 +1589,8 @@ FCM 토큰 삭제
 - 해당 채팅방 멤버이면서 메시지 작성자 본인만 요청할 수 있습니다.
 - `TEXT`, `IMAGE`, 그리고 `PARTY` 방의 `ACCOUNT` 메시지만 삭제할 수 있습니다. 서버 생성 `SYSTEM`/`ARRIVED`/`END`와 마인크래프트 연동 메시지는 삭제할 수 없습니다.
 - 삭제는 행을 제거하지 않는 tombstone 처리입니다. 동일 작성자의 재요청은 성공한 tombstone 응답을 다시 반환합니다.
-- 삭제된 이미지의 원본·썸네일은 활성 메시지 참조와 `CHAT_MESSAGE` 신고 증거가 모두 없을 때에만 비동기 정리 작업에 넣습니다. 내부 채팅 이미지 경로는 참조 생성·정리를 같은 작업 잠금으로 직렬화하고, 이미 정리된 내부 URL은 새 업로드 없이 다시 전송할 수 없습니다. 실패한 파일 삭제는 DB 작업 큐에서 지수 backoff로 재시도합니다.
+- 존재하지 않는 채팅방은 `404 CHAT_ROOM_NOT_FOUND`, 존재하지 않는 메시지는 `404 CHAT_MESSAGE_NOT_FOUND`를 반환합니다.
+- 삭제된 이미지의 원본·썸네일은 활성 메시지 참조와 `CHAT_MESSAGE` 신고 증거가 모두 없을 때에만 비동기 정리 작업에 넣습니다. 같은 업로드의 원본·썸네일은 하나의 이미지 자산으로 보고 동일한 작업 잠금으로 참조 생성·신고 snapshot·정리를 직렬화합니다. 이미 정리된 내부 URL은 새 업로드 없이 다시 전송할 수 없으며, 실패한 파일 삭제는 DB 작업 큐에서 지수 backoff로 재시도합니다.
 - 성공 시 커밋 뒤 `/topic/chat/{chatRoomId}/events`로 `MESSAGE_DELETED` 이벤트를 보냅니다.
 
 **삭제 응답 예시:**
@@ -1728,7 +1732,7 @@ Authorization:Bearer <firebase_id_token>
 { "type": "IMAGE", "imageUrl": "https://..." }
 ```
 
-- `IMAGE` 메시지의 `imageUrl`은 `POST /v1/images`의 `CHAT_IMAGE` 업로드 결과 URL을 그대로 사용합니다.
+- `IMAGE` 메시지의 `imageUrl`은 `POST /v1/images`의 `CHAT_IMAGE` 업로드 응답 중 원본 `url`만 그대로 사용합니다. `thumbUrl`을 전송하면 `VALIDATION_ERROR`입니다.
 - 정리 완료된 내부 `CHAT_IMAGE` URL을 다시 전송하면 `CHAT_IMAGE_UNAVAILABLE` 오류가 발생하므로, 이미지를 다시 업로드해야 합니다.
 - 실시간 수신 payload와 `GET /v1/chat-rooms/{chatRoomId}/messages`의 `messages[]` item shape는 동일합니다.
 - 일반 채팅 메시지의 `senderPhotoUrl`은 앱 사용자 메시지는 `members.photo_url`, Minecraft origin 메시지는 Minotar URL을 사용합니다.
@@ -5952,6 +5956,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "type": "TEXT",
         "text": "스터디 인원 구합니다.",
         "createdAt": "2026-04-06T17:40:00",
+        "updatedAt": null,
         "isDeleted": false
       },
       {
@@ -5963,6 +5968,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "type": "TEXT",
         "text": "오늘 저녁에 모집할게요.",
         "createdAt": "2026-04-06T17:20:00",
+        "updatedAt": null,
         "isDeleted": false
       }
     ],
@@ -6779,6 +6785,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "type": "TEXT",
         "text": "정문 앞 도착했습니다.",
         "createdAt": "2026-03-04T20:55:00",
+        "updatedAt": null,
         "isDeleted": false
       },
       {
@@ -6790,6 +6797,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "type": "SYSTEM",
         "text": "김철수님이 입장했어요.",
         "createdAt": "2026-03-04T20:50:00",
+        "updatedAt": null,
         "isDeleted": false
       }
     ],

@@ -372,7 +372,8 @@ Hooks:
     - 수정: 작성자 본인의 `TEXT`만 전송 후 15분 이내 허용
     - 삭제: `TEXT`/`IMAGE`와 PARTY의 `ACCOUNT`만 tombstone 처리; history cursor 위치는 보존
     - Minecraft origin과 서버 생성 메시지는 수정/삭제 불가
-    - 이미지 tombstone은 활성 참조와 신고 증거가 없을 때만 재시도 가능한 storage cleanup task로 처리한다. 내부 이미지 경로별 작업 잠금으로 참조 생성·정리를 직렬화하고, 정리 완료 URL은 새 업로드 전까지 다시 전송하지 못한다.
+    - 이미지 tombstone은 활성 참조와 신고 증거가 없을 때만 재시도 가능한 storage cleanup task로 처리한다. 원본·썸네일은 하나의 내부 이미지 자산으로 묶어 동일한 작업 잠금으로 참조 생성·신고 snapshot·정리를 직렬화하고, 정리 완료 URL은 새 업로드 전까지 다시 전송하지 못한다. 새 `IMAGE` 메시지는 업로드 응답의 원본 `url`만 허용한다.
+    - 메시지 저장, 공개방 입·퇴장, 파티 멤버 동기화·탈퇴는 채팅방 행 잠금 뒤 최신 `memberCount`·마지막 메시지 요약을 갱신한다. `remember=true` 계좌 저장은 회원 잠금을 먼저 얻고 채팅방 잠금으로 진행해 회원 탈퇴와 같은 순서를 사용한다.
   - 멤버 입장 직후 생성된 join `SYSTEM` 메시지는 해당 신규 멤버의 `lastReadAt`을 서버가 최신 메시지 시각으로 맞춰 unread가 0으로 유지되게 한다
   - 회원 프로필 학과 변경 시 기존 학과방 membership은 자동 제거하고, 새 학과방은 자동 참여시키지 않는다
   - 채팅방 목록 실시간: `/user/queue/chat-rooms` 사용자 전용 요약 채널 1개 구독
