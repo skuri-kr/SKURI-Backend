@@ -38,4 +38,9 @@ class ChatImageAssetPolicyTest {
         assertTrue(ChatImageAssetPolicy.resolve("chat/../profiles/member.png").isEmpty());
         assertTrue(ChatImageAssetPolicy.resolve("/chat/2026/08/image.png").isEmpty());
     }
+
+    @Test
+    void 채팅경로밖으로정규화되는자산키는정리대상이아니다() {
+        assertTrue(ChatImageAssetPolicy.cleanupPathsForFamilyKey("chat/../profiles/member").isEmpty());
+    }
 }

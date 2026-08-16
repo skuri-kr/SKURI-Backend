@@ -38,6 +38,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageRequest;
@@ -63,6 +64,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -114,6 +116,9 @@ class ChatServiceTest {
     @Mock
     private MediaCleanupTaskService mediaCleanupTaskService;
 
+    @Mock
+    private ChatRoomSummaryEventPublisher chatRoomSummaryEventPublisher;
+
     @InjectMocks
     private ChatService chatService;
 
@@ -122,6 +127,8 @@ class ChatServiceTest {
         lenient().when(minecraftBridgeProperties.normalizedRoomId()).thenReturn("public:game:minecraft");
         lenient().when(chatRoomRepository.findByIdForUpdate(anyString()))
                 .thenAnswer(invocation -> chatRoomRepository.findById(invocation.getArgument(0)));
+        lenient().when(storageRepository.resolveVerifiedRelativePath(anyString()))
+                .thenAnswer(invocation -> storageRepository.resolveRelativePath(invocation.getArgument(0)));
     }
 
     @Test
@@ -341,7 +348,6 @@ class ChatServiceTest {
             savedMemberRef.set(member);
             return member;
         });
-        when(chatRoomMemberRepository.findById_ChatRoomId(anyString())).thenAnswer(invocation -> List.of(savedMemberRef.get()));
 
         ChatRoomDetailResponse response = chatService.createChatRoom(
                 "member-1",
@@ -352,7 +358,7 @@ class ChatServiceTest {
         assertTrue(response.joined());
         assertEquals(1, response.memberCount());
         assertEquals("시험기간 밤샘 메이트", response.name());
-        verify(messagingTemplate).convertAndSendToUser(eq("member-1"), eq("/queue/chat-rooms"), any());
+        verify(chatRoomSummaryEventPublisher).publishCurrent(anyString());
     }
 
     @Test
@@ -395,7 +401,6 @@ class ChatServiceTest {
             return message;
         });
         when(chatRoomRepository.save(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenAnswer(invocation -> List.of(savedMemberRef.get()));
 
         ChatRoomDetailResponse response = chatService.joinChatRoom("member-1", "room-1");
 
@@ -412,7 +417,7 @@ class ChatServiceTest {
         ArgumentCaptor<ChatMessageResponse> joinPayloadCaptor = ArgumentCaptor.forClass(ChatMessageResponse.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/chat/room-1"), joinPayloadCaptor.capture());
         assertEquals("https://cdn.skuri.app/uploads/profiles/member-1.jpg", joinPayloadCaptor.getValue().senderPhotoUrl());
-        verify(messagingTemplate).convertAndSendToUser(eq("member-1"), eq("/queue/chat-rooms"), any());
+        verify(chatRoomSummaryEventPublisher).publishCurrent("room-1");
     }
 
     @Test
@@ -425,6 +430,32 @@ class ChatServiceTest {
         );
 
         assertEquals(ErrorCode.MEMBER_NOT_FOUND, exception.getErrorCode());
+    }
+
+    @Test
+    void joinChatRoom_다른학과공개방은_존재하지않는방으로처리한다() {
+        ChatRoom room = ChatRoom.create(
+                "public:department:law",
+                "법학과 채팅방",
+                ChatRoomType.DEPARTMENT,
+                "법학과",
+                null,
+                null,
+                true,
+                null
+        );
+        when(memberRepository.findActiveById("member-1"))
+                .thenReturn(Optional.of(activeMember("member-1", "컴퓨터공학과")));
+        when(chatRoomRepository.findById("public:department:law")).thenReturn(Optional.of(room));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> chatService.joinChatRoom("member-1", "public:department:law")
+        );
+
+        assertEquals(ErrorCode.CHAT_ROOM_NOT_FOUND, exception.getErrorCode());
+        verify(chatRoomMemberRepository, never()).save(any(ChatRoomMember.class));
+        verify(chatMessageRepository, never()).save(any(ChatMessage.class));
     }
 
     @Test
@@ -446,7 +477,6 @@ class ChatServiceTest {
             return message;
         });
         when(chatRoomRepository.save(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(remainingMember));
 
         ChatRoomDetailResponse response = chatService.leaveChatRoom("member-1", "room-1");
 
@@ -463,7 +493,8 @@ class ChatServiceTest {
         ArgumentCaptor<ChatMessageResponse> leavePayloadCaptor = ArgumentCaptor.forClass(ChatMessageResponse.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/chat/room-1"), leavePayloadCaptor.capture());
         assertEquals("https://cdn.skuri.app/uploads/profiles/member-1.jpg", leavePayloadCaptor.getValue().senderPhotoUrl());
-        verify(messagingTemplate, times(2)).convertAndSendToUser(anyString(), eq("/queue/chat-rooms"), any());
+        verify(messagingTemplate).convertAndSendToUser(eq("member-1"), eq("/queue/chat-rooms"), any());
+        verify(chatRoomSummaryEventPublisher).publishCurrent("room-1");
     }
 
     @Test
@@ -490,7 +521,6 @@ class ChatServiceTest {
             return message;
         });
         when(chatRoomRepository.save(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(chatRoomMemberRepository.findById_ChatRoomId("public:department:cs")).thenReturn(List.of());
 
         chatService.removeMemberFromDepartmentChatRooms("member-1");
 
@@ -610,7 +640,6 @@ class ChatServiceTest {
             return message;
         });
         when(chatRoomRepository.save(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(chatRoomMemberRepository.findById_ChatRoomId("party:party-1")).thenReturn(List.of(roomMember));
 
         ChatMessageResponse response = chatService.sendMessage(
                 "party:party-1",
@@ -625,7 +654,7 @@ class ChatServiceTest {
         ArgumentCaptor<ChatMessageResponse> sendPayloadCaptor = ArgumentCaptor.forClass(ChatMessageResponse.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/chat/party:party-1"), sendPayloadCaptor.capture());
         assertEquals("https://cdn.skuri.app/uploads/profiles/member-1.jpg", sendPayloadCaptor.getValue().senderPhotoUrl());
-        verify(messagingTemplate).convertAndSendToUser(eq("member-1"), eq("/queue/chat-rooms"), any());
+        verify(chatRoomSummaryEventPublisher).publishCurrent("party:party-1");
     }
 
     @Test
@@ -648,7 +677,6 @@ class ChatServiceTest {
             return message;
         });
         when(chatRoomRepository.save(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
 
         chatService.sendMessage(
                 "room-1",
@@ -686,7 +714,6 @@ class ChatServiceTest {
             return message;
         });
         when(chatRoomRepository.save(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(chatRoomMemberRepository.findById_ChatRoomId("party:party-1")).thenReturn(List.of(leaderMember));
         when(chatMessageOrderGenerator.nextOrder()).thenReturn(42L);
 
         ChatMessageResponse response = chatService.createPartySystemMessage(party, "leader-1", "모집이 마감되었어요.");
@@ -701,7 +728,7 @@ class ChatServiceTest {
         ArgumentCaptor<ChatMessageResponse> systemPayloadCaptor = ArgumentCaptor.forClass(ChatMessageResponse.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/chat/party:party-1"), systemPayloadCaptor.capture());
         assertEquals("https://cdn.skuri.app/uploads/profiles/leader-1.jpg", systemPayloadCaptor.getValue().senderPhotoUrl());
-        verify(messagingTemplate).convertAndSendToUser(eq("leader-1"), eq("/queue/chat-rooms"), any());
+        verify(chatRoomSummaryEventPublisher).publishCurrent("party:party-1");
         verify(eventPublisher).publish(argThat(event ->
                 event instanceof com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent.ChatMessageCreated created
                         && created.chatRoomId().equals("party:party-1")
@@ -779,7 +806,6 @@ class ChatServiceTest {
                 .thenReturn(Optional.of(message));
         when(chatMessageRepository.countByChatRoomIdAndDeletedAtIsNull("room-1")).thenReturn(1L);
         when(chatRoomRepository.save(room)).thenReturn(room);
-        when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
         when(memberRepository.findAllById(List.of("member-1")))
                 .thenReturn(List.of(activeMember("member-1", "컴퓨터공학과", "https://cdn.skuri.app/profile.jpg")));
 
@@ -826,7 +852,6 @@ class ChatServiceTest {
         when(chatMessageRepository.findTopByChatRoomIdAndDeletedAtIsNullOrderByCreatedAtDescMessageOrderDescIdDesc("room-1"))
                 .thenReturn(Optional.empty());
         when(chatRoomRepository.save(room)).thenReturn(room);
-        when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
         when(memberRepository.findAllById(List.of("member-1")))
                 .thenReturn(List.of(activeMember("member-1", "컴퓨터공학과")));
         when(reportRepository.existsByTargetTypeAndTargetImageAssetKey(
@@ -878,9 +903,18 @@ class ChatServiceTest {
                 List.copyOf(cleanupPaths.getValue())
         );
         verify(mediaCleanupTaskService).processNow("cleanup-1");
+        InOrder deletionOrder = inOrder(mediaCleanupTaskService, reportRepository, chatMessageRepository);
+        deletionOrder.verify(mediaCleanupTaskService).lock(any());
+        deletionOrder.verify(reportRepository).fillMissingTargetImageAssetKey(
+                ReportTargetType.CHAT_MESSAGE,
+                "message-1",
+                "chat/2026/08/image"
+        );
+        deletionOrder.verify(chatMessageRepository).saveAndFlush(message);
         ArgumentCaptor<ChatMessageMutationEventResponse> eventCaptor = ArgumentCaptor.forClass(ChatMessageMutationEventResponse.class);
         verify(messagingTemplate).convertAndSend(eq("/topic/chat/room-1/events"), eventCaptor.capture());
         assertEquals("MESSAGE_DELETED", eventCaptor.getValue().eventType().name());
+        verify(chatRoomSummaryEventPublisher).publishCurrent("room-1");
     }
 
     @Test
@@ -910,7 +944,6 @@ class ChatServiceTest {
         when(chatMessageRepository.findTopByChatRoomIdAndDeletedAtIsNullOrderByCreatedAtDescMessageOrderDescIdDesc("room-1"))
                 .thenReturn(Optional.empty());
         when(chatRoomRepository.save(room)).thenReturn(room);
-        when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
         when(memberRepository.findAllById(List.of("member-1"))).thenReturn(List.of(activeMember("member-1", "컴퓨터공학과")));
         when(reportRepository.existsByTargetTypeAndTargetImageAssetKey(
                 ReportTargetType.CHAT_MESSAGE,
@@ -961,7 +994,6 @@ class ChatServiceTest {
         when(chatMessageRepository.findTopByChatRoomIdAndDeletedAtIsNullOrderByCreatedAtDescMessageOrderDescIdDesc("room-1"))
                 .thenReturn(Optional.empty());
         when(chatRoomRepository.save(room)).thenReturn(room);
-        when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
         when(memberRepository.findAllById(List.of("member-1"))).thenReturn(List.of(activeMember("member-1", "컴퓨터공학과")));
         when(reportRepository.existsByTargetTypeAndTargetImageAssetKey(
                 ReportTargetType.CHAT_MESSAGE,
@@ -1011,7 +1043,6 @@ class ChatServiceTest {
         when(chatMessageRepository.findTopByChatRoomIdAndDeletedAtIsNullOrderByCreatedAtDescMessageOrderDescIdDesc("room-1"))
                 .thenReturn(Optional.empty());
         when(chatRoomRepository.save(room)).thenReturn(room);
-        when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
         when(memberRepository.findAllById(List.of("member-1"))).thenReturn(List.of(activeMember("member-1", "컴퓨터공학과")));
         when(storageRepository.resolveRelativePath(imageUrl)).thenReturn(Optional.of("chat/../profiles/victim.png"));
 
@@ -1022,15 +1053,8 @@ class ChatServiceTest {
 
     @Test
     void sendMessage_채팅경로밖으로정규화되는내부이미지URL은거절한다() {
-        ChatRoom room = ChatRoom.create("room-1", "시험기간 밤샘 메이트", ChatRoomType.CUSTOM, null, null, null, true, null);
-        ChatRoomMember member = membership(room, "room-1", "member-1");
-        Member sender = activeMember("member-1", "컴퓨터공학과");
         String imageUrl = "https://cdn.skuri.app/chat/../profiles/victim.png";
 
-        when(chatRoomRepository.findById("room-1")).thenReturn(Optional.of(room));
-        when(chatRoomMemberRepository.findById_ChatRoomIdAndId_MemberId("room-1", "member-1"))
-                .thenReturn(Optional.of(member));
-        when(memberRepository.findById("member-1")).thenReturn(Optional.of(sender));
         when(storageRepository.resolveRelativePath(imageUrl)).thenReturn(Optional.of("chat/../profiles/victim.png"));
 
         BusinessException exception = assertThrows(
@@ -1048,15 +1072,8 @@ class ChatServiceTest {
 
     @Test
     void sendMessage_외부이미지URL은거절한다() {
-        ChatRoom room = ChatRoom.create("room-1", "시험기간 밤샘 메이트", ChatRoomType.CUSTOM, null, null, null, true, null);
-        ChatRoomMember member = membership(room, "room-1", "member-1");
-        Member sender = activeMember("member-1", "컴퓨터공학과");
         String externalUrl = "https://images.example.com/advertisement.png";
 
-        when(chatRoomRepository.findById("room-1")).thenReturn(Optional.of(room));
-        when(chatRoomMemberRepository.findById_ChatRoomIdAndId_MemberId("room-1", "member-1"))
-                .thenReturn(Optional.of(member));
-        when(memberRepository.findById("member-1")).thenReturn(Optional.of(sender));
         when(storageRepository.resolveRelativePath(externalUrl)).thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
@@ -1074,16 +1091,29 @@ class ChatServiceTest {
     }
 
     @Test
+    void sendMessage_저장되지않은채팅이미지URL은거절한다() {
+        String imageUrl = "https://cdn.skuri.app/chat/2026/08/not-uploaded.jpg";
+        when(storageRepository.resolveVerifiedRelativePath(imageUrl)).thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> chatService.sendMessage(
+                        "room-1",
+                        "member-1",
+                        new SendChatMessageRequest(ChatMessageType.IMAGE, null, imageUrl, null)
+                )
+        );
+
+        assertEquals(ErrorCode.VALIDATION_ERROR, exception.getErrorCode());
+        verifyNoInteractions(chatRoomRepository, chatRoomMemberRepository, memberRepository);
+        verify(mediaCleanupTaskService, never()).retain(any());
+        verify(chatMessageRepository, never()).save(any(ChatMessage.class));
+    }
+
+    @Test
     void sendMessage_채팅이미지썸네일URL은거절한다() {
-        ChatRoom room = ChatRoom.create("room-1", "시험기간 밤샘 메이트", ChatRoomType.CUSTOM, null, null, null, true, null);
-        ChatRoomMember member = membership(room, "room-1", "member-1");
-        Member sender = activeMember("member-1", "컴퓨터공학과");
         String thumbnailUrl = "https://cdn.skuri.app/chat/2026/08/image_thumb.jpg";
 
-        when(chatRoomRepository.findById("room-1")).thenReturn(Optional.of(room));
-        when(chatRoomMemberRepository.findById_ChatRoomIdAndId_MemberId("room-1", "member-1"))
-                .thenReturn(Optional.of(member));
-        when(memberRepository.findById("member-1")).thenReturn(Optional.of(sender));
         when(storageRepository.resolveRelativePath(thumbnailUrl)).thenReturn(Optional.of("chat/2026/08/image_thumb.jpg"));
 
         BusinessException exception = assertThrows(
