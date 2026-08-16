@@ -1,78 +1,47 @@
 package com.skuri.skuri_backend.domain.chat.service;
 
-import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomLastMessageResponse;
-import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomSummaryEventResponse;
-import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
-import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
-import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
-import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
-import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
-import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.List;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 채팅방 변경 커밋 뒤 현재 상태만으로 요약 이벤트를 발행한다.
  *
- * <p>방 행 잠금 안에서 발행해 먼저 커밋한 오래된 callback이 나중 변경의 요약을 덮어쓰지 않게 한다.</p>
+ * <p>단일 인스턴스 운영에서 같은 방의 발행 순서를 지키되, 브로커 전송 전에 DB 행 잠금은 해제한다.</p>
  */
 @Service
 @RequiredArgsConstructor
 public class ChatRoomSummaryEventPublisher {
 
-    private final ChatRoomRepository chatRoomRepository;
-    private final ChatRoomMemberRepository chatRoomMemberRepository;
-    private final ChatMessageRepository chatMessageRepository;
+    private static final int PUBLICATION_LOCK_STRIPES = 128;
+
+    private final ChatRoomSummarySnapshotReader snapshotReader;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ReentrantLock[] publicationLocks = createPublicationLocks();
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED)
     public void publishCurrent(String chatRoomId) {
-        ChatRoom room = chatRoomRepository.findByIdForUpdate(chatRoomId).orElse(null);
-        if (room == null) {
-            return;
-        }
-
-        List<ChatRoomMember> members = chatRoomMemberRepository.findById_ChatRoomId(room.getId());
-        for (ChatRoomMember member : members) {
-            ChatRoomSummaryEventResponse payload = new ChatRoomSummaryEventResponse(
-                    "CHAT_ROOM_UPSERT",
-                    room.getId(),
-                    room.getName(),
-                    room.getMemberCount(),
-                    calculateUnreadCount(room, member),
-                    toLastMessage(room),
-                    LocalDateTime.now()
+        ReentrantLock publicationLock = publicationLocks[Math.floorMod(chatRoomId.hashCode(), PUBLICATION_LOCK_STRIPES)];
+        publicationLock.lock();
+        try {
+            snapshotReader.readCurrent(chatRoomId).forEach(delivery ->
+                    messagingTemplate.convertAndSendToUser(
+                            delivery.memberId(),
+                            "/queue/chat-rooms",
+                            delivery.payload()
+                    )
             );
-            messagingTemplate.convertAndSendToUser(member.getMemberId(), "/queue/chat-rooms", payload);
+        } finally {
+            publicationLock.unlock();
         }
     }
 
-    private long calculateUnreadCount(ChatRoom room, ChatRoomMember member) {
-        if (member.getLastReadAt() == null) {
-            return room.getMessageCount();
+    private ReentrantLock[] createPublicationLocks() {
+        ReentrantLock[] locks = new ReentrantLock[PUBLICATION_LOCK_STRIPES];
+        for (int index = 0; index < PUBLICATION_LOCK_STRIPES; index++) {
+            locks[index] = new ReentrantLock();
         }
-        return chatMessageRepository.countByChatRoomIdAndDeletedAtIsNullAndCreatedAtAfter(
-                room.getId(),
-                member.getLastReadAt()
-        );
-    }
-
-    private ChatRoomLastMessageResponse toLastMessage(ChatRoom room) {
-        if (room.getLastMessageTimestamp() == null) {
-            return null;
-        }
-        return new ChatRoomLastMessageResponse(
-                room.getLastMessageType() != null ? room.getLastMessageType().name() : ChatMessageType.SYSTEM.name(),
-                room.getLastMessageText(),
-                room.getLastMessageSenderName(),
-                room.getLastMessageTimestamp()
-        );
+        return locks;
     }
 }
