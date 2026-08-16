@@ -15,6 +15,14 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
     @EntityGraph(attributePaths = {"chatRoom"})
     List<ChatRoomMember> findById_MemberId(String memberId);
 
+    @Query("""
+            select crm.id.chatRoomId
+            from ChatRoomMember crm
+            where crm.id.memberId = :memberId
+            order by crm.id.chatRoomId asc
+            """)
+    List<String> findChatRoomIdsByMemberId(@Param("memberId") String memberId);
+
     @EntityGraph(attributePaths = {"chatRoom"})
     Optional<ChatRoomMember> findById_ChatRoomIdAndId_MemberId(String chatRoomId, String memberId);
 

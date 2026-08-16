@@ -132,7 +132,7 @@ public class PartyMessageService {
         String accountHolder = accountRequest.accountHolder().trim();
         boolean hideName = Boolean.TRUE.equals(accountRequest.hideName());
 
-        Member member = memberRepository.findById(senderId).orElseThrow(MemberNotFoundException::new);
+        Member member = memberRepository.findActiveByIdForUpdate(senderId).orElseThrow(MemberNotFoundException::new);
         if (Boolean.TRUE.equals(accountRequest.remember())) {
             member.updateBankAccount(BankAccount.of(bankName, accountNumber, accountHolder, hideName));
         }
