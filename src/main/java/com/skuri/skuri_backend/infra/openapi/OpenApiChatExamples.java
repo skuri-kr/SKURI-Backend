@@ -157,7 +157,7 @@ public final class OpenApiChatExamples {
                     "type": "SYSTEM",
                     "text": "김철수님이 파티에 합류했어요.",
                     "createdAt": "2026-03-05T21:10:00",
-                    "updatedAt": null,
+                    "updatedAt": "2026-03-05T21:10:00",
                     "isDeleted": false
                   },
                   {
@@ -169,7 +169,7 @@ public final class OpenApiChatExamples {
                     "type": "SYSTEM",
                     "text": "모집이 마감되었어요.",
                     "createdAt": "2026-03-05T21:11:00",
-                    "updatedAt": null,
+                    "updatedAt": "2026-03-05T21:11:00",
                     "isDeleted": false
                   },
                   {
@@ -181,7 +181,7 @@ public final class OpenApiChatExamples {
                     "type": "SYSTEM",
                     "text": "모집이 재개되었어요.",
                     "createdAt": "2026-03-05T21:11:30",
-                    "updatedAt": null,
+                    "updatedAt": "2026-03-05T21:11:30",
                     "isDeleted": false
                   },
                   {
@@ -193,7 +193,7 @@ public final class OpenApiChatExamples {
                     "type": "SYSTEM",
                     "text": "홍길동님이 파티에서 나갔어요.",
                     "createdAt": "2026-03-05T21:11:45",
-                    "updatedAt": null,
+                    "updatedAt": "2026-03-05T21:11:45",
                     "isDeleted": false
                   },
                   {
@@ -211,7 +211,7 @@ public final class OpenApiChatExamples {
                       "hideName": true
                     },
                     "createdAt": "2026-03-05T21:12:00",
-                    "updatedAt": null,
+                    "updatedAt": "2026-03-05T21:12:00",
                     "isDeleted": false
                   },
                   {
@@ -253,7 +253,7 @@ public final class OpenApiChatExamples {
                       }
                     },
                     "createdAt": "2026-03-05T21:30:00",
-                    "updatedAt": null,
+                    "updatedAt": "2026-03-05T21:30:00",
                     "isDeleted": false
                   },
                   {
@@ -265,7 +265,7 @@ public final class OpenApiChatExamples {
                     "type": "END",
                     "text": "리더가 파티를 종료했어요.",
                     "createdAt": "2026-03-05T21:45:00",
-                    "updatedAt": null,
+                    "updatedAt": "2026-03-05T21:45:00",
                     "isDeleted": false
                   }
                 ],
@@ -468,7 +468,7 @@ public final class OpenApiChatExamples {
                     "type": "SYSTEM",
                     "text": "오늘 저녁 9시에 이벤트 서버를 엽니다.",
                     "createdAt": "2026-03-05T21:30:00",
-                    "updatedAt": null,
+                    "updatedAt": "2026-03-05T21:30:00",
                     "isDeleted": false
                   },
                   {
@@ -480,7 +480,7 @@ public final class OpenApiChatExamples {
                     "type": "TEXT",
                     "text": "안녕하세요!",
                     "createdAt": "2026-03-05T21:29:00",
-                    "updatedAt": null,
+                    "updatedAt": "2026-03-05T21:29:00",
                     "isDeleted": false
                   }
                 ],

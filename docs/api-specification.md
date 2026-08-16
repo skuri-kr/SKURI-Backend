@@ -1543,7 +1543,7 @@ FCM 토큰 삭제
         "text": "안녕하세요!",
         "type": "TEXT",
         "createdAt": "2026-02-03T12:00:00Z",
-        "updatedAt": null,
+        "updatedAt": "2026-02-03T12:00:00Z",
         "isDeleted": false
       },
       {
@@ -1555,7 +1555,7 @@ FCM 토큰 삭제
         "text": "홍길동님이 입장했습니다.",
         "type": "SYSTEM",
         "createdAt": "2026-02-03T11:59:00Z",
-        "updatedAt": null,
+        "updatedAt": "2026-02-03T11:59:00Z",
         "isDeleted": false
       }
     ],
@@ -1590,7 +1590,7 @@ FCM 토큰 삭제
 - `TEXT`, `IMAGE`, 그리고 `PARTY` 방의 `ACCOUNT` 메시지만 삭제할 수 있습니다. 서버 생성 `SYSTEM`/`ARRIVED`/`END`와 마인크래프트 연동 메시지는 삭제할 수 없습니다.
 - 삭제는 행을 제거하지 않는 tombstone 처리입니다. 동일 작성자의 재요청은 성공한 tombstone 응답을 다시 반환합니다.
 - 존재하지 않는 채팅방은 `404 CHAT_ROOM_NOT_FOUND`, 존재하지 않는 메시지는 `404 CHAT_MESSAGE_NOT_FOUND`를 반환합니다.
-- 삭제된 이미지의 원본·썸네일은 활성 메시지 참조와 `CHAT_MESSAGE` 신고 증거가 모두 없을 때에만 비동기 정리 작업에 넣습니다. 같은 업로드의 원본·썸네일은 하나의 이미지 자산으로 보고 동일한 작업 잠금으로 참조 생성·신고 snapshot·정리를 직렬화합니다. 이미 정리된 내부 URL은 새 업로드 없이 다시 전송할 수 없으며, 실패한 파일 삭제는 DB 작업 큐에서 지수 backoff로 재시도합니다.
+- 삭제된 이미지의 원본·썸네일은 활성 메시지 참조와 `CHAT_MESSAGE` 신고 증거가 모두 없을 때에만 비동기 정리 작업에 넣습니다. 같은 업로드의 원본·썸네일은 하나의 이미지 자산으로 보고 동일한 작업 잠금으로 참조 생성·신고 snapshot·정리를 직렬화하며, 정규화 자산 키의 최신 참조를 인덱스로 확인합니다. 이미 정리된 내부 URL은 새 업로드 없이 다시 전송할 수 없으며, 실패한 파일 삭제는 DB 작업 큐에서 지수 backoff로 재시도합니다.
 - 성공 시 커밋 뒤 `/topic/chat/{chatRoomId}/events`로 `MESSAGE_DELETED` 이벤트를 보냅니다.
 
 **삭제 응답 예시:**
@@ -1732,7 +1732,7 @@ Authorization:Bearer <firebase_id_token>
 { "type": "IMAGE", "imageUrl": "https://..." }
 ```
 
-- `IMAGE` 메시지의 `imageUrl`은 `POST /v1/images`의 `CHAT_IMAGE` 업로드 응답 중 원본 `url`만 그대로 사용합니다. `thumbUrl`을 전송하면 `VALIDATION_ERROR`입니다.
+- `IMAGE` 메시지의 `imageUrl`은 `POST /v1/images`의 `CHAT_IMAGE` 업로드 응답 중 원본 `url`만 그대로 사용합니다. `thumbUrl`, 외부 URL, 다른 업로드 context URL은 `VALIDATION_ERROR`입니다.
 - 정리 완료된 내부 `CHAT_IMAGE` URL을 다시 전송하면 `CHAT_IMAGE_UNAVAILABLE` 오류가 발생하므로, 이미지를 다시 업로드해야 합니다.
 - 실시간 수신 payload와 `GET /v1/chat-rooms/{chatRoomId}/messages`의 `messages[]` item shape는 동일합니다.
 - 일반 채팅 메시지의 `senderPhotoUrl`은 앱 사용자 메시지는 `members.photo_url`, Minecraft origin 메시지는 Minotar URL을 사용합니다.
@@ -5956,7 +5956,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "type": "TEXT",
         "text": "스터디 인원 구합니다.",
         "createdAt": "2026-04-06T17:40:00",
-        "updatedAt": null,
+        "updatedAt": "2026-04-06T17:40:00",
         "isDeleted": false
       },
       {
@@ -5968,7 +5968,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "type": "TEXT",
         "text": "오늘 저녁에 모집할게요.",
         "createdAt": "2026-04-06T17:20:00",
-        "updatedAt": null,
+        "updatedAt": "2026-04-06T17:20:00",
         "isDeleted": false
       }
     ],
@@ -6785,7 +6785,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "type": "TEXT",
         "text": "정문 앞 도착했습니다.",
         "createdAt": "2026-03-04T20:55:00",
-        "updatedAt": null,
+        "updatedAt": "2026-03-04T20:55:00",
         "isDeleted": false
       },
       {
@@ -6797,7 +6797,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "type": "SYSTEM",
         "text": "김철수님이 입장했어요.",
         "createdAt": "2026-03-04T20:50:00",
-        "updatedAt": null,
+        "updatedAt": "2026-03-04T20:50:00",
         "isDeleted": false
       }
     ],
@@ -7451,6 +7451,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 > - 2026-03-05: Chat 명세 보완 — 채팅방 요약 `lastMessage.senderName` 예시 추가, STOMP 메시지 `NON_NULL` 직렬화 정책 명시
 > - 2026-03-28: Chat 메시지 계약 확장 — 일반/파티 채팅 REST + STOMP payload에 `senderPhotoUrl` 추가, 기본 source of truth를 `members.photo_url`로 두고 `null` 직렬화 정책을 명시
 > - 2026-08-16: Chat 메시지 수정·삭제 계약 추가 — 15분 TEXT 수정, tombstone 삭제/커서 보존, 별도 mutation STOMP topic, 신고 증거 보존과 이미지 정리 재시도 큐를 반영
+> - 2026-08-17: Chat 이미지 참조 정합성 보완 — `CHAT_IMAGE` 원본 URL 검증, 정규화 자산 키 기반 참조 판정, 일반 메시지 `updatedAt` 예시를 실제 감사 시각과 동기화
 > - 2026-03-29: Admin Dashboard API 추가 — 관리자 대시보드 KPI/활동 추이/최근 운영 항목 read-model 계약과 `Asia/Seoul` 일자 버킷, 게시 공지 source, `totalMembers` 전체 row 집계 기준을 `/v3/api-docs` 기준으로 동기화
 > - 2026-03-29: Admin Member Activity API 추가 — `GET /v1/admin/members/{memberId}/activity`를 ACTIVE 회원 + 현재 저장 데이터 기준 read model로 추가하고, 탈퇴 회원은 `409 MEMBER_ACTIVITY_NOT_AVAILABLE_FOR_WITHDRAWN`으로 비제공 처리
 > - 2026-03-29: Admin Member API review fix — `PATCH /v1/admin/members/{memberId}/admin-role`에 self role change 금지(`400 SELF_ADMIN_ROLE_CHANGE_NOT_ALLOWED`)를 추가하고, admin-role 감사 로그 snapshot을 최소 필드만 저장하도록 조정. 관리자 상세 응답의 `bankAccount`/`notificationSetting` 계약은 유지
