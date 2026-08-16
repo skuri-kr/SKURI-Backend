@@ -29,9 +29,7 @@ import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.domain.minecraft.config.MinecraftBridgeProperties;
 import com.skuri.skuri_backend.domain.minecraft.service.MinecraftAvatarService;
 import com.skuri.skuri_backend.domain.minecraft.service.MinecraftBridgeOutboxService;
-import com.skuri.skuri_backend.domain.support.entity.Report;
 import com.skuri.skuri_backend.domain.support.entity.ReportTargetType;
-import com.skuri.skuri_backend.domain.support.model.ChatMessageReportSnapshot;
 import com.skuri.skuri_backend.domain.support.repository.ReportRepository;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Location;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
@@ -631,6 +629,39 @@ class ChatServiceTest {
     }
 
     @Test
+    void sendMessage_채팅이미지의정규화자산키를함께저장한다() {
+        ChatRoom room = ChatRoom.create("room-1", "시험기간 밤샘 메이트", ChatRoomType.CUSTOM, null, null, null, true, null);
+        ChatRoomMember member = membership(room, "room-1", "member-1");
+        Member sender = activeMember("member-1", "컴퓨터공학과", "https://cdn.skuri.app/uploads/profiles/member-1.jpg");
+        String imageUrl = "https://cdn.skuri.app/chat/2026/08/image.png";
+
+        when(chatRoomRepository.findById("room-1")).thenReturn(Optional.of(room));
+        when(chatRoomMemberRepository.findById_ChatRoomIdAndId_MemberId("room-1", "member-1"))
+                .thenReturn(Optional.of(member));
+        when(memberRepository.findById("member-1")).thenReturn(Optional.of(sender));
+        when(storageRepository.resolveRelativePath(imageUrl)).thenReturn(Optional.of("chat/2026/08/image.png"));
+        when(chatMessageOrderGenerator.nextOrder()).thenReturn(1L);
+        when(chatMessageRepository.save(any(ChatMessage.class))).thenAnswer(invocation -> {
+            ChatMessage message = invocation.getArgument(0);
+            ReflectionTestUtils.setField(message, "id", "message-1");
+            ReflectionTestUtils.setField(message, "createdAt", LocalDateTime.of(2026, 8, 17, 12, 0));
+            return message;
+        });
+        when(chatRoomRepository.save(any(ChatRoom.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
+
+        chatService.sendMessage(
+                "room-1",
+                "member-1",
+                new SendChatMessageRequest(ChatMessageType.IMAGE, null, imageUrl, null)
+        );
+
+        ArgumentCaptor<ChatMessage> messageCaptor = ArgumentCaptor.forClass(ChatMessage.class);
+        verify(chatMessageRepository).save(messageCaptor.capture());
+        assertEquals("chat/2026/08/image", messageCaptor.getValue().getImageAssetKey());
+    }
+
+    @Test
     void createPartySystemMessage_저장후_파티채팅히스토리와브로드캐스트에사용한다() {
         Party party = Party.create(
                 "leader-1",
@@ -798,8 +829,18 @@ class ChatServiceTest {
         when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
         when(memberRepository.findAllById(List.of("member-1")))
                 .thenReturn(List.of(activeMember("member-1", "컴퓨터공학과")));
-        when(reportRepository.findByTargetTypeForUpdate(ReportTargetType.CHAT_MESSAGE)).thenReturn(List.of());
-        when(chatMessageRepository.findByTypeAndDeletedAtIsNull(ChatMessageType.IMAGE)).thenReturn(List.of());
+        when(reportRepository.existsByTargetTypeAndTargetImageAssetKey(
+                ReportTargetType.CHAT_MESSAGE,
+                "chat/2026/08/image"
+        )).thenReturn(false);
+        when(chatMessageRepository.existsByTypeAndImageAssetKeyAndDeletedAtIsNull(
+                ChatMessageType.IMAGE,
+                "chat/2026/08/image"
+        )).thenReturn(false);
+        when(reportRepository.findByTargetTypeAndTargetImageAssetKeyIsNull(ReportTargetType.CHAT_MESSAGE))
+                .thenReturn(List.of());
+        when(chatMessageRepository.findByTypeAndImageAssetKeyIsNullAndDeletedAtIsNull(ChatMessageType.IMAGE))
+                .thenReturn(List.of());
         when(storageRepository.resolveRelativePath("https://cdn.skuri.app/chat/2026/08/image.png"))
                 .thenReturn(Optional.of("chat/2026/08/image.png"));
         when(mediaCleanupTaskService.enqueue(any())).thenReturn(List.of("cleanup-1"));
@@ -859,29 +900,6 @@ class ChatServiceTest {
         );
         ReflectionTestUtils.setField(message, "id", "message-1");
         ReflectionTestUtils.setField(message, "createdAt", LocalDateTime.now().minusMinutes(1));
-        Report report = Report.create(
-                ReportTargetType.CHAT_MESSAGE,
-                "message-reported",
-                "member-2",
-                new ChatMessageReportSnapshot(
-                        "message-reported",
-                        "room-2",
-                        "member-2",
-                        "김성결",
-                        ChatMessageType.IMAGE,
-                        null,
-                        imageUrl,
-                        null,
-                        null,
-                        null,
-                        LocalDateTime.now().minusMinutes(2),
-                        null
-                ),
-                "SPAM",
-                "광고성 이미지입니다.",
-                "reporter-1"
-        );
-
         when(chatRoomRepository.findById("room-1")).thenReturn(Optional.of(room));
         when(chatRoomMemberRepository.findById_ChatRoomIdAndId_MemberId("room-1", "member-1"))
                 .thenReturn(Optional.of(member));
@@ -894,7 +912,10 @@ class ChatServiceTest {
         when(chatRoomRepository.save(room)).thenReturn(room);
         when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
         when(memberRepository.findAllById(List.of("member-1"))).thenReturn(List.of(activeMember("member-1", "컴퓨터공학과")));
-        when(reportRepository.findByTargetTypeForUpdate(ReportTargetType.CHAT_MESSAGE)).thenReturn(List.of(report));
+        when(reportRepository.existsByTargetTypeAndTargetImageAssetKey(
+                ReportTargetType.CHAT_MESSAGE,
+                "chat/2026/08/shared-image"
+        )).thenReturn(true);
         when(storageRepository.resolveRelativePath(imageUrl)).thenReturn(Optional.of("chat/2026/08/shared-image.png"));
 
         chatService.deleteMessage("member-1", "room-1", "message-1");
@@ -930,7 +951,6 @@ class ChatServiceTest {
                 null,
                 null
         );
-
         when(chatRoomRepository.findById("room-1")).thenReturn(Optional.of(room));
         when(chatRoomMemberRepository.findById_ChatRoomIdAndId_MemberId("room-1", "member-1"))
                 .thenReturn(Optional.of(member));
@@ -943,8 +963,17 @@ class ChatServiceTest {
         when(chatRoomRepository.save(room)).thenReturn(room);
         when(chatRoomMemberRepository.findById_ChatRoomId("room-1")).thenReturn(List.of(member));
         when(memberRepository.findAllById(List.of("member-1"))).thenReturn(List.of(activeMember("member-1", "컴퓨터공학과")));
-        when(reportRepository.findByTargetTypeForUpdate(ReportTargetType.CHAT_MESSAGE)).thenReturn(List.of());
-        when(chatMessageRepository.findByTypeAndDeletedAtIsNull(ChatMessageType.IMAGE))
+        when(reportRepository.existsByTargetTypeAndTargetImageAssetKey(
+                ReportTargetType.CHAT_MESSAGE,
+                "chat/2026/08/shared-image"
+        )).thenReturn(false);
+        when(chatMessageRepository.existsByTypeAndImageAssetKeyAndDeletedAtIsNull(
+                ChatMessageType.IMAGE,
+                "chat/2026/08/shared-image"
+        )).thenReturn(false);
+        when(reportRepository.findByTargetTypeAndTargetImageAssetKeyIsNull(ReportTargetType.CHAT_MESSAGE))
+                .thenReturn(List.of());
+        when(chatMessageRepository.findByTypeAndImageAssetKeyIsNullAndDeletedAtIsNull(ChatMessageType.IMAGE))
                 .thenReturn(List.of(activeThumbnailMessage));
         when(storageRepository.resolveRelativePath(originalUrl)).thenReturn(Optional.of("chat/2026/08/shared-image.png"));
         when(storageRepository.resolveRelativePath(thumbnailUrl)).thenReturn(Optional.of("chat/2026/08/shared-image_thumb.jpg"));
@@ -1014,6 +1043,33 @@ class ChatServiceTest {
         );
 
         assertEquals(ErrorCode.VALIDATION_ERROR, exception.getErrorCode());
+        verify(chatMessageRepository, never()).save(any(ChatMessage.class));
+    }
+
+    @Test
+    void sendMessage_외부이미지URL은거절한다() {
+        ChatRoom room = ChatRoom.create("room-1", "시험기간 밤샘 메이트", ChatRoomType.CUSTOM, null, null, null, true, null);
+        ChatRoomMember member = membership(room, "room-1", "member-1");
+        Member sender = activeMember("member-1", "컴퓨터공학과");
+        String externalUrl = "https://images.example.com/advertisement.png";
+
+        when(chatRoomRepository.findById("room-1")).thenReturn(Optional.of(room));
+        when(chatRoomMemberRepository.findById_ChatRoomIdAndId_MemberId("room-1", "member-1"))
+                .thenReturn(Optional.of(member));
+        when(memberRepository.findById("member-1")).thenReturn(Optional.of(sender));
+        when(storageRepository.resolveRelativePath(externalUrl)).thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> chatService.sendMessage(
+                        "room-1",
+                        "member-1",
+                        new SendChatMessageRequest(ChatMessageType.IMAGE, null, externalUrl, null)
+                )
+        );
+
+        assertEquals(ErrorCode.VALIDATION_ERROR, exception.getErrorCode());
+        verify(mediaCleanupTaskService, never()).retain(any());
         verify(chatMessageRepository, never()).save(any(ChatMessage.class));
     }
 

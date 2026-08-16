@@ -200,6 +200,7 @@ class ReportServiceTest {
     @Test
     void createReport_채팅이미지는정리작업잠금을확보한뒤스냅샷을저장한다() {
         String imageUrl = "https://cdn.skuri.app/chat/2026/08/image.png";
+        ArgumentCaptor<Report> reportCaptor = ArgumentCaptor.forClass(Report.class);
         ChatMessage message = ChatMessage.create(
                 "room-1",
                 "sender-1",
@@ -214,7 +215,7 @@ class ReportServiceTest {
                 .thenReturn(false);
         when(chatMessageRepository.findByIdForUpdate("message-1")).thenReturn(Optional.of(message));
         when(storageRepository.resolveRelativePath(imageUrl)).thenReturn(Optional.of("chat/2026/08/image.png"));
-        when(reportRepository.saveAndFlush(any(Report.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(reportRepository.saveAndFlush(reportCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
 
         reportService.createReport(
                 "user-1",
@@ -241,6 +242,7 @@ class ReportServiceTest {
                 ),
                 List.copyOf(pathsCaptor.getValue())
         );
+        assertEquals("chat/2026/08/image", reportCaptor.getValue().getTargetImageAssetKey());
     }
 
     @Test
