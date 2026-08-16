@@ -2,17 +2,21 @@ package com.skuri.skuri_backend.domain.taxiparty.service;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.common.time.ApplicationTimeZone;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.TimeZone;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -50,5 +54,26 @@ class PartyTimeoutBatchServiceTest {
         verify(partyTimeoutCommandService).endExpiredParty("party-1");
         verify(partyTimeoutCommandService).endExpiredParty("party-2");
         verify(partyTimeoutCommandService).endExpiredParty("party-3");
+    }
+
+    @Test
+    void endExpiredParties_UTC기본환경에서도서울시간기준으로만료시각을계산한다() {
+        TimeZone originalTimeZone = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+            ApplicationTimeZone.initialize();
+            LocalDateTime before = LocalDateTime.now(ApplicationTimeZone.SEOUL).minusHours(12);
+            when(partyRepository.findTimeoutTargetIds(any(LocalDateTime.class))).thenReturn(List.of());
+
+            partyTimeoutBatchService.endExpiredParties();
+
+            LocalDateTime after = LocalDateTime.now(ApplicationTimeZone.SEOUL).minusHours(12);
+            ArgumentCaptor<LocalDateTime> thresholdCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+            verify(partyRepository).findTimeoutTargetIds(thresholdCaptor.capture());
+            assertFalse(thresholdCaptor.getValue().isBefore(before));
+            assertFalse(thresholdCaptor.getValue().isAfter(after));
+        } finally {
+            TimeZone.setDefault(originalTimeZone);
+        }
     }
 }
