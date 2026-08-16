@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -82,6 +83,7 @@ class ChatImageAssetKeySeedMigrationTest {
                 null,
                 null
         );
+        ReflectionTestUtils.setField(message, "id", "message-1");
         Report report = Report.create(
                 ReportTargetType.CHAT_MESSAGE,
                 "message-1",
@@ -104,6 +106,7 @@ class ChatImageAssetKeySeedMigrationTest {
                 "광고성 이미지입니다.",
                 "reporter-1"
         );
+        ReflectionTestUtils.setField(report, "id", "report-1");
         ReflectionTestUtils.setField(report, "targetImageAssetKey", null);
 
         when(seedMigrationRepository.existsById(ChatImageAssetKeySeedMigration.MIGRATION_KEY)).thenReturn(false);
@@ -116,8 +119,6 @@ class ChatImageAssetKeySeedMigrationTest {
 
         migration.migrate();
 
-        assertEquals("chat/2026/08/shared-image", message.getImageAssetKey());
-        assertEquals("chat/2026/08/shared-image", report.getTargetImageAssetKey());
         InOrder backfillOrder = inOrder(mediaCleanupTaskService, chatMessageRepository, reportRepository);
         backfillOrder.verify(mediaCleanupTaskService).lock(List.of(
                 "chat/2026/08/shared-image.jpg",
@@ -127,8 +128,16 @@ class ChatImageAssetKeySeedMigrationTest {
                 "chat/2026/08/shared-image_thumb.png",
                 "chat/2026/08/shared-image_thumb.webp"
         ));
-        backfillOrder.verify(chatMessageRepository).saveAll(List.of(message));
-        backfillOrder.verify(reportRepository).saveAll(List.of(report));
+        backfillOrder.verify(chatMessageRepository).fillMissingImageAssetKey(
+                "message-1",
+                "chat/2026/08/shared-image"
+        );
+        backfillOrder.verify(reportRepository).fillMissingTargetImageAssetKeyById(
+                "report-1",
+                "chat/2026/08/shared-image"
+        );
+        verify(chatMessageRepository, never()).saveAll(any());
+        verify(reportRepository, never()).saveAll(any());
         ArgumentCaptor<SeedMigration> migrationCaptor = ArgumentCaptor.forClass(SeedMigration.class);
         verify(seedMigrationRepository).saveAndFlush(migrationCaptor.capture());
         assertEquals(ChatImageAssetKeySeedMigration.MIGRATION_KEY, migrationCaptor.getValue().getMigrationKey());
@@ -156,6 +165,7 @@ class ChatImageAssetKeySeedMigrationTest {
                 "reporter-1"
         );
         ReflectionTestUtils.setField(report, "targetImageAssetKey", null);
+        ReflectionTestUtils.setField(report, "id", "report-legacy");
 
         when(seedMigrationRepository.existsById(ChatImageAssetKeySeedMigration.MIGRATION_KEY)).thenReturn(false);
         when(chatMessageRepository.findByTypeAndImageAssetKeyIsNull(eq(ChatMessageType.IMAGE), any(Pageable.class)))
@@ -167,7 +177,6 @@ class ChatImageAssetKeySeedMigrationTest {
 
         migration.migrate();
 
-        assertEquals("chat/2026/08/legacy-image", report.getTargetImageAssetKey());
         verify(mediaCleanupTaskService).lock(List.of(
                 "chat/2026/08/legacy-image.jpg",
                 "chat/2026/08/legacy-image.png",
@@ -176,5 +185,9 @@ class ChatImageAssetKeySeedMigrationTest {
                 "chat/2026/08/legacy-image_thumb.png",
                 "chat/2026/08/legacy-image_thumb.webp"
         ));
+        verify(reportRepository).fillMissingTargetImageAssetKeyById(
+                "report-legacy",
+                "chat/2026/08/legacy-image"
+        );
     }
 }

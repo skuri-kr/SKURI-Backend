@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
 @ActiveProfiles("test")
@@ -140,6 +142,34 @@ class ChatMessageRepositoryDataJpaTest {
                         .orElseThrow()
                         .getId()
         );
+    }
+
+    @Test
+    void fillMissingImageAssetKey_삭제된메시지의삭제상태와본문을보존한다() {
+        LocalDateTime createdAt = LocalDateTime.of(2026, 8, 17, 12, 0);
+        String messageId = insertChatMessage("room-1", "삭제 전 이미지 메시지", createdAt, 1L);
+        entityManager.createNativeQuery("""
+                update chat_messages
+                set text = null, deleted_at = :deletedAt
+                where id = :id
+                """)
+                .setParameter("deletedAt", createdAt.plusMinutes(1))
+                .setParameter("id", messageId)
+                .executeUpdate();
+        entityManager.flush();
+        entityManager.clear();
+
+        int updated = chatMessageRepository.fillMissingImageAssetKey(
+                messageId,
+                "chat/2026/08/deleted-image"
+        );
+        entityManager.clear();
+
+        ChatMessage message = chatMessageRepository.findById(messageId).orElseThrow();
+        assertEquals(1, updated);
+        assertTrue(message.isDeleted());
+        assertNull(message.getText());
+        assertEquals("chat/2026/08/deleted-image", message.getImageAssetKey());
     }
 
     private String insertChatMessage(String chatRoomId, String text, LocalDateTime createdAt, Long messageOrder) {
