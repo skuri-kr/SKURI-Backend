@@ -1602,6 +1602,7 @@ FCM 토큰 삭제
     "chatRoomId": "room_id",
     "senderId": "user_uuid",
     "senderName": "홍길동",
+    "senderPhotoUrl": null,
     "type": "TEXT",
     "text": "삭제된 메시지입니다.",
     "createdAt": "2026-08-16T20:00:00",
