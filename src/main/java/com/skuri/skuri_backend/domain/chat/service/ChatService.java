@@ -596,9 +596,12 @@ public class ChatService {
     public void removeMemberFromDepartmentChatRooms(String memberId) {
         Member memberProfile = requireActiveMember(memberId);
         String displayName = resolveMembershipDisplayName(memberProfile);
-        for (String chatRoomId : chatRoomMemberRepository.findChatRoomIdsByMemberId(memberId)) {
-            ChatRoom room = lockChatRoomForMutation(chatRoomId);
-            if (room.getType() != ChatRoomType.DEPARTMENT) {
+        for (String chatRoomId : chatRoomMemberRepository.findChatRoomIdsByMemberIdAndChatRoomType(
+                memberId,
+                ChatRoomType.DEPARTMENT
+        )) {
+            ChatRoom room = chatRoomRepository.findByIdForUpdate(chatRoomId).orElse(null);
+            if (room == null || room.getType() != ChatRoomType.DEPARTMENT) {
                 continue;
             }
             ChatRoomMember membership = findMembership(chatRoomId, memberId);

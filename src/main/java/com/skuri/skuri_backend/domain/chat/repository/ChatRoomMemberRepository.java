@@ -2,6 +2,7 @@ package com.skuri.skuri_backend.domain.chat.repository;
 
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMemberId;
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -22,6 +23,19 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
             order by crm.id.chatRoomId asc
             """)
     List<String> findChatRoomIdsByMemberId(@Param("memberId") String memberId);
+
+    @Query("""
+            select crm.id.chatRoomId
+            from ChatRoomMember crm
+            join crm.chatRoom room
+            where crm.id.memberId = :memberId
+              and room.type = :chatRoomType
+            order by crm.id.chatRoomId asc
+            """)
+    List<String> findChatRoomIdsByMemberIdAndChatRoomType(
+            @Param("memberId") String memberId,
+            @Param("chatRoomType") ChatRoomType chatRoomType
+    );
 
     @EntityGraph(attributePaths = {"chatRoom"})
     Optional<ChatRoomMember> findById_ChatRoomIdAndId_MemberId(String chatRoomId, String memberId);
