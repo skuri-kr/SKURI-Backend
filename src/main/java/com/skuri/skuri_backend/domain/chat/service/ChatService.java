@@ -41,7 +41,9 @@ import com.skuri.skuri_backend.domain.minecraft.config.MinecraftBridgeProperties
 import com.skuri.skuri_backend.domain.minecraft.service.MinecraftAvatarService;
 import com.skuri.skuri_backend.domain.minecraft.service.MinecraftBridgeOutboxService;
 import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
+import com.skuri.skuri_backend.domain.support.entity.Report;
 import com.skuri.skuri_backend.domain.support.entity.ReportTargetType;
+import com.skuri.skuri_backend.domain.support.model.ChatMessageReportSnapshot;
 import com.skuri.skuri_backend.domain.support.repository.ReportRepository;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
@@ -55,6 +57,8 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -64,6 +68,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
@@ -80,6 +85,7 @@ public class ChatService {
     private static final int MESSAGE_EDIT_WINDOW_MINUTES = 15;
     private static final String CHAT_STORAGE_DIRECTORY_PREFIX = "chat/";
     private static final List<String> CHAT_THUMBNAIL_EXTENSIONS = List.of(".jpg", ".png", ".webp");
+    private static final String CHAT_IMAGE_URL_MESSAGE = "IMAGE 메시지에는 CHAT_IMAGE 업로드 URL만 사용할 수 있습니다.";
 
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
@@ -294,7 +300,7 @@ public class ChatService {
 
     @Transactional
     public ChatMessageResponse sendMessage(String chatRoomId, String senderId, SendChatMessageRequest request) {
-        ChatRoom room = findRoomOrThrow(chatRoomId);
+        ChatRoom room = lockRoomForMessageMutation(chatRoomId);
         requireChatRoomMember(chatRoomId, senderId);
         Member sender = memberRepository.findById(senderId).orElseThrow(MemberNotFoundException::new);
 
@@ -325,6 +331,11 @@ public class ChatService {
             arrivalData = payload.arrivalData();
         }
 
+        List<String> managedImagePaths = type == ChatMessageType.IMAGE
+                ? requireManagedChatImagePaths(text)
+                : List.of();
+        mediaCleanupTaskService.retain(managedImagePaths);
+
         return saveAndPublishMessage(
                 room,
                 senderId,
@@ -345,7 +356,7 @@ public class ChatService {
             String messageId,
             UpdateChatMessageRequest request
     ) {
-        ChatRoom room = findRoomOrThrow(chatRoomId);
+        ChatRoom room = lockRoomForMessageMutation(chatRoomId);
         requireChatRoomMember(chatRoomId, memberId);
         ChatMessage message = chatMessageRepository.findByIdAndChatRoomIdForUpdate(messageId, chatRoomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_MESSAGE_NOT_FOUND));
@@ -383,7 +394,7 @@ public class ChatService {
 
     @Transactional
     public ChatMessageResponse deleteMessage(String memberId, String chatRoomId, String messageId) {
-        ChatRoom room = findRoomOrThrow(chatRoomId);
+        ChatRoom room = lockRoomForMessageMutation(chatRoomId);
         requireChatRoomMember(chatRoomId, memberId);
         ChatMessage message = chatMessageRepository.findByIdAndChatRoomIdForUpdate(messageId, chatRoomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_MESSAGE_NOT_FOUND));
@@ -397,11 +408,13 @@ public class ChatService {
         }
 
         String imageUrl = message.getType() == ChatMessageType.IMAGE ? message.getText() : null;
+        List<String> managedImagePaths = resolveManagedChatImagePaths(imageUrl);
+        mediaCleanupTaskService.lock(managedImagePaths);
         message.delete(LocalDateTime.now(CHAT_TIME_ZONE));
         ChatMessage saved = chatMessageRepository.saveAndFlush(message);
         refreshRoomMessageSummary(room);
 
-        List<String> cleanupTaskIds = enqueueImageCleanupIfEligible(saved, imageUrl);
+        List<String> cleanupTaskIds = enqueueImageCleanupIfEligible(saved, managedImagePaths);
         ChatMessageResponse response = toMessageResponse(saved, resolveSenderPhotoUrl(saved));
         publishMessageMutationAfterCommit(
                 room,
@@ -679,24 +692,81 @@ public class ChatService {
         chatRoomRepository.save(room);
     }
 
-    private List<String> enqueueImageCleanupIfEligible(ChatMessage deletedMessage, String imageUrl) {
-        if (deletedMessage.getType() != ChatMessageType.IMAGE || !StringUtils.hasText(imageUrl)) {
+    private List<String> enqueueImageCleanupIfEligible(
+            ChatMessage deletedMessage,
+            List<String> managedImagePaths
+    ) {
+        if (deletedMessage.getType() != ChatMessageType.IMAGE || managedImagePaths.isEmpty()) {
             return List.of();
         }
-        if (reportRepository.existsByTargetTypeAndTargetId(ReportTargetType.CHAT_MESSAGE, deletedMessage.getId())) {
+        String originalPath = managedImagePaths.getFirst();
+        if (hasChatImageReportReference(originalPath)) {
             return List.of();
         }
-        if (chatMessageRepository.existsByTypeAndTextAndDeletedAtIsNull(
-                ChatMessageType.IMAGE,
-                imageUrl
-        )) {
+        if (hasActiveChatImageReference(originalPath)) {
             return List.of();
+        }
+        return mediaCleanupTaskService.enqueue(managedImagePaths);
+    }
+
+    private boolean hasActiveChatImageReference(String originalPath) {
+        return chatMessageRepository.findByTypeAndDeletedAtIsNull(ChatMessageType.IMAGE).stream()
+                .map(ChatMessage::getText)
+                .map(this::resolveManagedChatImageRelativePath)
+                .flatMap(Optional::stream)
+                .anyMatch(originalPath::equals);
+    }
+
+    private boolean hasChatImageReportReference(String originalPath) {
+        return reportRepository.findByTargetType(ReportTargetType.CHAT_MESSAGE).stream()
+                .map(Report::getTargetSnapshot)
+                .filter(Objects::nonNull)
+                .map(ChatMessageReportSnapshot::imageUrl)
+                .map(this::resolveManagedChatImageRelativePath)
+                .flatMap(Optional::stream)
+                .anyMatch(originalPath::equals);
+    }
+
+    private List<String> requireManagedChatImagePaths(String imageUrl) {
+        Optional<String> resolvedRelativePath = storageRepository.resolveRelativePath(imageUrl);
+        if (resolvedRelativePath.isEmpty()) {
+            return List.of();
+        }
+        return normalizeManagedChatImageRelativePath(resolvedRelativePath.get())
+                .map(this::buildChatImageCleanupPaths)
+                .orElseThrow(() -> new BusinessException(ErrorCode.VALIDATION_ERROR, CHAT_IMAGE_URL_MESSAGE));
+    }
+
+    private List<String> resolveManagedChatImagePaths(String imageUrl) {
+        return resolveManagedChatImageRelativePath(imageUrl)
+                .map(this::buildChatImageCleanupPaths)
+                .orElseGet(List::of);
+    }
+
+    private Optional<String> resolveManagedChatImageRelativePath(String imageUrl) {
+        if (!StringUtils.hasText(imageUrl)) {
+            return Optional.empty();
         }
         return storageRepository.resolveRelativePath(imageUrl)
-                .filter(path -> path.startsWith(CHAT_STORAGE_DIRECTORY_PREFIX))
-                .map(this::buildChatImageCleanupPaths)
-                .map(mediaCleanupTaskService::enqueue)
-                .orElseGet(List::of);
+                .flatMap(this::normalizeManagedChatImageRelativePath);
+    }
+
+    private Optional<String> normalizeManagedChatImageRelativePath(String relativePath) {
+        if (!StringUtils.hasText(relativePath)) {
+            return Optional.empty();
+        }
+        try {
+            Path normalizedPath = Path.of(relativePath.replace('\\', '/')).normalize();
+            if (normalizedPath.isAbsolute()) {
+                return Optional.empty();
+            }
+            String normalized = normalizedPath.toString().replace('\\', '/');
+            return normalized.startsWith(CHAT_STORAGE_DIRECTORY_PREFIX)
+                    ? Optional.of(normalized)
+                    : Optional.empty();
+        } catch (InvalidPathException e) {
+            return Optional.empty();
+        }
     }
 
     private List<String> buildChatImageCleanupPaths(String originalPath) {
@@ -729,6 +799,11 @@ public class ChatService {
 
     private ChatRoom findRoomOrThrow(String chatRoomId) {
         return chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+    }
+
+    private ChatRoom lockRoomForMessageMutation(String chatRoomId) {
+        return chatRoomRepository.findByIdForUpdate(chatRoomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
     }
 
@@ -1016,7 +1091,8 @@ public class ChatService {
             String minecraftUuid,
             String sourceEventId
     ) {
-        String chatRoomId = room.getId();
+        ChatRoom lockedRoom = lockRoomForMessageMutation(room.getId());
+        String chatRoomId = lockedRoom.getId();
         ChatMessage message = ChatMessage.create(
                 chatRoomId,
                 senderId,
@@ -1053,13 +1129,13 @@ public class ChatService {
             throw e;
         }
 
-        room.applyNewMessage(saved);
-        chatRoomRepository.save(room);
+        lockedRoom.applyNewMessage(saved);
+        chatRoomRepository.save(lockedRoom);
 
         ChatMessageResponse response = toMessageResponse(saved, senderPhotoUrl);
         publishAfterCommit(() -> {
             messagingTemplate.convertAndSend("/topic/chat/" + chatRoomId, response);
-            publishChatRoomSummaryEvent(room);
+            publishChatRoomSummaryEvent(lockedRoom);
         });
         eventPublisher.publish(new NotificationDomainEvent.ChatMessageCreated(chatRoomId, saved.getId()));
         if (minecraftBridgeProperties.normalizedRoomId().equals(chatRoomId) && !saved.isMinecraftOrigin()) {

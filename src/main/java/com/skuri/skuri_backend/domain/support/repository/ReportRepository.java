@@ -10,12 +10,13 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public interface ReportRepository extends JpaRepository<Report, String> {
 
     boolean existsByReporterIdAndTargetTypeAndTargetId(String reporterId, ReportTargetType targetType, String targetId);
 
-    boolean existsByTargetTypeAndTargetId(ReportTargetType targetType, String targetId);
+    List<Report> findByTargetType(ReportTargetType targetType);
 
     long countByStatus(ReportStatus status);
 

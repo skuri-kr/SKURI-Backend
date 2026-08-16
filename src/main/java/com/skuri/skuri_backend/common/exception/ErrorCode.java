@@ -88,6 +88,7 @@ public enum ErrorCode {
     CHAT_MESSAGE_EDIT_WINDOW_EXPIRED(HttpStatus.CONFLICT, "CHAT_MESSAGE_EDIT_WINDOW_EXPIRED", "메시지는 전송 후 15분 이내에만 수정할 수 있습니다."),
     CHAT_MESSAGE_ALREADY_DELETED(HttpStatus.CONFLICT, "CHAT_MESSAGE_ALREADY_DELETED", "이미 삭제된 메시지입니다."),
     CHAT_MESSAGE_MUTATION_NOT_ALLOWED(HttpStatus.CONFLICT, "CHAT_MESSAGE_MUTATION_NOT_ALLOWED", "이 메시지는 수정하거나 삭제할 수 없습니다."),
+    CHAT_IMAGE_UNAVAILABLE(HttpStatus.CONFLICT, "CHAT_IMAGE_UNAVAILABLE", "정리된 채팅 이미지는 새로 업로드해야 합니다."),
     STOMP_AUTH_FAILED(HttpStatus.UNAUTHORIZED, "STOMP_AUTH_FAILED", "WebSocket 인증에 실패했습니다."),
 
     // 마인크래프트(Minecraft) 도메인 에러.

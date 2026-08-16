@@ -90,9 +90,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, String
             ChatMessageType type
     );
 
-    boolean existsByTypeAndTextAndDeletedAtIsNull(
-            ChatMessageType type,
-            String text
-    );
+    List<ChatMessage> findByTypeAndDeletedAtIsNull(ChatMessageType type);
 
 }

@@ -65,6 +65,26 @@ public class MediaCleanupTask extends BaseTimeEntity {
         return status == MediaCleanupTaskStatus.PENDING;
     }
 
+    public boolean isCompleted() {
+        return status == MediaCleanupTaskStatus.COMPLETED;
+    }
+
+    public void markActive(LocalDateTime now) {
+        this.status = MediaCleanupTaskStatus.ACTIVE;
+        this.attemptCount = 0;
+        this.nextAttemptAt = now;
+        this.completedAt = null;
+        this.lastError = null;
+    }
+
+    public void markPending(LocalDateTime now) {
+        this.status = MediaCleanupTaskStatus.PENDING;
+        this.attemptCount = 0;
+        this.nextAttemptAt = now;
+        this.completedAt = null;
+        this.lastError = null;
+    }
+
     public void markCompleted(LocalDateTime completedAt) {
         this.status = MediaCleanupTaskStatus.COMPLETED;
         this.completedAt = completedAt;
