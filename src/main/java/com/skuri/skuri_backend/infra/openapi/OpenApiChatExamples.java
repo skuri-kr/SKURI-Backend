@@ -300,6 +300,44 @@ public final class OpenApiChatExamples {
             }
             """;
 
+    public static final String SUCCESS_CHAT_MESSAGE_UPDATE = """
+            {
+              "success": true,
+              "data": {
+                "id": "msg-1",
+                "chatRoomId": "public:university",
+                "senderId": "member-1",
+                "senderName": "홍길동",
+                "senderPhotoUrl": null,
+                "type": "TEXT",
+                "text": "수정한 메시지입니다.",
+                "createdAt": "2026-03-05T21:10:00",
+                "updatedAt": "2026-03-05T21:12:00",
+                "editedAt": "2026-03-05T21:12:00",
+                "isDeleted": false
+              }
+            }
+            """;
+
+    public static final String SUCCESS_CHAT_MESSAGE_DELETE = """
+            {
+              "success": true,
+              "data": {
+                "id": "msg-1",
+                "chatRoomId": "public:university",
+                "senderId": "member-1",
+                "senderName": "홍길동",
+                "senderPhotoUrl": null,
+                "type": "TEXT",
+                "text": "삭제된 메시지입니다.",
+                "createdAt": "2026-03-05T21:10:00",
+                "updatedAt": "2026-03-05T21:13:00",
+                "deletedAt": "2026-03-05T21:13:00",
+                "isDeleted": true
+              }
+            }
+            """;
+
     public static final String SUCCESS_ADMIN_CHAT_ROOM_LIST = """
             {
               "success": true,
@@ -466,6 +504,51 @@ public final class OpenApiChatExamples {
               "success": false,
               "errorCode": "CHAT_MESSAGE_NOT_FOUND",
               "message": "채팅 메시지를 찾을 수 없습니다.",
+              "timestamp": "2026-03-05T21:10:00"
+            }
+            """;
+
+    public static final String ERROR_NOT_CHAT_MESSAGE_AUTHOR = """
+            {
+              "success": false,
+              "errorCode": "NOT_CHAT_MESSAGE_AUTHOR",
+              "message": "메시지 작성자만 처리할 수 있습니다.",
+              "timestamp": "2026-03-05T21:10:00"
+            }
+            """;
+
+    public static final String ERROR_CHAT_MESSAGE_EDIT_NOT_ALLOWED = """
+            {
+              "success": false,
+              "errorCode": "CHAT_MESSAGE_EDIT_NOT_ALLOWED",
+              "message": "이 메시지는 수정할 수 없습니다.",
+              "timestamp": "2026-03-05T21:10:00"
+            }
+            """;
+
+    public static final String ERROR_CHAT_MESSAGE_DELETE_NOT_ALLOWED = """
+            {
+              "success": false,
+              "errorCode": "CHAT_MESSAGE_DELETE_NOT_ALLOWED",
+              "message": "이 메시지는 삭제할 수 없습니다.",
+              "timestamp": "2026-03-05T21:10:00"
+            }
+            """;
+
+    public static final String ERROR_CHAT_MESSAGE_EDIT_WINDOW_EXPIRED = """
+            {
+              "success": false,
+              "errorCode": "CHAT_MESSAGE_EDIT_WINDOW_EXPIRED",
+              "message": "메시지는 전송 후 15분 이내에만 수정할 수 있습니다.",
+              "timestamp": "2026-03-05T21:10:00"
+            }
+            """;
+
+    public static final String ERROR_CHAT_MESSAGE_ALREADY_DELETED = """
+            {
+              "success": false,
+              "errorCode": "CHAT_MESSAGE_ALREADY_DELETED",
+              "message": "이미 삭제된 메시지입니다.",
               "timestamp": "2026-03-05T21:10:00"
             }
             """;

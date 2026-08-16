@@ -336,6 +336,7 @@ Hooks:
     - clientCreatedAt (클라이언트 타임스탬프 — Optimistic UI용 보조 필드, 서버 저장 X)
     - accountData, arrivalData (파티 채팅 전용)
     - direction, source, minecraftUuid (MC 연동용)
+    - editedAt, deletedAt (수정 시각과 tombstone 삭제 시각)
   - ChatRoomMember
     - userId, chatRoomId, lastReadAt, muted
 
@@ -367,6 +368,11 @@ Hooks:
     - Minecraft origin 메시지: Minotar URL (`minecraftUuid` 기준)
     - 시스템 메시지: `null`
   - `linked_accounts.photo_url` fallback은 사용하지 않는다.
+  - 메시지 수정/삭제는 REST로 수행하고, 변경 결과는 별도 `/topic/chat/{chatRoomId}/events` topic으로 fan-out 한다.
+    - 수정: 작성자 본인의 `TEXT`만 전송 후 15분 이내 허용
+    - 삭제: `TEXT`/`IMAGE`와 PARTY의 `ACCOUNT`만 tombstone 처리; history cursor 위치는 보존
+    - Minecraft origin과 서버 생성 메시지는 수정/삭제 불가
+    - 이미지 tombstone은 활성 참조와 신고 증거가 없을 때만 재시도 가능한 storage cleanup task로 처리
   - 멤버 입장 직후 생성된 join `SYSTEM` 메시지는 해당 신규 멤버의 `lastReadAt`을 서버가 최신 메시지 시각으로 맞춰 unread가 0으로 유지되게 한다
   - 회원 프로필 학과 변경 시 기존 학과방 membership은 자동 제거하고, 새 학과방은 자동 참여시키지 않는다
   - 채팅방 목록 실시간: `/user/queue/chat-rooms` 사용자 전용 요약 채널 1개 구독
@@ -739,6 +745,7 @@ Hooks:
     - id, targetType (POST, COMMENT, MEMBER, CHAT_MESSAGE, CHAT_ROOM, TAXI_PARTY)
     - targetId, targetAuthorId, category, reason
     - `CHAT_MESSAGE.targetAuthorId = message.senderId`
+    - `CHAT_MESSAGE` 신고는 접수 시점 원문/이미지 URL/계좌 payload/수정시각을 `targetSnapshot` JSON으로 보존한다.
     - `CHAT_ROOM.targetAuthorId = chatRoom.createdBy` (creator가 없는 seed/public 방은 null 허용, `PARTY` 타입 방은 제외)
     - `TAXI_PARTY.targetAuthorId = party.leaderId`
     - reporterId, status (PENDING, REVIEWING, ACTIONED, REJECTED)

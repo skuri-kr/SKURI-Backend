@@ -187,12 +187,27 @@ erDiagram
         varchar(50) minecraft_uuid
         varchar(36) source_event_id UK "nullable, MC inbound dedupe key"
         datetime created_at
+        datetime updated_at
+        datetime edited_at "nullable, TEXT edit timestamp"
+        datetime deleted_at "nullable, tombstone timestamp; IDX(chat_room_id,deleted_at,created_at,message_order,id)"
     }
 
     chat_rooms ||--o{ chat_room_members : "has"
     chat_rooms ||--o{ chat_messages : "contains"
     members ||--o{ chat_room_members : "joins"
     members ||--o{ chat_messages : "sends"
+
+    media_cleanup_tasks {
+        varchar(36) id PK "UUID"
+        varchar(500) relative_path UK "storage relative path"
+        enum status "PENDING,COMPLETED"
+        int attempt_count
+        datetime next_attempt_at "IDX(status,next_attempt_at)"
+        datetime completed_at
+        varchar(500) last_error
+        datetime created_at
+        datetime updated_at
+    }
 
     %% ===== MINECRAFT 도메인 =====
     minecraft_accounts {
@@ -556,6 +571,7 @@ erDiagram
         enum target_type "POST,COMMENT,MEMBER,CHAT_MESSAGE,CHAT_ROOM,TAXI_PARTY"
         varchar(100) target_id "NOT NULL"
         varchar(36) target_author_id
+        json target_snapshot "nullable, CHAT_MESSAGE report evidence"
         varchar(50) category
         text reason "NOT NULL"
         varchar(36) reporter_id FK "NOT NULL, UK(reporter_id,target_type,target_id)"

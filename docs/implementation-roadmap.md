@@ -368,6 +368,8 @@ SSE 운영 제약:
 | 학과 변경 side effect | 회원 학과 변경 시 기존 학과방 membership 자동 제거, 새 학과방 자동 참여는 하지 않음 |
 | 채팅방 목록 요약 스트림 | 목록 화면은 `/user/queue/chat-rooms` 단일 구독으로 카드 요약(이름/인원/마지막 메시지/미읽음) 수신 |
 | 읽음 처리 | `ChatRoomMember.lastReadAt` 기반 미읽음 수 계산 |
+| 메시지 수정/삭제 | 15분 이내 TEXT 수정, tombstone 삭제, 마지막 메시지 요약·미읽음 재계산, 커밋 후 mutation event 발행 |
+| 이미지 정리 재시도 | 삭제 이미지가 활성 참조·신고 증거에 쓰이지 않을 때만 `media_cleanup_tasks`에 적재하고 지수 backoff로 삭제 재시도 |
 
 #### 3-3. API (REST + WebSocket)
 
@@ -381,8 +383,11 @@ SSE 운영 제약:
 | `GET` | `/v1/chat-rooms/{id}/messages` | 메시지 목록 (커서 기반 페이지네이션) |
 | `PATCH` | `/v1/chat-rooms/{id}/read` | 읽음 처리 (`lastReadAt` 단조 증가) |
 | `PATCH` | `/v1/chat-rooms/{id}/settings` | 채팅방 설정(음소거 등) |
+| `PATCH` | `/v1/chat-rooms/{id}/messages/{messageId}` | 내 TEXT 메시지 수정 (전송 후 15분) |
+| `DELETE` | `/v1/chat-rooms/{id}/messages/{messageId}` | 내 메시지 tombstone 삭제 |
 | WebSocket | `SUBSCRIBE /user/queue/chat-rooms` | 내 채팅방 목록 요약 실시간 수신 |
 | WebSocket | `SUBSCRIBE /topic/chat/{chatRoomId}` | 채팅방 상세 메시지 실시간 수신 |
+| WebSocket | `SUBSCRIBE /topic/chat/{chatRoomId}/events` | 메시지 수정/삭제 실시간 수신 |
 | WebSocket | `SEND /app/chat/{chatRoomId}` | 채팅방 메시지 전송 |
 | `GET` | `/v1/admin/chat-rooms` | 공개 채팅방 전체 목록 조회 (관리자, public non-party) |
 | `GET` | `/v1/admin/chat-rooms/{id}` | 공개 채팅방 상세 조회 (관리자, public non-party) |
@@ -405,6 +410,7 @@ SSE 운영 제약:
 - [x] 관리자 공개 채팅방 조회 API (`GET /v1/admin/chat-rooms`, `GET /v1/admin/chat-rooms/{chatRoomId}`, `GET /v1/admin/chat-rooms/{chatRoomId}/members`, `GET /v1/admin/chat-rooms/{chatRoomId}/messages`)가 join 여부와 무관하게 public non-party room을 조회
 - [x] 관리자 파티 채팅 조회 API (`GET /v1/admin/parties/{partyId}/messages`)가 party membership 없이 cursor pagination 계약을 재사용
 - [x] 관리자 공개 채팅방 쓰기 API (`POST/DELETE /v1/admin/chat-rooms`) + `ADMIN_REQUIRED` 권한 정책 동작
+- [x] 일반/파티 채팅 메시지 수정·tombstone 삭제, cursor 보존, mutation STOMP event 및 이미지 정리 재시도 큐 동작
 
 ---
 
@@ -665,6 +671,7 @@ SSE 운영 제약:
 - `status`: `PENDING`, `REVIEWING`, `ACTIONED`, `REJECTED`
 - duplicate policy: `reporterId + targetType + targetId` 전 상태 기준 재신고 금지
 - `CHAT_MESSAGE.targetAuthorId = message.senderId`
+- `CHAT_MESSAGE` 신고는 삭제/수정 전 운영 검토를 위해 접수 시점 `targetSnapshot` JSON 증거를 보존한다.
 - `CHAT_ROOM.targetAuthorId = chatRoom.createdBy` (seed/public 방처럼 creator가 없으면 `null` 허용, `PARTY` 타입 방은 제외)
 - `TAXI_PARTY.targetAuthorId = party.leaderId`
 - `GET /v1/app-versions/{platform}`는 저장 데이터가 없으면 기본 `minimumVersion=1.0.0` 응답
