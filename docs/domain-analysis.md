@@ -385,7 +385,7 @@ Hooks:
   - 미읽음 계산: `message.createdAt > lastReadAt` 기준 (동일 시각은 읽음)
   - `lastReadAt`는 서버 현재 시각과 마지막 메시지 시각을 상한으로 clamp하여 미래 시각 입력으로 인한 unread 왜곡을 방지
   - 방별 다중 구독(모든 방 topic 동시 구독)은 연결 수/브로드캐스트 비용 증가로 사용하지 않음
-  - 회원 탈퇴 시 `chat_room_members`는 전부 정리하고 `chat_rooms.member_count`를 즉시 동기화
+  - 회원 탈퇴 시 `chat_room_members`는 전부 정리하고 `chat_rooms.member_count`를 즉시 동기화한다. 관리자 삭제와 겹쳐 ID snapshot 뒤 이미 사라진 방은 해당 관리자 삭제가 멤버십도 정리했으므로 건너뛰며, 나머지 방 정리를 계속한다.
   - 탈퇴 회원의 기존 WebSocket 세션은 best-effort로 종료하고, 남아 있는 `/topic/chat/**` outbound delivery도 차단
   - 과거 `chat_messages.senderName`은 Phase 10에서 일괄 수정하지 않고 이력 보존을 우선
 ```
