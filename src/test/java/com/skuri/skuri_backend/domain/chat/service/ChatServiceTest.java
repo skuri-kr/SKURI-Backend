@@ -549,6 +549,36 @@ class ChatServiceTest {
     }
 
     @Test
+    void removeMemberFromAllChatRooms_동시에삭제된방은건너뛰고남은방을정리한다() {
+        ChatRoom remainingRoom = ChatRoom.create(
+                "room-1",
+                "시험기간 밤샘 메이트",
+                ChatRoomType.CUSTOM,
+                null,
+                null,
+                null,
+                true,
+                null
+        );
+        ReflectionTestUtils.setField(remainingRoom, "memberCount", 1);
+        ChatRoomMember remainingMembership = membership(remainingRoom, "room-1", "member-1");
+
+        when(chatRoomMemberRepository.findChatRoomIdsByMemberId("member-1"))
+                .thenReturn(List.of("deleted-room", "room-1"));
+        when(chatRoomRepository.findByIdForUpdate("deleted-room")).thenReturn(Optional.empty());
+        when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(remainingRoom));
+        when(chatRoomMemberRepository.findById_ChatRoomIdAndId_MemberId("room-1", "member-1"))
+                .thenReturn(Optional.of(remainingMembership));
+
+        chatService.removeMemberFromAllChatRooms("member-1");
+
+        assertEquals(0, remainingRoom.getMemberCount());
+        verify(chatRoomMemberRepository).delete(remainingMembership);
+        verify(chatRoomMemberRepository, times(1)).delete(any(ChatRoomMember.class));
+        verify(chatRoomSummaryEventPublisher).publishCurrent("room-1");
+    }
+
+    @Test
     void markAsRead_과거시각요청이면_단조증가유지() {
         ChatRoom room = ChatRoom.create("room-1", "테스트", ChatRoomType.UNIVERSITY, null, null, null, true, null);
         ChatRoomMember roomMember = membership(room, "room-1", "member-1");
