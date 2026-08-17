@@ -584,7 +584,10 @@ public class ChatService {
     @Transactional
     public void removeMemberFromAllChatRooms(String memberId) {
         for (String chatRoomId : chatRoomMemberRepository.findChatRoomIdsByMemberId(memberId)) {
-            ChatRoom room = lockChatRoomForMutation(chatRoomId);
+            ChatRoom room = chatRoomRepository.findByIdForUpdate(chatRoomId).orElse(null);
+            if (room == null) {
+                continue;
+            }
             ChatRoomMember membership = findMembership(chatRoomId, memberId);
             if (membership != null) {
                 removeMembership(membership, room, false, true);
