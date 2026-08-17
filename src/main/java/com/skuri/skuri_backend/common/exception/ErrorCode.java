@@ -80,8 +80,15 @@ public enum ErrorCode {
     CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_ROOM_NOT_FOUND", "채팅방을 찾을 수 없습니다."),
     CHAT_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_MESSAGE_NOT_FOUND", "채팅 메시지를 찾을 수 없습니다."),
     NOT_CHAT_ROOM_MEMBER(HttpStatus.FORBIDDEN, "NOT_CHAT_ROOM_MEMBER", "채팅방 멤버가 아닙니다."),
+    NOT_CHAT_MESSAGE_AUTHOR(HttpStatus.FORBIDDEN, "NOT_CHAT_MESSAGE_AUTHOR", "메시지 작성자만 처리할 수 있습니다."),
     CHAT_ROOM_FULL(HttpStatus.CONFLICT, "CHAT_ROOM_FULL", "채팅방 정원이 가득 찼습니다."),
     ALREADY_CHAT_ROOM_MEMBER(HttpStatus.CONFLICT, "ALREADY_CHAT_ROOM_MEMBER", "이미 채팅방에 참여 중입니다."),
+    CHAT_MESSAGE_EDIT_NOT_ALLOWED(HttpStatus.CONFLICT, "CHAT_MESSAGE_EDIT_NOT_ALLOWED", "이 메시지는 수정할 수 없습니다."),
+    CHAT_MESSAGE_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "CHAT_MESSAGE_DELETE_NOT_ALLOWED", "이 메시지는 삭제할 수 없습니다."),
+    CHAT_MESSAGE_EDIT_WINDOW_EXPIRED(HttpStatus.CONFLICT, "CHAT_MESSAGE_EDIT_WINDOW_EXPIRED", "메시지는 전송 후 15분 이내에만 수정할 수 있습니다."),
+    CHAT_MESSAGE_ALREADY_DELETED(HttpStatus.CONFLICT, "CHAT_MESSAGE_ALREADY_DELETED", "이미 삭제된 메시지입니다."),
+    CHAT_MESSAGE_MUTATION_NOT_ALLOWED(HttpStatus.CONFLICT, "CHAT_MESSAGE_MUTATION_NOT_ALLOWED", "이 메시지는 수정하거나 삭제할 수 없습니다."),
+    CHAT_IMAGE_UNAVAILABLE(HttpStatus.CONFLICT, "CHAT_IMAGE_UNAVAILABLE", "정리된 채팅 이미지는 새로 업로드해야 합니다."),
     STOMP_AUTH_FAILED(HttpStatus.UNAUTHORIZED, "STOMP_AUTH_FAILED", "WebSocket 인증에 실패했습니다."),
 
     // 마인크래프트(Minecraft) 도메인 에러.

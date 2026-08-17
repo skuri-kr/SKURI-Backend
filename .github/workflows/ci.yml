@@ -23,6 +23,7 @@ jobs:
           - 3306:3306
 
     env:
+      TZ: Asia/Seoul
       DB_URL: jdbc:mysql://127.0.0.1:3306/${{ secrets.CI_DB_NAME }}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
       DB_USERNAME: ${{ secrets.CI_DB_USER }}
       DB_PASSWORD: ${{ secrets.CI_DB_PASSWORD }}

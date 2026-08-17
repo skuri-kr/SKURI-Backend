@@ -9,9 +9,15 @@ import com.skuri.skuri_backend.domain.board.repository.CommentRepository;
 import com.skuri.skuri_backend.domain.board.repository.PostRepository;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
+import com.skuri.skuri_backend.domain.chat.entity.ChatMessage;
+import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
 import com.skuri.skuri_backend.domain.chat.exception.ChatMessageNotFoundException;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
+import com.skuri.skuri_backend.domain.image.policy.ChatImageAsset;
+import com.skuri.skuri_backend.domain.image.policy.ChatImageAssetPolicy;
+import com.skuri.skuri_backend.domain.image.service.MediaCleanupTaskService;
+import com.skuri.skuri_backend.domain.image.storage.StorageRepository;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.domain.support.dto.request.CreateReportRequest;
@@ -23,6 +29,7 @@ import com.skuri.skuri_backend.domain.support.entity.ReportStatus;
 import com.skuri.skuri_backend.domain.support.entity.ReportTargetType;
 import com.skuri.skuri_backend.domain.support.exception.ReportNotFoundException;
 import com.skuri.skuri_backend.domain.support.repository.ReportRepository;
+import com.skuri.skuri_backend.domain.support.model.ChatMessageReportSnapshot;
 import com.skuri.skuri_backend.domain.taxiparty.exception.PartyNotFoundException;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyRepository;
 import com.skuri.skuri_backend.infra.admin.list.AdminPageRequestPolicy;
@@ -35,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -47,6 +55,8 @@ public class ReportService {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final PartyRepository partyRepository;
+    private final StorageRepository storageRepository;
+    private final MediaCleanupTaskService mediaCleanupTaskService;
 
     @Transactional
     public ReportCreateResponse createReport(String reporterId, CreateReportRequest request) {
@@ -55,16 +65,23 @@ public class ReportService {
             throw new BusinessException(ErrorCode.REPORT_ALREADY_SUBMITTED);
         }
 
-        String targetAuthorId = resolveTargetAuthorId(request.targetType(), normalizedTargetId);
-        if (reporterId.equals(targetAuthorId)) {
+        ReportTarget target = resolveReportTarget(request.targetType(), normalizedTargetId);
+        if (reporterId.equals(target.authorId())) {
             throw new BusinessException(ErrorCode.CANNOT_REPORT_YOURSELF);
+        }
+        if (target.chatImageAsset() != null) {
+            mediaCleanupTaskService.retain(target.chatImageAsset().cleanupPaths());
         }
 
         try {
             Report report = reportRepository.saveAndFlush(Report.create(
                     request.targetType(),
                     normalizedTargetId,
-                    targetAuthorId,
+                    target.authorId(),
+                    target.snapshot(),
+                    target.chatImageAsset() == null
+                            ? ChatImageAssetPolicy.NO_MANAGED_ASSET_KEY
+                            : target.chatImageAsset().familyKey(),
                     normalizeCode(request.category()),
                     normalizeRequired(request.reason()),
                     reporterId
@@ -91,34 +108,69 @@ public class ReportService {
         return toAdminResponse(report);
     }
 
-    private String resolveTargetAuthorId(ReportTargetType targetType, String targetId) {
+    private ReportTarget resolveReportTarget(ReportTargetType targetType, String targetId) {
         return switch (targetType) {
-            case POST -> postRepository.findByIdAndDeletedFalse(targetId)
+            case POST -> new ReportTarget(postRepository.findByIdAndDeletedFalse(targetId)
                     .orElseThrow(PostNotFoundException::new)
-                    .getAuthorId();
-            case COMMENT -> commentRepository.findActiveById(targetId)
+                    .getAuthorId());
+            case COMMENT -> new ReportTarget(commentRepository.findActiveById(targetId)
                     .orElseThrow(CommentNotFoundException::new)
-                    .getAuthorId();
-            case MEMBER -> memberRepository.findById(targetId)
+                    .getAuthorId());
+            case MEMBER -> new ReportTarget(memberRepository.findById(targetId)
                     .orElseThrow(MemberNotFoundException::new)
-                    .getId();
-            case CHAT_MESSAGE -> chatMessageRepository.findById(targetId)
-                    .orElseThrow(ChatMessageNotFoundException::new)
-                    .getSenderId();
+                    .getId());
+            case CHAT_MESSAGE -> resolveChatMessageTarget(targetId);
             case CHAT_ROOM -> resolveChatRoomAuthorId(targetId);
-            case TAXI_PARTY -> partyRepository.findById(targetId)
+            case TAXI_PARTY -> new ReportTarget(partyRepository.findById(targetId)
                     .orElseThrow(PartyNotFoundException::new)
-                    .getLeaderId();
+                    .getLeaderId());
         };
     }
 
-    private String resolveChatRoomAuthorId(String targetId) {
+    private ReportTarget resolveChatMessageTarget(String targetId) {
+        ChatMessage message = chatMessageRepository.findByIdForUpdate(targetId)
+                .orElseThrow(ChatMessageNotFoundException::new);
+        if (message.isDeleted()) {
+            throw new ChatMessageNotFoundException();
+        }
+        String imageUrl = message.getType() == ChatMessageType.IMAGE ? message.getText() : null;
+        String text = message.getType() == ChatMessageType.IMAGE ? null : message.getText();
+        ChatImageAsset chatImageAsset = resolveManagedChatImageAsset(imageUrl).orElse(null);
+        return new ReportTarget(
+                message.getSenderId(),
+                new ChatMessageReportSnapshot(
+                        message.getId(),
+                        message.getChatRoomId(),
+                        message.getSenderId(),
+                        message.getSenderName(),
+                        message.getType(),
+                        text,
+                        imageUrl,
+                        message.getAccountData(),
+                        message.getDirection(),
+                        message.getSource(),
+                        message.getCreatedAt(),
+                        message.getEditedAt()
+                ),
+                chatImageAsset
+        );
+    }
+
+    private Optional<ChatImageAsset> resolveManagedChatImageAsset(String imageUrl) {
+        if (!StringUtils.hasText(imageUrl)) {
+            return Optional.empty();
+        }
+        return storageRepository.resolveRelativePath(imageUrl)
+                .flatMap(ChatImageAssetPolicy::resolve);
+    }
+
+    private ReportTarget resolveChatRoomAuthorId(String targetId) {
         ChatRoom room = chatRoomRepository.findById(targetId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         if (room.getType() == ChatRoomType.PARTY) {
             throw new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND);
         }
-        return room.getCreatedBy();
+        return new ReportTarget(room.getCreatedBy());
     }
 
     private AdminReportResponse toAdminResponse(Report report) {
@@ -128,6 +180,7 @@ public class ReportService {
                 report.getTargetType(),
                 report.getTargetId(),
                 report.getTargetAuthorId(),
+                report.getTargetSnapshot(),
                 report.getCategory(),
                 report.getReason(),
                 report.getStatus(),
@@ -162,5 +215,16 @@ public class ReportService {
             return null;
         }
         return value.trim();
+    }
+
+    private record ReportTarget(
+            String authorId,
+            ChatMessageReportSnapshot snapshot,
+            ChatImageAsset chatImageAsset
+    ) {
+
+        private ReportTarget(String authorId) {
+            this(authorId, null, null);
+        }
     }
 }

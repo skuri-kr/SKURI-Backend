@@ -24,6 +24,8 @@ import lombok.NoArgsConstructor;
         name = "chat_messages",
         indexes = {
                 @Index(name = "idx_chat_messages_room_cursor", columnList = "chat_room_id, created_at, message_order, id"),
+                @Index(name = "idx_chat_messages_room_visible_latest", columnList = "chat_room_id, deleted_at, created_at, message_order, id"),
+                @Index(name = "idx_chat_messages_image_asset_active", columnList = "type, image_asset_key, deleted_at"),
                 @Index(name = "uk_chat_messages_source_event_id", columnList = "source_event_id", unique = true)
         }
 )
@@ -79,6 +81,15 @@ public class ChatMessage extends BaseTimeEntity {
 
     @Column(name = "source_event_id", unique = true, length = 36)
     private String sourceEventId;
+
+    @Column(name = "image_asset_key", length = 255)
+    private String imageAssetKey;
+
+    @Column(name = "edited_at")
+    private java.time.LocalDateTime editedAt;
+
+    @Column(name = "deleted_at")
+    private java.time.LocalDateTime deletedAt;
 
     private ChatMessage(
             String chatRoomId,
@@ -156,12 +167,32 @@ public class ChatMessage extends BaseTimeEntity {
         this.sourceEventId = sourceEventId;
     }
 
+    public void markImageAssetKey(String imageAssetKey) {
+        this.imageAssetKey = imageAssetKey;
+    }
+
     public boolean hasSource(String source) {
         return this.source != null && this.source.equals(source);
     }
 
     public boolean isMinecraftOrigin() {
         return hasSource(SOURCE_MINECRAFT);
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    public void editText(String text, java.time.LocalDateTime editedAt) {
+        this.text = text;
+        this.editedAt = editedAt;
+    }
+
+    public void delete(java.time.LocalDateTime deletedAt) {
+        this.text = null;
+        this.accountData = null;
+        this.arrivalData = null;
+        this.deletedAt = deletedAt;
     }
 
     public void updateArrivalData(ChatArrivalData arrivalData) {

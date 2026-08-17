@@ -186,13 +186,29 @@ erDiagram
         varchar(20) source "minecraft,app"
         varchar(50) minecraft_uuid
         varchar(36) source_event_id UK "nullable, MC inbound dedupe key"
+        varchar(255) image_asset_key "nullable, IMAGE family key; IDX(type,image_asset_key,deleted_at)"
         datetime created_at
+        datetime updated_at
+        datetime edited_at "nullable, TEXT edit timestamp"
+        datetime deleted_at "nullable, tombstone timestamp; IDX(chat_room_id,deleted_at,created_at,message_order,id)"
     }
 
     chat_rooms ||--o{ chat_room_members : "has"
     chat_rooms ||--o{ chat_messages : "contains"
     members ||--o{ chat_room_members : "joins"
     members ||--o{ chat_messages : "sends"
+
+    media_cleanup_tasks {
+        varchar(36) id PK "UUID"
+        varchar(500) relative_path UK "storage relative path"
+        enum status "ACTIVE,PENDING,COMPLETED"
+        int attempt_count
+        datetime next_attempt_at "IDX(status,next_attempt_at)"
+        datetime completed_at
+        varchar(500) last_error
+        datetime created_at
+        datetime updated_at
+    }
 
     %% ===== MINECRAFT 도메인 =====
     minecraft_accounts {
@@ -556,6 +572,8 @@ erDiagram
         enum target_type "POST,COMMENT,MEMBER,CHAT_MESSAGE,CHAT_ROOM,TAXI_PARTY"
         varchar(100) target_id "NOT NULL"
         varchar(36) target_author_id
+        json target_snapshot "nullable, CHAT_MESSAGE report evidence"
+        varchar(255) target_image_asset_key "normalized chat image family; IDX(target_type,target_image_asset_key)"
         varchar(50) category
         text reason "NOT NULL"
         varchar(36) reporter_id FK "NOT NULL, UK(reporter_id,target_type,target_id)"
@@ -824,6 +842,7 @@ Taxi history 계약 메모:
 | source | VARCHAR(20) | | minecraft, app |
 | minecraft_uuid | VARCHAR(50) | | MC UUID |
 | source_event_id | VARCHAR(36) | UK, NULL | 마인크래프트 inbound dedupe/event mapping key |
+| image_asset_key | VARCHAR(255) | NULL, IDX(type, image_asset_key, deleted_at) | `IMAGE` 원본·썸네일을 같은 자산으로 식별하는 정규화 키 |
 | created_at | DATETIME | NOT NULL | 생성일 |
 
 ### 2.4 Minecraft 도메인
@@ -1199,6 +1218,7 @@ CREATE INDEX idx_chat_room_members_member ON chat_room_members(member_id);
 CREATE INDEX idx_chat_messages_room ON chat_messages(chat_room_id);
 CREATE INDEX idx_chat_messages_room_created ON chat_messages(chat_room_id, created_at DESC);
 CREATE INDEX idx_chat_messages_sender ON chat_messages(sender_id);
+CREATE INDEX idx_chat_messages_image_asset_active ON chat_messages(type, image_asset_key, deleted_at);
 ```
 
 ### 4.4 Minecraft 도메인
@@ -1316,6 +1336,7 @@ CREATE INDEX idx_academic_schedules_primary ON academic_schedules(is_primary);
 ```sql
 -- reports
 CREATE UNIQUE INDEX uk_reports_reporter_target ON reports(reporter_id, target_type, target_id);
+CREATE INDEX idx_reports_chat_image_asset ON reports(target_type, target_image_asset_key);
 ```
 
 ### 4.10 Notification 인프라

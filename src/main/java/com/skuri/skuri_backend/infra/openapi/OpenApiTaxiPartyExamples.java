@@ -440,7 +440,9 @@ public final class OpenApiTaxiPartyExamples {
                 "senderPhotoUrl": null,
                 "type": "SYSTEM",
                 "text": "관리자 안내 메시지",
-                "createdAt": "2026-03-29T12:10:00"
+                "createdAt": "2026-03-29T12:10:00",
+                "updatedAt": "2026-03-29T12:10:00",
+                "isDeleted": false
               }
             }
             """;
@@ -458,7 +460,9 @@ public final class OpenApiTaxiPartyExamples {
                     "senderPhotoUrl": null,
                     "type": "SYSTEM",
                     "text": "김철수님이 파티에 합류했어요.",
-                    "createdAt": "2026-03-04T19:10:00"
+                    "createdAt": "2026-03-04T19:10:00",
+                    "updatedAt": "2026-03-04T19:10:00",
+                    "isDeleted": false
                   },
                   {
                     "id": "msg-text-1",
@@ -468,7 +472,9 @@ public final class OpenApiTaxiPartyExamples {
                     "senderPhotoUrl": "https://cdn.skuri.app/profiles/user-1.png",
                     "type": "TEXT",
                     "text": "정문 앞 택시승강장 집합이에요.",
-                    "createdAt": "2026-03-04T19:12:00"
+                    "createdAt": "2026-03-04T19:12:00",
+                    "updatedAt": "2026-03-04T19:12:00",
+                    "isDeleted": false
                   }
                 ],
                 "hasNext": false,

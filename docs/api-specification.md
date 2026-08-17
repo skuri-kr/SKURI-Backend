@@ -1526,6 +1526,7 @@ FCM 토큰 삭제
   - `createdAt < cursorCreatedAt`
   - 또는 `createdAt == cursorCreatedAt AND cursorId`가 가리키는 메시지보다 내부 저장 순서상 더 오래된 메시지
 - `nextCursor`는 현재 페이지의 마지막 메시지 `(createdAt, id)`로 생성됩니다.
+- 삭제된 메시지도 cursor 순서와 목록 높이를 보존하기 위해 페이지에서 제외하지 않습니다. 대신 `isDeleted=true`, `type=TEXT`, `text="삭제된 메시지입니다."`, `deletedAt`으로 내려가며 원문/이미지/계좌/도착 payload는 노출하지 않습니다.
 
 **Response:**
 ```json
@@ -1541,7 +1542,9 @@ FCM 토큰 삭제
         "senderPhotoUrl": "https://cdn.skuri.app/uploads/profiles/profile.jpg",
         "text": "안녕하세요!",
         "type": "TEXT",
-        "createdAt": "2026-02-03T12:00:00Z"
+        "createdAt": "2026-02-03T12:00:00",
+        "updatedAt": "2026-02-03T12:00:00",
+        "isDeleted": false
       },
       {
         "id": "message_uuid_2",
@@ -1551,14 +1554,61 @@ FCM 토큰 삭제
         "senderPhotoUrl": null,
         "text": "홍길동님이 입장했습니다.",
         "type": "SYSTEM",
-        "createdAt": "2026-02-03T11:59:00Z"
+        "createdAt": "2026-02-03T11:59:00",
+        "updatedAt": "2026-02-03T11:59:00",
+        "isDeleted": false
       }
     ],
     "hasNext": true,
     "nextCursor": {
-      "createdAt": "2026-02-03T11:59:00Z",
+      "createdAt": "2026-02-03T11:59:00",
       "id": "message_uuid_2"
     }
+  }
+}
+```
+
+#### PATCH /v1/chat-rooms/{chatRoomId}/messages/{messageId}
+내 `TEXT` 메시지 수정
+
+**Request:**
+```json
+{ "text": "수정한 메시지입니다." }
+```
+
+- 해당 채팅방 멤버이면서 메시지 작성자 본인만 요청할 수 있습니다.
+- 전송 후 15분 이내 `TEXT` 메시지만 수정할 수 있습니다.
+- 삭제된 메시지와 마인크래프트 연동 메시지는 수정할 수 없습니다.
+- 존재하지 않는 채팅방은 `404 CHAT_ROOM_NOT_FOUND`, 존재하지 않는 메시지는 `404 CHAT_MESSAGE_NOT_FOUND`를 반환합니다.
+- 성공 응답은 변경 뒤의 `ChatMessageResponse`이며, `editedAt`, `updatedAt`, `isDeleted=false`를 포함합니다.
+- 성공 시 커밋 뒤 `/topic/chat/{chatRoomId}/events`로 `MESSAGE_UPDATED` 이벤트를 보냅니다.
+
+#### DELETE /v1/chat-rooms/{chatRoomId}/messages/{messageId}
+내 메시지 삭제
+
+- 해당 채팅방 멤버이면서 메시지 작성자 본인만 요청할 수 있습니다.
+- `TEXT`, `IMAGE`, 그리고 `PARTY` 방의 `ACCOUNT` 메시지만 삭제할 수 있습니다. 서버 생성 `SYSTEM`/`ARRIVED`/`END`와 마인크래프트 연동 메시지는 삭제할 수 없습니다.
+- 삭제는 행을 제거하지 않는 tombstone 처리입니다. 동일 작성자의 재요청은 성공한 tombstone 응답을 다시 반환합니다.
+- 존재하지 않는 채팅방은 `404 CHAT_ROOM_NOT_FOUND`, 존재하지 않는 메시지는 `404 CHAT_MESSAGE_NOT_FOUND`를 반환합니다.
+- 삭제된 이미지의 원본·썸네일은 활성 메시지 참조와 `CHAT_MESSAGE` 신고 증거가 모두 없을 때에만 비동기 정리 작업에 넣습니다. 같은 업로드의 원본·썸네일은 하나의 이미지 자산으로 보고 동일한 작업 잠금으로 참조 생성·신고 snapshot·정리를 직렬화하며, 정규화 자산 키의 최신 참조를 인덱스로 확인합니다. 이미 정리된 내부 URL은 새 업로드 없이 다시 전송할 수 없으며, 실패한 파일 삭제는 DB 작업 큐에서 지수 backoff로 재시도합니다.
+- 성공 시 커밋 뒤 `/topic/chat/{chatRoomId}/events`로 `MESSAGE_DELETED` 이벤트를 보냅니다.
+
+**삭제 응답 예시:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "message_uuid",
+    "chatRoomId": "room_id",
+    "senderId": "user_uuid",
+    "senderName": "홍길동",
+    "senderPhotoUrl": null,
+    "type": "TEXT",
+    "text": "삭제된 메시지입니다.",
+    "createdAt": "2026-08-16T20:00:00",
+    "updatedAt": "2026-08-16T20:03:00",
+    "deletedAt": "2026-08-16T20:03:00",
+    "isDeleted": true
   }
 }
 ```
@@ -1654,12 +1704,14 @@ Authorization:Bearer <firebase_id_token>
 
 - `SEND /app/chat/{chatRoomId}`: 해당 채팅방 멤버만 전송 가능
 - `SUBSCRIBE /topic/chat/{chatRoomId}`: 해당 채팅방 멤버만 구독 가능
+- `SUBSCRIBE /topic/chat/{chatRoomId}/events`: 해당 채팅방 멤버만 구독 가능
 - 비멤버 요청은 `NOT_CHAT_ROOM_MEMBER` 에러로 거부됩니다.
 
 #### 구독 토폴로지 (중요)
 
 - 채팅방 목록 화면: `SUBSCRIBE /user/queue/chat-rooms` 1개만 구독
 - 채팅방 상세 화면: 진입한 방에 한해 `SUBSCRIBE /topic/chat/{chatRoomId}` 구독
+- 메시지 수정/삭제가 필요한 상세 화면: 같은 방의 `/topic/chat/{chatRoomId}/events`도 함께 구독
 - STOMP 에러 수신: `SUBSCRIBE /user/queue/errors`
 - 상세 화면 이탈 시 해당 room topic 구독을 즉시 해제
 - 모든 채팅방 topic을 동시에 구독하는 방식은 사용하지 않음
@@ -1673,6 +1725,7 @@ Authorization:Bearer <firebase_id_token>
 | 수신 (Subscribe) | `/user/queue/chat-rooms` | 내 채팅방 목록 카드 요약(이름/인원/마지막 메시지/미읽음) 수신 |
 | 전송 (Publish) | `/app/chat/{chatRoomId}` | 메시지 전송 |
 | 수신 (Subscribe) | `/topic/chat/{chatRoomId}` | 실시간 메시지 수신 |
+| 수신 (Subscribe) | `/topic/chat/{chatRoomId}/events` | 메시지 수정/삭제 상태 수신 |
 
 **전송 포맷:**
 ```json
@@ -1680,7 +1733,8 @@ Authorization:Bearer <firebase_id_token>
 { "type": "IMAGE", "imageUrl": "https://..." }
 ```
 
-- `IMAGE` 메시지의 `imageUrl`은 `POST /v1/images`의 `CHAT_IMAGE` 업로드 결과 URL을 그대로 사용합니다.
+- `IMAGE` 메시지의 `imageUrl`은 `POST /v1/images`의 `CHAT_IMAGE` 업로드 응답 중 원본 `url`만 그대로 사용합니다. `thumbUrl`, 외부 URL, 다른 업로드 context URL은 `VALIDATION_ERROR`입니다.
+- 정리 완료된 내부 `CHAT_IMAGE` URL을 다시 전송하면 `CHAT_IMAGE_UNAVAILABLE` 오류가 발생하므로, 이미지를 다시 업로드해야 합니다.
 - 실시간 수신 payload와 `GET /v1/chat-rooms/{chatRoomId}/messages`의 `messages[]` item shape는 동일합니다.
 - 일반 채팅 메시지의 `senderPhotoUrl`은 앱 사용자 메시지는 `members.photo_url`, Minecraft origin 메시지는 Minotar URL을 사용합니다.
 
@@ -1705,6 +1759,25 @@ Authorization:Bearer <firebase_id_token>
 > `eventType`은 `CHAT_ROOM_SNAPSHOT`, `CHAT_ROOM_UPSERT`, `CHAT_ROOM_REMOVED`를 사용합니다.
 > `/user/queue/chat-rooms`는 joined room summary 기준 채널이며, 미참여 공개방 탐색 목록은 `GET /v1/chat-rooms` refresh 기준으로 유지합니다.
 
+**메시지 변경 이벤트 포맷 (서버 → 클라이언트):**
+```json
+{
+  "eventType": "MESSAGE_UPDATED",
+  "message": {
+    "id": "message_uuid",
+    "chatRoomId": "room_uuid",
+    "type": "TEXT",
+    "text": "수정한 메시지입니다.",
+    "createdAt": "2026-08-16T20:00:00",
+    "editedAt": "2026-08-16T20:02:00",
+    "isDeleted": false
+  }
+}
+```
+
+- `eventType`은 `MESSAGE_UPDATED`, `MESSAGE_DELETED` 중 하나입니다.
+- `message`는 history 응답과 같은 `ChatMessageResponse` shape입니다. 클라이언트는 id로 기존 item을 교체하며, 삭제 이벤트는 item을 제거하지 않습니다.
+
 ---
 
 #### 파티 채팅
@@ -1712,6 +1785,7 @@ Authorization:Bearer <firebase_id_token>
 - 파티 채팅도 동일 경로를 사용합니다.
   - 전송: `/app/chat/party:{partyId}`
   - 수신: `/topic/chat/party:{partyId}`
+  - 변경 수신: `/topic/chat/party:{partyId}/events`
 - 클라이언트가 직접 보낼 수 있는 타입: `TEXT`, `IMAGE`, `ACCOUNT`
 - 서버가 생성하는 타입: `SYSTEM`, `ARRIVED`, `END`
 - 파티 채팅의 `SYSTEM`/`ARRIVED`/`END`는 도메인 이벤트(동승 승인, 멤버 나가기, 도착 처리, 취소/종료) 기준으로만 생성됨
@@ -1831,6 +1905,8 @@ Authorization:Bearer <firebase_id_token>
 | 작업 | 트랜잭션 범위 |
 |------|------------|
 | 메시지 전송 (STOMP 핸들러) | 메시지 DB 저장 + ChatRoom.messageCount 증가 → 커밋 후 구독자 브로드캐스트 |
+| 메시지 수정/삭제 | 작성자/타입/시간 창 검증 + row lock으로 메시지 및 마지막 메시지 요약 갱신 → 커밋 후 mutation event·목록 요약 이벤트 전송 |
+| 삭제 이미지 정리 | tombstone 커밋 후 `media_cleanup_tasks`에 보존성 확인된 경로를 기록하고 즉시 1회 처리, 실패 시 지수 backoff 재시도 |
 | 채팅방 목록 요약 이벤트 | 메시지 저장/멤버수 변경 커밋 후 `/user/queue/chat-rooms`로 요약 이벤트 전송 |
 | 읽음 처리 (`PATCH /v1/chat-rooms/{chatRoomId}/read`) | timezone 없는 `LocalDateTime` 또는 ISO 8601 `Z`/offset `lastReadAt` 허용, 단조 증가 갱신 + 미래 시각 clamp |
 | 설정 수정 (`PATCH /v1/chat-rooms/{chatRoomId}/settings`) | ChatRoomMember.muted 갱신 |
@@ -1846,6 +1922,13 @@ Authorization:Bearer <firebase_id_token>
 | `CHAT_ROOM_NOT_FOUND` | 채팅방을 찾을 수 없음 |
 | `CHAT_MESSAGE_NOT_FOUND` | 채팅 메시지를 찾을 수 없음 |
 | `NOT_CHAT_ROOM_MEMBER` | 채팅방 멤버가 아님 |
+| `NOT_CHAT_MESSAGE_AUTHOR` | 메시지 작성자가 아님 |
+| `CHAT_MESSAGE_EDIT_NOT_ALLOWED` | `TEXT`가 아닌 메시지를 수정하려는 경우 |
+| `CHAT_MESSAGE_EDIT_WINDOW_EXPIRED` | 전송 후 15분이 지나 수정하려는 경우 |
+| `CHAT_MESSAGE_DELETE_NOT_ALLOWED` | 삭제할 수 없는 서버/연동 메시지 타입 |
+| `CHAT_MESSAGE_ALREADY_DELETED` | 이미 삭제된 메시지를 수정하려는 경우 |
+| `CHAT_MESSAGE_MUTATION_NOT_ALLOWED` | 마인크래프트 연동 메시지를 수정/삭제하려는 경우 |
+| `CHAT_IMAGE_UNAVAILABLE` | 정리 완료된 내부 채팅 이미지 URL을 다시 전송하려는 경우 |
 | `CHAT_ROOM_FULL` | 채팅방 정원 초과 |
 | `ALREADY_CHAT_ROOM_MEMBER` | 이미 참여 중인 채팅방 |
 | `STOMP_AUTH_FAILED` | WebSocket STOMP 연결 인증 실패 (토큰 검증 오류) |
@@ -5873,7 +5956,9 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "senderPhotoUrl": null,
         "type": "TEXT",
         "text": "스터디 인원 구합니다.",
-        "createdAt": "2026-04-06T17:40:00"
+        "createdAt": "2026-04-06T17:40:00",
+        "updatedAt": "2026-04-06T17:40:00",
+        "isDeleted": false
       },
       {
         "id": "chat-message-1",
@@ -5883,7 +5968,9 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "senderPhotoUrl": "https://cdn.skuri.app/profiles/member-3.png",
         "type": "TEXT",
         "text": "오늘 저녁에 모집할게요.",
-        "createdAt": "2026-04-06T17:20:00"
+        "createdAt": "2026-04-06T17:20:00",
+        "updatedAt": "2026-04-06T17:20:00",
+        "isDeleted": false
       }
     ],
     "nextCursor": {
@@ -6406,6 +6493,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 
 - `page < 0` 또는 `size < 1 || size > 100`이면 `422 VALIDATION_ERROR`
 - `status`, `targetType`이 enum 범위를 벗어나면 `400 INVALID_REQUEST`
+- `CHAT_MESSAGE` 신고는 접수 시점의 메시지 본문·이미지 URL·계좌 payload·작성/수정 시각을 `targetSnapshot`으로 보존합니다. snapshot 도입 전 신고와 다른 신고 타입은 `null`입니다.
 
 **Response (200 OK):**
 ```json
@@ -6419,6 +6507,20 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "targetType": "CHAT_MESSAGE",
         "targetId": "message_uuid",
         "targetAuthorId": "target_user_uuid",
+        "targetSnapshot": {
+          "messageId": "message_uuid",
+          "chatRoomId": "party:party-1",
+          "senderId": "target_user_uuid",
+          "senderName": "스쿠리 유저",
+          "originalType": "IMAGE",
+          "text": null,
+          "imageUrl": "https://cdn.skuri.app/chat/2026/08/16/message-image.png",
+          "accountData": null,
+          "direction": null,
+          "source": null,
+          "createdAt": "2026-08-16T20:00:00",
+          "editedAt": null
+        },
         "category": "SPAM",
         "reason": "광고성 메시지입니다.",
         "status": "PENDING",
@@ -6433,6 +6535,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "targetType": "CHAT_ROOM",
         "targetId": "chat_room_uuid",
         "targetAuthorId": "room_owner_uuid",
+        "targetSnapshot": null,
         "category": "ABUSE",
         "reason": "부적절한 목적의 채팅방입니다.",
         "status": "PENDING",
@@ -6447,6 +6550,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "targetType": "TAXI_PARTY",
         "targetId": "party_uuid",
         "targetAuthorId": "party_host_uuid",
+        "targetSnapshot": null,
         "category": "FRAUD",
         "reason": "운행/정산 방식이 부적절합니다.",
         "status": "PENDING",
@@ -6488,6 +6592,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
     "targetType": "POST",
     "targetId": "post_uuid",
     "targetAuthorId": "target_user_uuid",
+    "targetSnapshot": null,
     "category": "SPAM",
     "reason": "광고성 게시글입니다.",
     "status": "ACTIONED",
@@ -6680,7 +6785,9 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "senderPhotoUrl": null,
         "type": "TEXT",
         "text": "정문 앞 도착했습니다.",
-        "createdAt": "2026-03-04T20:55:00"
+        "createdAt": "2026-03-04T20:55:00",
+        "updatedAt": "2026-03-04T20:55:00",
+        "isDeleted": false
       },
       {
         "id": "party-message-2",
@@ -6690,7 +6797,9 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
         "senderPhotoUrl": null,
         "type": "SYSTEM",
         "text": "김철수님이 입장했어요.",
-        "createdAt": "2026-03-04T20:50:00"
+        "createdAt": "2026-03-04T20:50:00",
+        "updatedAt": "2026-03-04T20:50:00",
+        "isDeleted": false
       }
     ],
     "nextCursor": {
@@ -7342,6 +7451,8 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 > - 2026-03-05: Chat 계약 동기화 — `lastMessage.createdAt`/`accountData` 필드로 통일, 비공개 채팅방 접근 정책(REST/WS) 및 STOMP 에러 포맷(`/user/queue/errors`) 명시
 > - 2026-03-05: Chat 명세 보완 — 채팅방 요약 `lastMessage.senderName` 예시 추가, STOMP 메시지 `NON_NULL` 직렬화 정책 명시
 > - 2026-03-28: Chat 메시지 계약 확장 — 일반/파티 채팅 REST + STOMP payload에 `senderPhotoUrl` 추가, 기본 source of truth를 `members.photo_url`로 두고 `null` 직렬화 정책을 명시
+> - 2026-08-16: Chat 메시지 수정·삭제 계약 추가 — 15분 TEXT 수정, tombstone 삭제/커서 보존, 별도 mutation STOMP topic, 신고 증거 보존과 이미지 정리 재시도 큐를 반영
+> - 2026-08-17: Chat 이미지 참조 정합성 보완 — `CHAT_IMAGE` 원본 URL 검증, 정규화 자산 키 기반 참조 판정, 일반 메시지 `updatedAt` 예시를 실제 감사 시각과 동기화
 > - 2026-03-29: Admin Dashboard API 추가 — 관리자 대시보드 KPI/활동 추이/최근 운영 항목 read-model 계약과 `Asia/Seoul` 일자 버킷, 게시 공지 source, `totalMembers` 전체 row 집계 기준을 `/v3/api-docs` 기준으로 동기화
 > - 2026-03-29: Admin Member Activity API 추가 — `GET /v1/admin/members/{memberId}/activity`를 ACTIVE 회원 + 현재 저장 데이터 기준 read model로 추가하고, 탈퇴 회원은 `409 MEMBER_ACTIVITY_NOT_AVAILABLE_FOR_WITHDRAWN`으로 비제공 처리
 > - 2026-03-29: Admin Member API review fix — `PATCH /v1/admin/members/{memberId}/admin-role`에 self role change 금지(`400 SELF_ADMIN_ROLE_CHANGE_NOT_ALLOWED`)를 추가하고, admin-role 감사 로그 snapshot을 최소 필드만 저장하도록 조정. 관리자 상세 응답의 `bankAccount`/`notificationSetting` 계약은 유지

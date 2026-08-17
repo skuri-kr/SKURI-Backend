@@ -156,7 +156,9 @@ public final class OpenApiChatExamples {
                     "senderPhotoUrl": "https://cdn.skuri.app/uploads/profiles/leader-1.jpg",
                     "type": "SYSTEM",
                     "text": "김철수님이 파티에 합류했어요.",
-                    "createdAt": "2026-03-05T21:10:00"
+                    "createdAt": "2026-03-05T21:10:00",
+                    "updatedAt": "2026-03-05T21:10:00",
+                    "isDeleted": false
                   },
                   {
                     "id": "msg-system-2",
@@ -166,7 +168,9 @@ public final class OpenApiChatExamples {
                     "senderPhotoUrl": "https://cdn.skuri.app/uploads/profiles/leader-1.jpg",
                     "type": "SYSTEM",
                     "text": "모집이 마감되었어요.",
-                    "createdAt": "2026-03-05T21:11:00"
+                    "createdAt": "2026-03-05T21:11:00",
+                    "updatedAt": "2026-03-05T21:11:00",
+                    "isDeleted": false
                   },
                   {
                     "id": "msg-system-3",
@@ -176,7 +180,9 @@ public final class OpenApiChatExamples {
                     "senderPhotoUrl": "https://cdn.skuri.app/uploads/profiles/leader-1.jpg",
                     "type": "SYSTEM",
                     "text": "모집이 재개되었어요.",
-                    "createdAt": "2026-03-05T21:11:30"
+                    "createdAt": "2026-03-05T21:11:30",
+                    "updatedAt": "2026-03-05T21:11:30",
+                    "isDeleted": false
                   },
                   {
                     "id": "msg-system-4",
@@ -186,7 +192,9 @@ public final class OpenApiChatExamples {
                     "senderPhotoUrl": null,
                     "type": "SYSTEM",
                     "text": "홍길동님이 파티에서 나갔어요.",
-                    "createdAt": "2026-03-05T21:11:45"
+                    "createdAt": "2026-03-05T21:11:45",
+                    "updatedAt": "2026-03-05T21:11:45",
+                    "isDeleted": false
                   },
                   {
                     "id": "msg-account-1",
@@ -202,7 +210,9 @@ public final class OpenApiChatExamples {
                       "accountHolder": "홍*동",
                       "hideName": true
                     },
-                    "createdAt": "2026-03-05T21:12:00"
+                    "createdAt": "2026-03-05T21:12:00",
+                    "updatedAt": "2026-03-05T21:12:00",
+                    "isDeleted": false
                   },
                   {
                     "id": "msg-arrived-1",
@@ -242,7 +252,9 @@ public final class OpenApiChatExamples {
                         "hideName": true
                       }
                     },
-                    "createdAt": "2026-03-05T21:30:00"
+                    "createdAt": "2026-03-05T21:30:00",
+                    "updatedAt": "2026-03-05T21:30:00",
+                    "isDeleted": false
                   },
                   {
                     "id": "msg-end-1",
@@ -252,7 +264,9 @@ public final class OpenApiChatExamples {
                     "senderPhotoUrl": "https://cdn.skuri.app/uploads/profiles/leader-1.jpg",
                     "type": "END",
                     "text": "리더가 파티를 종료했어요.",
-                    "createdAt": "2026-03-05T21:45:00"
+                    "createdAt": "2026-03-05T21:45:00",
+                    "updatedAt": "2026-03-05T21:45:00",
+                    "isDeleted": false
                   }
                 ],
                 "hasNext": false,
@@ -296,6 +310,44 @@ public final class OpenApiChatExamples {
               "data": {
                 "chatRoomId": "public:university",
                 "muted": true
+              }
+            }
+            """;
+
+    public static final String SUCCESS_CHAT_MESSAGE_UPDATE = """
+            {
+              "success": true,
+              "data": {
+                "id": "msg-1",
+                "chatRoomId": "public:university",
+                "senderId": "member-1",
+                "senderName": "홍길동",
+                "senderPhotoUrl": null,
+                "type": "TEXT",
+                "text": "수정한 메시지입니다.",
+                "createdAt": "2026-03-05T21:10:00",
+                "updatedAt": "2026-03-05T21:12:00",
+                "editedAt": "2026-03-05T21:12:00",
+                "isDeleted": false
+              }
+            }
+            """;
+
+    public static final String SUCCESS_CHAT_MESSAGE_DELETE = """
+            {
+              "success": true,
+              "data": {
+                "id": "msg-1",
+                "chatRoomId": "public:university",
+                "senderId": "member-1",
+                "senderName": "홍길동",
+                "senderPhotoUrl": null,
+                "type": "TEXT",
+                "text": "삭제된 메시지입니다.",
+                "createdAt": "2026-03-05T21:10:00",
+                "updatedAt": "2026-03-05T21:13:00",
+                "deletedAt": "2026-03-05T21:13:00",
+                "isDeleted": true
               }
             }
             """;
@@ -415,7 +467,9 @@ public final class OpenApiChatExamples {
                     "senderPhotoUrl": null,
                     "type": "SYSTEM",
                     "text": "오늘 저녁 9시에 이벤트 서버를 엽니다.",
-                    "createdAt": "2026-03-05T21:30:00"
+                    "createdAt": "2026-03-05T21:30:00",
+                    "updatedAt": "2026-03-05T21:30:00",
+                    "isDeleted": false
                   },
                   {
                     "id": "mc-message-1",
@@ -425,7 +479,9 @@ public final class OpenApiChatExamples {
                     "senderPhotoUrl": "https://minotar.net/avatar/8667ba71b85a4004af54457a9734eed7/64",
                     "type": "TEXT",
                     "text": "안녕하세요!",
-                    "createdAt": "2026-03-05T21:29:00"
+                    "createdAt": "2026-03-05T21:29:00",
+                    "updatedAt": "2026-03-05T21:29:00",
+                    "isDeleted": false
                   }
                 ],
                 "hasNext": false,
@@ -466,6 +522,60 @@ public final class OpenApiChatExamples {
               "success": false,
               "errorCode": "CHAT_MESSAGE_NOT_FOUND",
               "message": "채팅 메시지를 찾을 수 없습니다.",
+              "timestamp": "2026-03-05T21:10:00"
+            }
+            """;
+
+    public static final String ERROR_NOT_CHAT_MESSAGE_AUTHOR = """
+            {
+              "success": false,
+              "errorCode": "NOT_CHAT_MESSAGE_AUTHOR",
+              "message": "메시지 작성자만 처리할 수 있습니다.",
+              "timestamp": "2026-03-05T21:10:00"
+            }
+            """;
+
+    public static final String ERROR_CHAT_MESSAGE_EDIT_NOT_ALLOWED = """
+            {
+              "success": false,
+              "errorCode": "CHAT_MESSAGE_EDIT_NOT_ALLOWED",
+              "message": "이 메시지는 수정할 수 없습니다.",
+              "timestamp": "2026-03-05T21:10:00"
+            }
+            """;
+
+    public static final String ERROR_CHAT_MESSAGE_DELETE_NOT_ALLOWED = """
+            {
+              "success": false,
+              "errorCode": "CHAT_MESSAGE_DELETE_NOT_ALLOWED",
+              "message": "이 메시지는 삭제할 수 없습니다.",
+              "timestamp": "2026-03-05T21:10:00"
+            }
+            """;
+
+    public static final String ERROR_CHAT_MESSAGE_MUTATION_NOT_ALLOWED = """
+            {
+              "success": false,
+              "errorCode": "CHAT_MESSAGE_MUTATION_NOT_ALLOWED",
+              "message": "이 메시지는 수정하거나 삭제할 수 없습니다.",
+              "timestamp": "2026-03-05T21:10:00"
+            }
+            """;
+
+    public static final String ERROR_CHAT_MESSAGE_EDIT_WINDOW_EXPIRED = """
+            {
+              "success": false,
+              "errorCode": "CHAT_MESSAGE_EDIT_WINDOW_EXPIRED",
+              "message": "메시지는 전송 후 15분 이내에만 수정할 수 있습니다.",
+              "timestamp": "2026-03-05T21:10:00"
+            }
+            """;
+
+    public static final String ERROR_CHAT_MESSAGE_ALREADY_DELETED = """
+            {
+              "success": false,
+              "errorCode": "CHAT_MESSAGE_ALREADY_DELETED",
+              "message": "이미 삭제된 메시지입니다.",
               "timestamp": "2026-03-05T21:10:00"
             }
             """;

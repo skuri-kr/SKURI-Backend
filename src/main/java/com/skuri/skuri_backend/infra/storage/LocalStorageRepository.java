@@ -6,6 +6,7 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.LinkOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -65,6 +66,20 @@ public class LocalStorageRepository implements StorageRepository {
             return Optional.empty();
         }
         return Optional.of(relativePath.replace('\\', '/'));
+    }
+
+    @Override
+    public Optional<String> resolveVerifiedRelativePath(String publicUrl) {
+        return resolveRelativePath(publicUrl)
+                .filter(this::isRegularStoredFile);
+    }
+
+    private boolean isRegularStoredFile(String relativePath) {
+        try {
+            return Files.isRegularFile(resolve(relativePath), LinkOption.NOFOLLOW_LINKS);
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 
     private Path resolve(String relativePath) {

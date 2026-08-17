@@ -22,6 +22,7 @@
 - Firebase 서비스 계정 JSON은 `.env`에 본문을 넣지 않고 파일로 두고 경로만 `.env`에 넣는다.
 - 브라우저 관리자 페이지가 REST API를 호출하면 `API_ALLOWED_ORIGIN_PATTERNS`를, WebSocket을 사용하면 `CHAT_WS_ALLOWED_ORIGIN_PATTERNS`를 각각 설정한다.
 - CD의 admin REST CORS smoke check는 `CD_SMOKE_CORS_ORIGIN`을 우선 사용하고, 비어 있으면 `API_ALLOWED_ORIGIN_PATTERNS`의 첫 번째 exact origin을 재사용한다.
+- 앱 시작 시 JVM 기본 시간대를 `Asia/Seoul`로 고정한다. 따라서 Docker, CI, IDE, 호스트 `bootRun` 모두 timezone 없는 `LocalDateTime` 비교·JPA 감사 시각을 서울 시간 기준으로 처리한다.
 
 예시:
 

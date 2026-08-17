@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.UUID;
+import java.util.Map;
 
 import static com.skuri.skuri_backend.infra.storage.FirebaseStorageRepository.DOWNLOAD_TOKEN_METADATA_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -108,5 +109,45 @@ class FirebaseStorageRepositoryTest {
                         "https://firebasestorage.googleapis.com/v0/b/other-bucket/o/profiles%2Ffirebase-uid%2F2026%2F04%2F06%2Fimage.jpg?alt=media&token=test-token"
                 ).isPresent()
         );
+    }
+
+    @Test
+    void resolveVerifiedRelativePath_실제객체와다운로드토큰이일치하면_상대경로를반환한다() {
+        Bucket bucket = mock(Bucket.class);
+        Blob blob = mock(Blob.class);
+        String relativePath = "chat/2026/08/image.jpg";
+        when(bucket.getName()).thenReturn("sktaxi-acb4c.firebasestorage.app");
+        when(bucket.get(relativePath)).thenReturn(blob);
+        when(blob.getMetadata()).thenReturn(Map.of(DOWNLOAD_TOKEN_METADATA_KEY, "old-token,valid-token"));
+
+        FirebaseStorageRepository repository = new FirebaseStorageRepository(bucket);
+
+        assertEquals(
+                relativePath,
+                repository.resolveVerifiedRelativePath(
+                        "https://firebasestorage.googleapis.com/v0/b/sktaxi-acb4c.firebasestorage.app/o/chat%2F2026%2F08%2Fimage.jpg?alt=media&token=valid-token"
+                ).orElseThrow()
+        );
+    }
+
+    @Test
+    void resolveVerifiedRelativePath_없는객체나잘못된토큰은_거절한다() {
+        Bucket bucket = mock(Bucket.class);
+        Blob blob = mock(Blob.class);
+        String relativePath = "chat/2026/08/image.jpg";
+        when(bucket.getName()).thenReturn("sktaxi-acb4c.firebasestorage.app");
+        when(bucket.get(relativePath)).thenReturn(blob);
+        when(blob.getMetadata()).thenReturn(Map.of(DOWNLOAD_TOKEN_METADATA_KEY, "valid-token"));
+
+        FirebaseStorageRepository repository = new FirebaseStorageRepository(bucket);
+
+        assertFalse(repository.resolveVerifiedRelativePath(
+                "https://firebasestorage.googleapis.com/v0/b/sktaxi-acb4c.firebasestorage.app/o/chat%2F2026%2F08%2Fimage.jpg?alt=media&token=wrong-token"
+        ).isPresent());
+
+        when(bucket.get(relativePath)).thenReturn(null);
+        assertFalse(repository.resolveVerifiedRelativePath(
+                "https://firebasestorage.googleapis.com/v0/b/sktaxi-acb4c.firebasestorage.app/o/chat%2F2026%2F08%2Fimage.jpg?alt=media&token=valid-token"
+        ).isPresent());
     }
 }

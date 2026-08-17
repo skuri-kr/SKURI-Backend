@@ -31,6 +31,7 @@ public class FirebaseStompAuthChannelInterceptor implements ChannelInterceptor {
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String APP_CHAT_DESTINATION_PREFIX = "/app/chat/";
     private static final String TOPIC_CHAT_DESTINATION_PREFIX = "/topic/chat/";
+    private static final String CHAT_MUTATION_EVENTS_SUFFIX = "/events";
 
     private final FirebaseTokenVerifier firebaseTokenVerifier;
     private final ChatRoomRepository chatRoomRepository;
@@ -170,19 +171,22 @@ public class FirebaseStompAuthChannelInterceptor implements ChannelInterceptor {
 
     private String extractChatRoomId(String destination, StompCommand command) {
         if (StompCommand.SEND.equals(command) && destination.startsWith(APP_CHAT_DESTINATION_PREFIX)) {
-            String chatRoomId = destination.substring(APP_CHAT_DESTINATION_PREFIX.length());
-            if (!StringUtils.hasText(chatRoomId)) {
-                throw new MessagingException("채팅방 ID가 필요합니다.", new BusinessException(ErrorCode.INVALID_REQUEST));
-            }
-            return chatRoomId;
+            return requireChatRoomId(destination.substring(APP_CHAT_DESTINATION_PREFIX.length()));
         }
         if (StompCommand.SUBSCRIBE.equals(command) && destination.startsWith(TOPIC_CHAT_DESTINATION_PREFIX)) {
             String chatRoomId = destination.substring(TOPIC_CHAT_DESTINATION_PREFIX.length());
-            if (!StringUtils.hasText(chatRoomId)) {
-                throw new MessagingException("채팅방 ID가 필요합니다.", new BusinessException(ErrorCode.INVALID_REQUEST));
+            if (chatRoomId.endsWith(CHAT_MUTATION_EVENTS_SUFFIX)) {
+                chatRoomId = chatRoomId.substring(0, chatRoomId.length() - CHAT_MUTATION_EVENTS_SUFFIX.length());
             }
-            return chatRoomId;
+            return requireChatRoomId(chatRoomId);
         }
         return null;
+    }
+
+    private String requireChatRoomId(String chatRoomId) {
+        if (!StringUtils.hasText(chatRoomId) || chatRoomId.contains("/")) {
+            throw new MessagingException("채팅방 ID가 필요합니다.", new BusinessException(ErrorCode.INVALID_REQUEST));
+        }
+        return chatRoomId;
     }
 }

@@ -417,6 +417,7 @@ Spring 백엔드는 Access Token / Refresh Token을 직접 발급하거나 관�
 | 마인크래프트 상세 상태 / 플레이어 목록 | SSE (`/v1/sse/minecraft`) |
 | 채팅방 목록 요약 (이름/인원/마지막 메시지/미읽음) | WebSocket (`/user/queue/chat-rooms`) |
 | 채팅방 상세 메시지 | WebSocket (`/topic/chat/{chatRoomId}`) |
+| 채팅 메시지 수정/삭제 상태 | WebSocket (`/topic/chat/{chatRoomId}/events`) |
 | 채팅방 메시지 전송 | WebSocket (`/app/chat/{chatRoomId}`) |
 | 채팅 에러 이벤트 | WebSocket (`/user/queue/errors`) |
 | 플러그인 -> 백엔드 마인크래프트 이벤트 | Internal HTTP (`/internal/minecraft/**`) |
@@ -425,6 +426,7 @@ Spring 백엔드는 Access Token / Refresh Token을 직접 발급하거나 관�
 운영 원칙:
 - 채팅방 목록 화면은 사용자 요약 채널 1개만 구독한다.
 - 채팅방 상세 화면은 입장한 방 topic만 구독하고, 화면 이탈 시 해제한다.
+- 수정·삭제 UI가 있는 상세 화면은 같은 방의 mutation event topic도 함께 구독하고, 이벤트의 message id로 기존 목록 item을 교체한다.
 - 미읽음 계산은 `message.createdAt > lastReadAt` 기준을 사용한다.
 - `lastReadAt`는 과거 값 요청을 무시해 단조 증가를 보장하고, 미래 시각 요청은 서버 현재 시각과 마지막 메시지 시각을 상한으로 clamp한다.
 - 모든 채팅방 topic 동시 구독 방식은 서버 fan-out/모바일 리소스 비용 증가로 금지한다.
