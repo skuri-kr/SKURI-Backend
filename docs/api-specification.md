@@ -7403,7 +7403,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 > 친구 요청·관계·검색 결과·차단·초대는 아직 구현되지 않았다. 이 절은 현재 운영 중인 친구 공개 프로필, 코드, 닉네임 검색 공개 설정 계약만 다룬다.
 
-모든 Friend Foundation API는 인증된 ACTIVE 회원만 호출할 수 있다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
+모든 Friend Foundation API는 인증된 ACTIVE 회원만 호출할 수 있다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
 
 ### 14.1 내 친구 코드
 

@@ -298,7 +298,7 @@ friend_code_registry:
 
 기존 회원 provisioning:
 
-- 앱 기동 시 기존 ACTIVE Member를 대상으로 FriendProfile을 batch backfill한다.
+- 앱 기동 시 FriendProfile이 없는 기존 ACTIVE Member만 고정 크기 batch로 조회해 backfill한다. 이미 profile이 있는 ACTIVE Member는 재조회·잠금·재발급하지 않는다.
 - 신규 가입과 backfill은 같은 멱등 provisioning service를 사용하고 이미 존재하는 profile은 다시 만들지 않는다.
 - public_id와 friend_code_registry.normalized_code는 각각 unique constraint 충돌 시 새 무작위 값을 생성해 제한된 횟수만 재시도하며 members.id나 Firebase UID에서 파생하지 않는다.
 - 친구 API 진입 시 ACTIVE Member인데 profile이 없는 비정상·과도기 상태는 같은 service로 lazy ensure해 self-heal한다. 닉네임 검색 대상은 batch backfill로 먼저 완성하고 lazy ensure만으로 누락 회원을 방치하지 않는다.
