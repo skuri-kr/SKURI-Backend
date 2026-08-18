@@ -514,9 +514,8 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 - department
 - photoUrl
 - favorite
-- effectiveTimetableScope
-- primaryMinecraftGameName
-- minecraftAccountCount
+
+친구 관계 Core 구현에서는 위 다섯 필드만 반환한다. `effectiveTimetableScope`, `primaryMinecraftGameName`, `minecraftAccountCount`는 각각 시간표 공유·Minecraft 안전 projection이 구현되는 후속 도메인 PR에서 additive field로 추가한다. 아직 구현되지 않은 도메인의 기본값이나 추측한 값을 친구 목록에 반환하지 않는다.
 
 검색 query와 응답:
 
@@ -549,6 +548,14 @@ inbox-counts 응답:
 | DELETE | /v1/friend-requests/{requestId} | 요청자 취소 |
 
 `POST /v1/friend-codes/preview`는 body의 friendCode를 정규화해 공개 프로필과 friendPublicId를 반환하는 부작용 없는 확인 API다. 양방향 차단은 잘못되거나 폐기된 코드와 같은 일반 대상 없음 응답으로 처리한다. 친구 코드는 query string이나 로그에 원문으로 남기지 않는다. `POST /v1/friend-requests`는 확인·검색 결과의 friendPublicId만 받으며 내부 members.id와 friendCode를 요청 생성 계약에 사용하지 않는다.
+
+친구 요청 생성·수락 mutation 응답:
+
+- 일반 요청 생성은 `PENDING`과 생성한 `requestId`를 반환한다.
+- 대상이 나에게 보낸 유효 PENDING 요청이 있으면 새 요청을 만들지 않고 기존 요청을 `ACCEPTED`로 전이해 friendship을 만든다. 이 역방향 요청 호출은 `ACCEPTED`와 친구 공개 프로필을 반환한다.
+- 수락 API의 재호출은 이미 같은 friendship이 성립한 경우 같은 친구 공개 프로필을 반환하는 멱등 성공이다.
+- 거절·취소는 현재 PENDING인 요청만 전이할 수 있으며, 이미 terminal 상태이면 `409`로 처리한다.
+- 차단 관계의 대상은 차단 사실을 노출하지 않는다. 친구 요청 생성은 `404 FRIEND_TARGET_NOT_FOUND`로 처리하고, 친구 코드 preview·닉네임 검색에서도 동일하게 일반 대상 없음으로 숨긴다.
 
 Foundation 구현 범위에서 preview의 `canSendFriendRequest`는 유효한 타인 코드인지 여부만 반영한다. 기존 친구·PENDING 요청·차단 관계 판단은 친구 요청·관계 단위가 구현될 때 같은 필드에 연결한다. 재발급 제한 중 `POST /v1/friends/me/code/regenerate`는 `429 FRIEND_CODE_REGENERATION_COOLDOWN`과 초 단위 `Retry-After` 헤더를 반환한다. 전송 timeout 이후 앱은 새 재발급 요청을 자동 재시도하지 않고 `GET /v1/friends/me/code`로 현재 코드를 조회해 조정한다.
 
