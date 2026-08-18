@@ -182,6 +182,20 @@ class FriendFoundationControllerContractTest {
     }
 
     @Test
+    void 친구코드_preview_가입한활성회원없음은_404() throws Exception {
+        mockValidToken();
+        when(friendCodeService.preview("firebase-uid", "SKR-7K4M-9Q2D"))
+                .thenThrow(new MemberNotFoundException());
+
+        mockMvc.perform(post("/v1/friend-codes/preview")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"friendCode\":\"SKR-7K4M-9Q2D\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("MEMBER_NOT_FOUND"));
+    }
+
+    @Test
     void privacy_정상조회_200() throws Exception {
         mockValidToken();
         when(friendPrivacyService.getMyPrivacy("firebase-uid"))
