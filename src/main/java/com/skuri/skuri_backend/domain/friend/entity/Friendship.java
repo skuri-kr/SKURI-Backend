@@ -6,6 +6,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
@@ -16,6 +17,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @Table(
         name = "friendships",
+        indexes = @Index(name = "idx_friendships_member_high", columnList = "member_high_id"),
         uniqueConstraints = @UniqueConstraint(name = "uk_friendships_member_pair", columnNames = {"member_low_id", "member_high_id"})
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
