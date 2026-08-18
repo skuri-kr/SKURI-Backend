@@ -112,15 +112,18 @@ class FriendRelationshipControllerContractTest {
     @Test
     void 친구요청수락은_친구공개요약을_반환한다() throws Exception {
         mockValidToken();
-        when(friendRelationshipService.acceptRequest("firebase-uid", "request-id")).thenReturn("friend-member-id");
-        when(friendRelationshipQueryService.getFriendByMemberId("firebase-uid", "friend-member-id"))
-                .thenReturn(new FriendSummaryResponse("friend-public-id", "스쿠리", null, null, false));
+        when(friendRelationshipService.acceptRequest("firebase-uid", "request-id"))
+                .thenReturn(new FriendRelationshipService.FriendRequestAcceptResult(
+                        new FriendSummaryResponse("friend-public-id", "스쿠리", null, null, false)
+                ));
 
         mockMvc.perform(post("/v1/friend-requests/request-id/accept")
                         .header(AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
                 .andExpect(jsonPath("$.data.friend.friendPublicId").value("friend-public-id"));
+
+        verifyNoInteractions(friendRelationshipQueryService);
     }
 
     @Test

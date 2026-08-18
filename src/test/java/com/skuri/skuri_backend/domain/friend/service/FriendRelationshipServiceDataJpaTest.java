@@ -33,6 +33,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         FriendCodeGenerator.class,
         FriendProfileProvisioningAttemptService.class,
         FriendProfileProvisioningService.class,
+        FriendMemberPairLockService.class,
+        FriendSummarySnapshotFactory.class,
+        FriendRequestTransitionService.class,
+        FriendRequestExpirationScheduler.class,
         FriendRelationshipService.class,
         FriendRelationshipQueryService.class
 })
@@ -67,6 +71,9 @@ class FriendRelationshipServiceDataJpaTest {
 
     @Autowired
     private FriendRelationshipQueryService friendRelationshipQueryService;
+
+    @Autowired
+    private FriendRequestExpirationScheduler friendRequestExpirationScheduler;
 
     @AfterEach
     void tearDown() {
@@ -109,7 +116,7 @@ class FriendRelationshipServiceDataJpaTest {
 
         assertThat(reverse.accepted()).isTrue();
         assertThat(reverse.requestId()).isEqualTo(first.requestId());
-        assertThat(reverse.friendMemberId()).isEqualTo(pair.firstMemberId());
+        assertThat(reverse.friend().friendPublicId()).isEqualTo(pair.firstPublicId());
         assertThat(friendRequestRepository.findById(first.requestId()).orElseThrow().getStatus())
                 .isEqualTo(FriendRequestStatus.ACCEPTED);
         assertThat(friendshipRepository.count()).isEqualTo(1);
@@ -120,8 +127,10 @@ class FriendRelationshipServiceDataJpaTest {
         FriendPair pair = createPair();
         String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
 
-        assertThat(friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId)).isEqualTo(pair.firstMemberId());
-        assertThat(friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId)).isEqualTo(pair.firstMemberId());
+        assertThat(friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId).friend().friendPublicId())
+                .isEqualTo(pair.firstPublicId());
+        assertThat(friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId).friend().friendPublicId())
+                .isEqualTo(pair.firstPublicId());
         assertThat(friendshipRepository.count()).isEqualTo(1);
     }
 
@@ -149,6 +158,65 @@ class FriendRelationshipServiceDataJpaTest {
         assertThat(friendRelationshipService.expireRequestIfNeeded(requestId)).isFalse();
         assertThat(friendRequestRepository.findById(requestId).orElseThrow().getStatus())
                 .isEqualTo(FriendRequestStatus.EXPIRED);
+    }
+
+    @Test
+    void 만료요청_수락은_409을_반환해도_EXPIRED전이는_커밋한다() {
+        FriendPair pair = createPair();
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        expireRequest(requestId);
+
+        assertThatThrownBy(() -> friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_REQUEST_STATE_NOT_ALLOWED);
+
+        assertThat(friendRequestRepository.findById(requestId)).get()
+                .extracting(request -> request.getStatus(), request -> request.getActivePairKey())
+                .containsExactly(FriendRequestStatus.EXPIRED, null);
+    }
+
+    @Test
+    void 탈퇴회원의_만료요청이_있어도_뒤의_만료요청까지_배치처리한다() {
+        FriendPair withdrawnPair = createPair();
+        String withdrawnRequestId = friendRelationshipService.createRequest(
+                withdrawnPair.firstMemberId(), withdrawnPair.secondPublicId()
+        ).requestId();
+        expireRequest(withdrawnRequestId);
+        memberRepository.findById(withdrawnPair.secondMemberId()).orElseThrow().withdraw(LocalDateTime.now());
+        memberRepository.flush();
+
+        saveMember("member-3", "three@sungkyul.ac.kr", "회원3");
+        saveMember("member-4", "four@sungkyul.ac.kr", "회원4");
+        String fourthPublicId = provisioningService.ensureForActiveMember("member-4").getPublicId();
+        String activeRequestId = friendRelationshipService.createRequest("member-3", fourthPublicId).requestId();
+        expireRequest(activeRequestId);
+
+        friendRequestExpirationScheduler.expirePendingRequests();
+
+        assertThat(friendRequestRepository.findById(withdrawnRequestId)).get()
+                .extracting(request -> request.getStatus()).isEqualTo(FriendRequestStatus.EXPIRED);
+        assertThat(friendRequestRepository.findById(activeRequestId)).get()
+                .extracting(request -> request.getStatus()).isEqualTo(FriendRequestStatus.EXPIRED);
+    }
+
+    @Test
+    void 친구pair는_DB잠금정렬과무관하게_Java정렬기준으로_정규화한다() {
+        FriendMemberPair pair = FriendMemberPair.of("a-member", "Z-member");
+
+        assertThat(pair.lowMemberId()).isEqualTo("Z-member");
+        assertThat(pair.highMemberId()).isEqualTo("a-member");
+        assertThat(pair.activePairKey()).isEqualTo("Z-member:a-member");
+
+        saveMember("a-member", "a-member@sungkyul.ac.kr", "회원A");
+        saveMember("Z-member", "z-member@sungkyul.ac.kr", "회원Z");
+        String targetPublicId = provisioningService.ensureForActiveMember("Z-member").getPublicId();
+
+        String requestId = friendRelationshipService.createRequest("a-member", targetPublicId).requestId();
+
+        assertThat(friendRequestRepository.findById(requestId)).get()
+                .extracting(request -> request.getActivePairKey())
+                .isEqualTo("Z-member:a-member");
     }
 
     @Test
@@ -231,6 +299,39 @@ class FriendRelationshipServiceDataJpaTest {
     }
 
     @Test
+    void 닉네임검색의_LIKE와일드카드는_일반문자로_취급한다() {
+        FriendPair pair = createPair();
+        saveMember("member-3", "three@sungkyul.ac.kr", "회원3");
+        provisioningService.ensureForActiveMember("member-3");
+        makeSearchable(pair.secondMemberId(), "가%나");
+        makeSearchable("member-3", "다라마바사나");
+
+        assertThat(friendRelationshipQueryService.search(pair.firstMemberId(), "%나", null, 20).items())
+                .extracting(item -> item.friendPublicId())
+                .containsExactly(pair.secondPublicId());
+    }
+
+    @Test
+    void 닉네임검색은_친구와_유효요청을_일괄조회해_요청가능여부를_반환한다() {
+        FriendPair pair = createPair();
+        saveMember("member-3", "three@sungkyul.ac.kr", "회원3");
+        String thirdPublicId = provisioningService.ensureForActiveMember("member-3").getPublicId();
+        makeSearchable(pair.secondMemberId(), "가나다1");
+        makeSearchable("member-3", "가나다2");
+
+        friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId());
+        String friendshipRequestId = friendRelationshipService.createRequest(pair.firstMemberId(), thirdPublicId).requestId();
+        friendRelationshipService.acceptRequest("member-3", friendshipRequestId);
+
+        assertThat(friendRelationshipQueryService.search(pair.firstMemberId(), "가나", null, 20).items())
+                .extracting(item -> item.friendPublicId(), item -> item.canSendFriendRequest())
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple(pair.secondPublicId(), false),
+                        org.assertj.core.groups.Tuple.tuple(thirdPublicId, false)
+                );
+    }
+
+    @Test
     void 받은친구요청은_20건_cursor페이지로_중복없이_조회한다() {
         saveMember("recipient", "recipient@sungkyul.ac.kr", "수신자");
         String recipientPublicId = provisioningService.ensureForActiveMember("recipient").getPublicId();
@@ -256,6 +357,28 @@ class FriendRelationshipServiceDataJpaTest {
                 .isNotIn(firstPage.items().stream().map(item -> item.requestId()).toList());
     }
 
+    @Test
+    void 요청목록은_만료후보가_한배치를넘어도_제한된조회로_다음유효요청을찾는다() {
+        saveMember("recipient", "recipient@sungkyul.ac.kr", "수신자");
+        String recipientPublicId = provisioningService.ensureForActiveMember("recipient").getPublicId();
+        saveMember("valid-sender", "valid@sungkyul.ac.kr", "유효발신자");
+        provisioningService.ensureForActiveMember("valid-sender");
+        String validRequestId = friendRelationshipService.createRequest("valid-sender", recipientPublicId).requestId();
+        for (int index = 1; index <= 51; index++) {
+            String memberId = "sender-" + index;
+            saveMember(memberId, "sender" + index + "@sungkyul.ac.kr", "발신자" + index);
+            provisioningService.ensureForActiveMember(memberId);
+            String requestId = friendRelationshipService.createRequest(memberId, recipientPublicId).requestId();
+            expireRequest(requestId);
+        }
+
+        var page = friendRelationshipQueryService.getRequests(
+                "recipient", FriendRelationshipQueryService.FriendRequestDirection.RECEIVED, null, 1
+        );
+
+        assertThat(page.items()).singleElement().extracting(item -> item.requestId()).isEqualTo(validRequestId);
+    }
+
     private FriendPair createPair() {
         saveMember("member-1", "one@sungkyul.ac.kr", "회원1");
         saveMember("member-2", "two@sungkyul.ac.kr", "회원2");
@@ -275,6 +398,12 @@ class FriendRelationshipServiceDataJpaTest {
         var member = memberRepository.findById(memberId).orElseThrow();
         member.updateProfile(nickname, null, null, null);
         memberRepository.saveAndFlush(member);
+    }
+
+    private void expireRequest(String requestId) {
+        var request = friendRequestRepository.findById(requestId).orElseThrow();
+        ReflectionTestUtils.setField(request, "expiresAt", LocalDateTime.now().minusSeconds(1));
+        friendRequestRepository.saveAndFlush(request);
     }
 
     private record FriendPair(String firstMemberId, String secondMemberId, String firstPublicId, String secondPublicId) {

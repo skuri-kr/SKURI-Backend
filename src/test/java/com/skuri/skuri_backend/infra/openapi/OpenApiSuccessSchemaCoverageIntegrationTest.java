@@ -112,6 +112,7 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         assertTrue(paths.has("/v1/friend-codes/preview"));
         assertTrue(paths.has("/v1/friends/me/privacy"));
         assertTrue(paths.has("/v1/friends"));
+        assertTrue(paths.has("/v1/friends/{friendPublicId}"));
         assertTrue(paths.has("/v1/friends/search"));
         assertTrue(paths.has("/v1/friend-requests"));
         assertTrue(paths.has("/v1/friends/blocks"));
@@ -143,6 +144,25 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
                 .path("examples");
         assertTrue(requestMutationExamples.has("PENDING"));
         assertTrue(requestMutationExamples.has("ACCEPTED"));
+
+        JsonNode accept404Examples = paths.path("/v1/friend-requests/{requestId}/accept")
+                .path("post")
+                .path("responses")
+                .path("404")
+                .path("content")
+                .path("application/json")
+                .path("examples");
+        assertTrue(accept404Examples.has("FRIEND_REQUEST_NOT_FOUND"));
+        assertTrue(accept404Examples.has("FRIEND_TARGET_NOT_FOUND"));
+
+        JsonNode friendDetailExample = paths.path("/v1/friends/{friendPublicId}")
+                .path("get")
+                .path("responses")
+                .path("200")
+                .path("content")
+                .path("application/json")
+                .path("example");
+        assertTrue(friendDetailExample.path("data").isObject());
     }
 
     private JsonNode apiDocs() throws Exception {
