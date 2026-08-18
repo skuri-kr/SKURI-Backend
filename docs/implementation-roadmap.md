@@ -1048,6 +1048,7 @@ SSE 운영 제약:
 #### 14-1. 목표
 
 - 친구 코드, QR, 닉네임 검색을 통한 상호 친구 관계 구축
+- 기존 ACTIVE 회원 FriendProfile backfill과 멱등 provisioning 이후 모바일 노출
 - 즐겨찾기, 친구 끊기, 차단과 요청·초대 badge 제공
 - PRIVATE, BUSY_ONLY, DETAILS 기반 시간표 공유와 친구별 예외
 - 공통 공강과 같이 듣는 공식 수업 제공
@@ -1055,27 +1056,31 @@ SSE 운영 제약:
 - 공개 non-PARTY 채팅방의 친구 초대
 - 친구의 Minecraft SELF와 모든 FRIEND 계정 안전 projection
 - 기존 Notification 인프라를 이용한 친구·초대 인박스, FCM, SSE
+- friendPublicId 전용 진입에서 기존 Support MEMBER 신고 처리 위임
 
 #### 14-2. 도메인 분리
 
 | 영역 | 최종 책임 |
 | --- | --- |
-| friend 신규 도메인 | 코드, 검색 허용, 요청, 관계, 즐겨찾기, 친구 끊기, 차단 |
+| friend 신규 도메인 | 코드, cursor 검색, 요청, 관계, 즐겨찾기, 친구 끊기, 차단, friendPublicId 신고 진입 |
 | Academic | 시간표 공유 설정과 허용 범위별 projection |
 | TaxiParty | OPEN 파티 초대, 수락 정원·참여 동시성 |
 | Chat | 공개 non-PARTY 방 초대와 입장 자격 |
 | Minecraft | 친구용 계정 안전 projection |
 | Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, PARTY_INVITATION, CHAT_ROOM_INVITATION |
+| Support | Friend가 내부 Member로 해석한 기존 MEMBER 신고 저장·중복·운영 처리 |
 
 #### 14-3. 구현 단위
 
-1. Friend 핵심 데이터 모델과 API
-2. 시간표 공유 설정과 친구 시간표 조회
-3. Minecraft 친구 계정 projection
-4. TaxiParty 친구 초대
-5. 공개 Chat 친구 초대
-6. Notification·badge·회원 탈퇴 cleanup
-7. OpenAPI, ERD, 도메인 문서, Contract·Service 테스트 동기화
+1. Friend schema, provisioning service와 기존 ACTIVE 회원 backfill·누락 0건 검증
+2. Friend 핵심 요청·관계 API와 모든 terminal 전이 잠금
+3. cursor 검색과 friendPublicId 신고 진입
+4. 시간표 공유 설정과 친구 시간표 조회
+5. Minecraft 친구 계정 projection
+6. TaxiParty 수신자별 부분 성공 친구 초대
+7. 공개 Chat 수신자별 부분 성공 친구 초대
+8. Notification·badge·회원 탈퇴 cleanup
+9. OpenAPI, ERD, 도메인 문서, Contract·Service 테스트 동기화
 
 #### 14-4. 제외 범위
 
@@ -1091,6 +1096,10 @@ SSE 운영 제약:
 #### 14-5. 완료 기준
 
 - [ ] 친구 요청 30일 만료, 즉시 재요청, 중복·차단·동시 요청 규칙 검증
+- [ ] 기존 ACTIVE 회원 FriendProfile backfill·멱등 재실행·충돌 재시도·누락 0건 검증
+- [ ] 요청·초대 accept와 decline·cancel·expire 경쟁의 단일 terminal 부수효과 검증
+- [ ] 닉네임 cursor 검색 안정 정렬과 다중 초대 수신자별 부분 성공 검증
+- [ ] friendPublicId 신고의 내부 ID 미노출과 기존 Support 중복·self 신고 정책 검증
 - [ ] 친구 즐겨찾기와 한글 정렬 검증
 - [ ] 시간표 PRIVATE, BUSY_ONLY, DETAILS 필드 미노출 Contract 검증
 - [ ] TaxiParty 마지막 좌석 동시 수락 검증
@@ -1118,7 +1127,7 @@ Phase 1~9 ─────────────→ Phase 10 (Member 탈퇴)
 Phase 3/5/6/7 ── 연동 ──→ Phase 11 (운영 공통 Admin 인프라)
 Phase 1/3/4/5 ── 연동 ──→ Phase 12 (이미지/미디어 업로드 인프라)
 Phase 1/3/8 ── 연동 ──→ Phase 13 (마인크래프트 Spring 전환)
-Phase 1/2/3/6/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
+Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 ```
 
 **참고:** Phase 4~7 (Board, Notice, Academic, Support)은 서로 독립적이므로 **병렬 구현 가능**합니다.

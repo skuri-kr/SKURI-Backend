@@ -110,19 +110,21 @@ Spring 백엔드는 마인크래프트 기능도 예외 없이 최종 판단한�
 > 상태: 정책·책임 경계 승인 완료, 런타임 미구현
 > 구현 시작 조건: 사용자의 별도 코드 구현 승인
 
-Friend는 Supporting 도메인으로서 친구 코드·요청·상호 관계·즐겨찾기·친구 끊기·차단을 소유한다. 다른 기능의 최종 규칙은 해당 도메인이 계속 소유하며 Friend가 내부 엔티티를 직접 수정하지 않는다.
+Friend는 Supporting 도메인으로서 친구 코드·요청·상호 관계·즐겨찾기·친구 끊기·차단을 소유한다. friendPublicId 신고 진입에서는 내부 Member 대상만 해석하고 신고 저장·중복·운영 규칙은 Support에 위임한다. 다른 기능의 최종 규칙은 해당 도메인이 계속 소유하며 Friend가 내부 엔티티를 직접 수정하지 않는다.
 
 | 영역 | Spring 내 최종 책임 |
 | --- | --- |
-| Friend | 친구 코드 preview, 검색 허용, 요청, friendship, 즐겨찾기, 친구 끊기, 차단 |
+| Friend | 친구 코드 preview, cursor 검색, 요청, friendship, 즐겨찾기, 친구 끊기, 차단, friendPublicId 신고 진입 |
 | Member | ACTIVE 회원과 공개 프로필, 친구·초대 알림 설정 |
 | Academic | friendship·차단 확인 후 공개 범위별 친구 시간표 projection |
 | TaxiParty | OPEN·정원·참여 조건을 포함한 택시파티 초대 상태와 수락 |
 | Chat | 공개 non-PARTY 방의 자격·정원·초대 상태와 수락 |
 | Minecraft | friendship·차단 확인 후 SELF·FRIEND 계정 안전 projection |
 | Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, PARTY_INVITATION, CHAT_ROOM_INVITATION의 인박스·SSE·FCM 전달 |
+| Support | Friend가 해석한 내부 Member 대상의 기존 신고 저장·중복 정책·운영 처리 |
 
 Phase 14 런타임 구현 전까지 위 책임은 계획 상태이며 현재 API·DB 엔티티가 존재하는 것으로 해석하지 않는다. 상세 상태 전이와 데이터 노출 정책은 `docs/features/friends.md`를 기준으로 한다.
+친구 신고의 계획 진입점은 `POST /v1/friends/{friendPublicId}/report`이며 Friend가 공개 ID를 해석한 뒤 Support의 기존 MEMBER 신고 처리에 위임한다.
 
 ---
 

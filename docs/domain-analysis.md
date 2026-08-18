@@ -819,6 +819,7 @@ Hooks:
   - 친구 요청과 상호 friendship
   - 사용자 방향별 즐겨찾기
   - 친구 끊기와 차단
+  - friendPublicId 기반 신고 진입과 내부 Member 대상 해석
 
 계획 엔티티:
   - FriendProfile
@@ -834,6 +835,7 @@ Hooks:
   - 친구용 계정 projection: Minecraft
   - 알림 인박스·SSE·FCM 전달: Notification 인프라
   - ACTIVE 회원과 알림 설정: Member
+  - 신고 저장·중복 정책·운영 처리: Support
 ```
 
 ---
@@ -905,6 +907,7 @@ Member ◄── Friend ──► Notification
 | TaxiParty, Chat → Friend | 정책 확인, Phase 14 계획 | 초대 생성·수락 시 friendship·차단을 재검증하되 초대 상태는 각 도메인이 소유 |
 | Minecraft → Friend | 정책 확인, Phase 14 계획 | friendship·차단 확인 후 Minecraft가 안전 계정 projection을 생성 |
 | Friend, TaxiParty, Chat → Notification | 이벤트, Phase 14 계획 | 친구 요청·수락과 친구 기반 초대를 인박스·SSE·FCM으로 전달 |
+| Friend → Support | 위임, Phase 14 계획 | Friend가 friendPublicId를 내부 Member로 해석하고 Support의 기존 MEMBER 신고 생성·중복·운영 처리에 위임 |
 
 ### 4.3 도메인 이벤트
 
