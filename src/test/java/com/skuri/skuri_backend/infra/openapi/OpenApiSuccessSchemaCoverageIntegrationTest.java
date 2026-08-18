@@ -102,8 +102,22 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         );
     }
 
+    @Test
+    void friend_그룹은_친구코드와_친구설정_API를_모두_노출한다() throws Exception {
+        JsonNode paths = apiDocs("/v3/api-docs/friend").path("paths");
+
+        assertTrue(paths.has("/v1/friends/me/code"));
+        assertTrue(paths.has("/v1/friends/me/code/regenerate"));
+        assertTrue(paths.has("/v1/friend-codes/preview"));
+        assertTrue(paths.has("/v1/friends/me/privacy"));
+    }
+
     private JsonNode apiDocs() throws Exception {
-        String responseBody = mockMvc.perform(get("/v3/api-docs"))
+        return apiDocs("/v3/api-docs");
+    }
+
+    private JsonNode apiDocs(String path) throws Exception {
+        String responseBody = mockMvc.perform(get(path))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
