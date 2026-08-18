@@ -1,6 +1,6 @@
 # Spring 백엔드 API 명세
 
-> 최종 수정일: 2026-03-30
+> 최종 수정일: 2026-08-18
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -20,6 +20,7 @@
 11. [Image API](#11-image-api)
 12. [Admin API](#12-admin-api)
 13. [Minecraft API](#13-minecraft-api)
+14. [Friend Foundation API](#14-friend-foundation-api)
 
 ---
 
@@ -7398,7 +7399,82 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 ---
 
+## 14. Friend Foundation API
+
+> 친구 요청·관계·검색 결과·차단·초대는 아직 구현되지 않았다. 이 절은 현재 운영 중인 친구 공개 프로필, 코드, 닉네임 검색 공개 설정 계약만 다룬다.
+
+모든 Friend Foundation API는 인증된 ACTIVE 회원만 호출할 수 있다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
+
+### 14.1 내 친구 코드
+
+#### `GET /v1/friends/me/code`
+
+현재 활성 친구 코드를 조회한다. 코드 표시는 `SKR-XXXX-XXXX`이며, 대소문자를 구분하지 않는 내부 정규화 값과 분리되어 있다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "friendCode": "SKR-7K4M-9Q2D",
+    "canRegenerate": true
+  }
+}
+```
+
+`canRegenerate`가 false이면 `nextRegenerationAt`을 함께 반환한다.
+
+#### `POST /v1/friends/me/code/regenerate`
+
+활성 친구 코드를 새 값으로 바꾸고 이전 코드는 영구 `RETIRED` tombstone으로 남긴다. 회원당 재발급은 24시간에 한 번만 가능하다.
+
+- 성공: `200` 및 새 코드, `canRegenerate: false`, `nextRegenerationAt`
+- 제한 중: `429 FRIEND_CODE_REGENERATION_COOLDOWN`, 초 단위 `Retry-After` 헤더
+- 네트워크 timeout: 클라이언트는 자동 재시도하지 않고 `GET /v1/friends/me/code`으로 현재 결과를 확인한다.
+
+### 14.2 친구 코드 preview
+
+#### `POST /v1/friend-codes/preview`
+
+코드 입력 또는 QR에서 해석한 친구 코드를 부작용 없이 확인한다. 이 API는 친구 요청을 생성하지 않는다.
+
+```json
+{
+  "friendCode": "SKR-7K4M-9Q2D"
+}
+```
+
+성공 응답은 `friendPublicId`, `nickname`, `photoUrl`, `department`, `canSendFriendRequest`만 포함한다. 현재 Foundation 단계의 `canSendFriendRequest`는 유효한 타인 코드인지 여부만 나타내며, 친구 관계·PENDING·차단 검증은 후속 요청 단위에서 추가한다.
+
+잘못되었거나 폐기된 코드는 모두 `404 FRIEND_CODE_NOT_FOUND`로 처리한다. 자신의 코드는 `400 FRIEND_SELF_NOT_ALLOWED`다.
+
+### 14.3 닉네임 검색 공개 설정
+
+#### `GET /v1/friends/me/privacy`
+
+현재 `nicknameSearchable` 값을 반환한다. 기본값은 false다.
+
+#### `PATCH /v1/friends/me/privacy`
+
+```json
+{
+  "nicknameSearchable": true
+}
+```
+
+`nicknameSearchable`은 필수 Boolean이며, 응답은 서버에 저장된 최종 값을 반환한다.
+
+### 14.4 Foundation 전용 에러 코드
+
+| 에러 코드 | HTTP | 설명 |
+| --- | --- | --- |
+| `FRIEND_CODE_NOT_FOUND` | 404 | 잘못되었거나 폐기된 친구 코드 |
+| `FRIEND_CODE_REGENERATION_COOLDOWN` | 429 | 24시간 재발급 제한. `Retry-After` 헤더 포함 |
+| `FRIEND_SELF_NOT_ALLOWED` | 400 | 자신의 친구 코드를 preview함 |
+
+---
+
 > 변경 이력
+> - 2026-08-18: Friend Foundation 구현 반영 — 친구 공개 프로필·영구 코드 registry, 코드 조회/재발급/preview, 닉네임 검색 공개 설정과 429 `Retry-After` 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-14: DB 기반 학과 master와 시간표 강의 필터 추가 — `GET /v1/departments`, `GET /v1/courses/filter-options`, 강의 `category` exact 필터, 직접 입력 강의 `department` 계약과 canonical 이수구분 정책을 반영
 > - 2026-03-30: Minecraft API 초안 추가 — `GET /v1/minecraft/overview`, `GET /v1/minecraft/players`, `GET/POST/DELETE /v1/members/me/minecraft-accounts*`, `GET /v1/sse/minecraft`, `/internal/minecraft/**` 및 shared secret 정책을 문서화
 > - 2026-03-29: Admin Dashboard API 계약 추가

@@ -1,6 +1,6 @@
 # Spring 백엔드 ERD (Entity Relationship Diagram)
 
-> 최종 수정일: 2026-08-14
+> 최종 수정일: 2026-08-18
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -677,6 +677,35 @@ erDiagram
     }
 ```
 
+### 1.5 Friend Foundation
+
+```mermaid
+erDiagram
+    members ||--o| friend_profiles : "owns"
+    friend_code_registry ||--o| friend_profiles : "active code"
+
+    friend_profiles {
+        varchar(36) member_id PK "Member 내부 식별자"
+        varchar(36) public_id UK "친구 공개 식별자"
+        varchar(36) active_friend_code_id UK "현재 ACTIVE registry 참조"
+        boolean nickname_searchable "NOT NULL DEFAULT false"
+        datetime rotated_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    friend_code_registry {
+        varchar(36) id PK "불투명 내부 ID"
+        varchar(11) normalized_code UK "하이픈 없는 대문자 코드"
+        varchar(36) owner_member_id UK "ACTIVE일 때만 non-null"
+        enum status "ACTIVE,RETIRED"
+        datetime issued_at
+        datetime retired_at
+        datetime created_at
+        datetime updated_at
+    }
+```
+
 ---
 
 ## 2. 도메인별 테이블 상세
@@ -905,7 +934,39 @@ Taxi history 계약 메모:
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
 
-### 2.5 Board 도메인
+### 2.5 Friend Foundation
+
+| 테이블 | 설명 | 예상 레코드 수 |
+|--------|------|---------------|
+| `friend_profiles` | 회원별 친구 공개 식별자·검색 공개 설정·현재 코드 참조 | 활성 회원 수와 동일 |
+| `friend_code_registry` | ACTIVE·RETIRED 친구 코드의 영구 미재사용 registry | 재발급 횟수에 비례 |
+
+**friend_profiles 테이블 상세:**
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|------|------|---------|------|
+| member_id | VARCHAR(36) | PK | 내부 회원 ID. 외부 API 미노출 |
+| public_id | VARCHAR(36) | UK, NOT NULL | 친구 기능 공개 식별자 |
+| active_friend_code_id | VARCHAR(36) | UK, NOT NULL | 현재 활성 registry ID |
+| nickname_searchable | BOOLEAN | NOT NULL, DEFAULT false | 닉네임 검색 허용 여부 |
+| rotated_at | DATETIME | NULL | 마지막 코드 재발급 시각 |
+| created_at | DATETIME | NOT NULL | 생성일 |
+| updated_at | DATETIME | NOT NULL | 수정일 |
+
+**friend_code_registry 테이블 상세:**
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|------|------|---------|------|
+| id | VARCHAR(36) | PK | 불투명 내부 ID |
+| normalized_code | VARCHAR(16) | UK, NOT NULL | 하이픈 없는 대문자 코드. RETIRED 후에도 보존 |
+| owner_member_id | VARCHAR(36) | UK, NULL | ACTIVE일 때 회원 ID, RETIRED면 null |
+| status | VARCHAR(16) | NOT NULL | ACTIVE, RETIRED |
+| issued_at | DATETIME | NOT NULL | 발급 시각 |
+| retired_at | DATETIME | NULL | 재발급·탈퇴 폐기 시각 |
+| created_at | DATETIME | NOT NULL | 생성일 |
+| updated_at | DATETIME | NOT NULL | 수정일 |
+
+### 2.6 Board 도메인
 
 | 테이블 | 설명 | 예상 레코드 수 |
 |--------|------|---------------|
@@ -914,7 +975,7 @@ Taxi history 계약 메모:
 | `comments` | 댓글 | ~50,000/년 |
 | `post_interactions` | 좋아요/북마크 | ~100,000/년 |
 
-### 2.6 Notice 도메인
+### 2.7 Notice 도메인
 
 | 테이블 | 설명 | 예상 레코드 수 |
 |--------|------|---------------|
@@ -927,7 +988,7 @@ Taxi history 계약 메모:
 | `app_notice_read_status` | 앱 공지 읽음 상태 | ~500,000 |
 | `legal_documents` | 이용약관/개인정보 처리방침 | ~2 |
 
-### 2.7 Campus 도메인
+### 2.8 Campus 도메인
 
 | 테이블 | 설명 | 예상 레코드 수 |
 |--------|------|---------------|
@@ -955,7 +1016,7 @@ Taxi history 계약 메모:
 | created_at | DATETIME | NOT NULL | 생성 시각 |
 | updated_at | DATETIME | NOT NULL | 수정 시각 |
 
-### 2.8 Academic 도메인
+### 2.9 Academic 도메인
 
 | 테이블 | 설명 | 예상 레코드 수 |
 |--------|------|---------------|
@@ -966,7 +1027,7 @@ Taxi history 계약 메모:
 | `user_timetable_manual_courses` | 시간표 직접 입력 강의 | ~5,000/학기 |
 | `academic_schedules` | 학사 일정 | ~100/년 |
 
-### 2.9 Support 도메인
+### 2.10 Support 도메인
 
 | 테이블 | 설명 | 예상 레코드 수 |
 |--------|------|---------------|
@@ -977,7 +1038,7 @@ Taxi history 계약 메모:
 | `cafeteria_menus` | 학식 메뉴 | ~52/년 |
 | `cafeteria_menu_reactions` | 학식 메뉴 사용자 반응 | ~50,000/년 |
 
-### 2.10 Notification 인프라
+### 2.11 Notification 인프라
 
 | 테이블 | 설명 | 예상 레코드 수 |
 |--------|------|---------------|
@@ -1047,6 +1108,8 @@ Taxi history 계약 메모:
 | 파티-요청 | parties | join_requests | 1:N | 파티에 여러 동승 요청 |
 | 채팅방-멤버 | chat_rooms | chat_room_members | 1:N | 채팅방에 여러 멤버 |
 | 채팅방-메시지 | chat_rooms | chat_messages | 1:N | 채팅방에 여러 메시지 |
+| 회원-친구 공개 프로필 | members | friend_profiles | 1:0..1 | ACTIVE 회원당 하나의 공개 프로필 |
+| 활성 친구 코드-공개 프로필 | friend_code_registry | friend_profiles | 1:0..1 | ACTIVE 코드만 현재 프로필에 연결 |
 | 게시글-이미지 | posts | post_images | 1:N | 게시글에 여러 이미지 |
 | 게시글-댓글 | posts | comments | 1:N | 게시글에 여러 댓글 |
 | 댓글-대댓글 | comments | comments | 1:N (self) | 무제한 self-reference + placeholder soft delete |
@@ -1357,6 +1420,18 @@ CREATE INDEX idx_audit_logs_target ON admin_audit_logs(target_type, target_id);
 CREATE INDEX idx_audit_logs_timestamp ON admin_audit_logs(timestamp DESC);
 ```
 
+### 4.11 Friend Foundation
+
+```sql
+-- friend_profiles
+CREATE UNIQUE INDEX uk_friend_profiles_public_id ON friend_profiles(public_id);
+CREATE UNIQUE INDEX uk_friend_profiles_active_code ON friend_profiles(active_friend_code_id);
+
+-- friend_code_registry
+CREATE UNIQUE INDEX uk_friend_code_registry_normalized_code ON friend_code_registry(normalized_code);
+CREATE UNIQUE INDEX uk_friend_code_registry_owner_member ON friend_code_registry(owner_member_id);
+```
+
 ---
 
 ## 참고
@@ -1368,6 +1443,7 @@ CREATE INDEX idx_audit_logs_timestamp ON admin_audit_logs(timestamp DESC);
 ---
 
 > **문서 이력**
+> - 2026-08-18: Friend Foundation 테이블 추가 — `friend_profiles`, `friend_code_registry`의 공개 식별자·ACTIVE/RETIRED 영구 코드 registry와 unique 제약을 반영
 > - 2026-03-30: Minecraft 도메인 테이블 추가 — `minecraft_accounts`, `minecraft_server_state`, `minecraft_online_players`, `minecraft_bridge_events`와 관련 인덱스, chat sender key/Minotar 전제를 반영
 > - 2026-02-03: 초안 작성
 > - 2026-03-05: Board 댓글 정책 동기화 — `comments.parent_id` 관계를 부모 보존 정책(B)에 맞게 정정(`ON DELETE SET NULL`), depth 1 제약/placeholder soft delete 설명 반영

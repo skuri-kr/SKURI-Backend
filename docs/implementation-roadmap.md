@@ -14,7 +14,7 @@
 | Java | 21 |
 | 빌드 도구 | Gradle |
 | 현재 의존성 | JPA, Web MVC, Validation, Security, Firebase Admin, Springdoc OpenAPI(Swagger UI/Scalar), Thumbnailator, TwelveMonkeys WebP, Lombok, MySQL Connector |
-| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 계획 승인·런타임 미구현 (친구·공유·초대) |
+| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation 완료·후속 기능 진행 예정 (친구·공유·초대) |
 
 ---
 
@@ -1041,7 +1041,7 @@ SSE 운영 제약:
 
 ### Phase 14: 친구·시간표 공유·친구 초대
 
-> 상태: 정책 및 구현 계획 승인 완료, 런타임 미구현
+> 상태: Foundation(친구 공개 프로필·코드·닉네임 검색 공개 설정) 완료, 친구 관계·공유·초대는 후속 구현
 > 상세 기준: docs/features/friends.md
 > 구현 시작 조건: 기준 문서 검토 후 사용자의 별도 코드 구현 승인
 
@@ -1074,7 +1074,7 @@ SSE 운영 제약:
 
 #### 14-3. 구현 단위
 
-1. FriendProfile·FriendCodeRegistry schema, 멱등 provisioning service와 기존 ACTIVE 회원 backfill·누락 0건 검증
+1. [x] FriendProfile·FriendCodeRegistry schema, 멱등 provisioning service와 기존 ACTIVE 회원 backfill·누락 0건 검증, 코드 조회·재발급·preview, nicknameSearchable GET·PATCH
 2. Friend 핵심 요청·관계 API, 잠금 후 Member ACTIVE 재확인과 모든 terminal 전이 잠금
 3. nicknameSearchable 조회·변경, PENDING 요청 cursor 목록과 friendPublicId 신고 진입
 4. 시간표 공유 설정과 친구 시간표 조회
@@ -1098,11 +1098,11 @@ SSE 운영 제약:
 #### 14-5. 완료 기준
 
 - [ ] 친구 요청 30일 만료, 즉시 재요청, 중복·차단·동시 요청 규칙 검증
-- [ ] 기존 ACTIVE 회원 FriendProfile backfill·멱등 재실행·충돌 재시도·누락 0건 검증
-- [ ] 재발급·탈퇴한 RETIRED 친구 코드의 영구 미재사용과 과거 코드·QR preview 실패 검증
+- [x] 기존 ACTIVE 회원 FriendProfile backfill·멱등 재실행·충돌 재시도·누락 0건 검증
+- [x] 재발급·탈퇴한 RETIRED 친구 코드의 영구 미재사용과 과거 코드 preview 실패 검증
 - [ ] Friend mutation·lazy provisioning과 탈퇴 경쟁에서 잠금 후 ACTIVE 재확인 및 파생 데이터 비복원 검증
 - [ ] 요청·초대 accept와 decline·cancel·expire 경쟁의 단일 terminal 부수효과 검증
-- [ ] 닉네임 cursor 검색, privacy GET·PATCH, PENDING 요청 20건 cursor 목록 검증
+- [ ] 닉네임 cursor 검색과 PENDING 요청 20건 cursor 목록 검증 (`privacy GET·PATCH` 완료)
 - [ ] 다중 초대 수신자별 부분 성공, outcome별 nullable invitationId와 immutable expiryReason 검증
 - [ ] friendPublicId 신고의 내부 ID 미노출과 기존 Support 중복·self 신고 정책 검증
 - [ ] 친구 즐겨찾기와 한글 정렬 검증

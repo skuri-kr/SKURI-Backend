@@ -1,8 +1,8 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: 정책 및 구현 계획 승인 완료, 런타임 미구현
+> 문서 상태: 정책 및 구현 계획 승인 완료, Foundation(친구 공개 프로필·코드·검색 공개 설정) 런타임 구현 완료
 > 기준일: 2026-08-18
-> 구현 게이트: 이 문서와 모바일 구현 계획을 검토한 뒤, 사용자의 별도 코드 구현 승인을 받아야 한다.
+> 다음 구현 단위: 친구 요청·관계·즐겨찾기·차단. 시간표·Minecraft·택시·공개방 초대와 알림은 이후 도메인 단위로 순차 구현한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
 ---
@@ -13,7 +13,7 @@
 
 - 친구 관계와 차단, 초대, 시간표 공개 범위의 최종 판단자는 백엔드다.
 - 모바일은 이 문서의 계약을 소비하며 클라이언트 상태만으로 권한을 판단하지 않는다.
-- 이 문서의 API는 아직 구현되지 않은 예정 계약이다. 현재 운영 API로 해석하지 않는다.
+- `GET /v1/friends/me/code`, `POST /v1/friends/me/code/regenerate`, `POST /v1/friend-codes/preview`, `GET/PATCH /v1/friends/me/privacy`는 Foundation 런타임 API다. 나머지 친구 API는 예정 계약이며 현재 운영 API로 해석하지 않는다.
 - 실제 구현 시 런타임 OpenAPI와 docs/api-specification.md를 같은 PR에서 동기화한다.
 - 구현 중 정책 변경이 필요하면 코드를 먼저 바꾸지 않고 이 문서의 결정 기록을 갱신한 뒤 승인을 받는다.
 
@@ -262,9 +262,9 @@ Friend 도메인은 다른 도메인의 내부 엔티티를 직접 수정하지 
 
 ---
 
-## 6. 예정 데이터 모델
+## 6. 데이터 모델
 
-이 절은 구현 전 논리 모델이며 실제 컬럼명과 마이그레이션은 구현 PR에서 ERD와 함께 확정한다.
+`friend_profiles`, `friend_code_registry`는 Foundation 런타임 테이블이다. 그 밖의 표는 이후 구현 단위의 논리 모델이며 실제 컬럼명과 마이그레이션은 해당 구현 PR에서 ERD와 함께 확정한다.
 
 ### 6.1 friend_profiles
 
@@ -291,14 +291,14 @@ friend_code_registry:
 | issued_at | 발급 시각 |
 | retired_at | 재발급·탈퇴로 폐기된 시각, ACTIVE면 null |
 
-- 생성기는 registry에 새 normalized_code를 INSERT하고 영구 unique 충돌 시 새 무작위 값으로 제한된 횟수만 재시도한다.
+- 생성기는 registry에 하이픈을 제거한 대문자 `normalized_code`를 INSERT하고 영구 unique 충돌 시 새 무작위 값으로 제한된 횟수만 재시도한다. API는 `SKR-XXXX-XXXX` 표시 형식만 반환한다.
 - 재발급은 현재 registry row를 RETIRED로 바꾸고 owner_member_id를 제거한 뒤 새 ACTIVE row와 profile 참조를 같은 트랜잭션에서 확정한다.
 - RETIRED registry row는 탈퇴 cleanup에서도 삭제하지 않는다. preview는 ACTIVE row와 ACTIVE Member profile이 함께 존재할 때만 성공한다.
 - ACTIVE row는 owner_member_id와 이를 참조하는 FriendProfile이 모두 필요하다. owner_member_id의 non-null unique와 profile의 active_friend_code_id unique로 회원당 ACTIVE 코드 한 개와 코드당 profile 한 개를 보장한다.
 
 기존 회원 provisioning:
 
-- schema 배포 후 모바일 노출 전에 모든 기존 ACTIVE Member를 대상으로 FriendProfile을 batch backfill한다.
+- 앱 기동 시 기존 ACTIVE Member를 대상으로 FriendProfile을 batch backfill한다.
 - 신규 가입과 backfill은 같은 멱등 provisioning service를 사용하고 이미 존재하는 profile은 다시 만들지 않는다.
 - public_id와 friend_code_registry.normalized_code는 각각 unique constraint 충돌 시 새 무작위 값을 생성해 제한된 횟수만 재시도하며 members.id나 Firebase UID에서 파생하지 않는다.
 - 친구 API 진입 시 ACTIVE Member인데 profile이 없는 비정상·과도기 상태는 같은 service로 lazy ensure해 self-heal한다. 닉네임 검색 대상은 batch backfill로 먼저 완성하고 lazy ensure만으로 누락 회원을 방치하지 않는다.
@@ -487,9 +487,9 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 
 ---
 
-## 9. 예정 API 계약
+## 9. API 계약
 
-아래 경로는 구현 설계를 위한 기준이며 아직 운영 API가 아니다. 구현 PR에서 Controller, DTO, OpenAPI examples, Contract 테스트와 함께 최종 고정한다.
+`POST /v1/friend-codes/preview`, `GET/POST /v1/friends/me/code*`, `GET/PATCH /v1/friends/me/privacy`는 런타임 OpenAPI와 Contract 테스트로 고정했다. 그 밖의 경로는 구현 설계를 위한 예정 계약이며 현재 운영 API가 아니다.
 
 ### 9.1 친구 핵심
 
@@ -549,6 +549,8 @@ inbox-counts 응답:
 | DELETE | /v1/friend-requests/{requestId} | 요청자 취소 |
 
 `POST /v1/friend-codes/preview`는 body의 friendCode를 정규화해 공개 프로필과 friendPublicId를 반환하는 부작용 없는 확인 API다. 양방향 차단은 잘못되거나 폐기된 코드와 같은 일반 대상 없음 응답으로 처리한다. 친구 코드는 query string이나 로그에 원문으로 남기지 않는다. `POST /v1/friend-requests`는 확인·검색 결과의 friendPublicId만 받으며 내부 members.id와 friendCode를 요청 생성 계약에 사용하지 않는다.
+
+Foundation 구현 범위에서 preview의 `canSendFriendRequest`는 유효한 타인 코드인지 여부만 반영한다. 기존 친구·PENDING 요청·차단 관계 판단은 친구 요청·관계 단위가 구현될 때 같은 필드에 연결한다. 재발급 제한 중 `POST /v1/friends/me/code/regenerate`는 `429 FRIEND_CODE_REGENERATION_COOLDOWN`과 초 단위 `Retry-After` 헤더를 반환한다. 전송 timeout 이후 앱은 새 재발급 요청을 자동 재시도하지 않고 `GET /v1/friends/me/code`로 현재 코드를 조회해 조정한다.
 
 요청 목록 계약:
 
@@ -816,7 +818,7 @@ batch 요청과 응답:
 - [x] 예정 API가 현재 운영 API와 구분되어 있다.
 - [x] 실제 코드 구현 승인 gate가 명시되어 있다.
 
-docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 유형의 승인된 계획 도메인으로 표시하고 Phase 14 책임 경계를 동기화했다. 현재 런타임의 docs/api-specification.md와 docs/erd.md에는 미구현 친구 엔티티와 API를 현재형으로 추가하지 않으며 각 런타임 PR에서 실제 구현과 함께 동기화한다.
+docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 유형의 승인된 계획 도메인으로 표시하고 Phase 14 책임 경계를 동기화했다. Foundation 런타임 엔티티와 API는 docs/api-specification.md·docs/erd.md에 동기화했으며, 아직 구현하지 않은 친구 기능은 각 런타임 PR에서 실제 구현과 함께 현재형으로 전환한다.
 
 ---
 
@@ -850,3 +852,4 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-18 | Friend mutation과 lazy provisioning은 Member 잠금 후 요청자·대상의 ACTIVE 상태를 다시 검증 |
 | 2026-08-18 | batch 초대는 SENT와 본인 ALREADY_PENDING에만 invitationId를 제공하고 EXPIRED 사유는 immutable enum으로 저장 |
 | 2026-08-18 | nicknameSearchable은 GET·PATCH로 서버 값을 제공하고 요청 목록은 PENDING 전용 20건 cursor 방식 |
+| 2026-08-18 | 친구 코드 재발급은 24시간에 한 번으로 제한하고, 제한 중에는 `429`와 `Retry-After`로 다음 재시도 가능 시점을 전달 |
