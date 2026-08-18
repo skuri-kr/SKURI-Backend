@@ -15,6 +15,7 @@ import com.skuri.skuri_backend.infra.openapi.OpenApiFriendExamples;
 import com.skuri.skuri_backend.infra.openapi.OpenApiFriendSchemas;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -71,7 +72,8 @@ public class FriendFoundationController {
                             examples = @ExampleObject(value = OpenApiFriendExamples.SUCCESS_REGENERATED_FRIEND_CODE))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "재발급 제한",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_CODE_REGENERATION_COOLDOWN))),
+                            examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_CODE_REGENERATION_COOLDOWN)),
+                    headers = @Header(name = "Retry-After", description = "재발급 가능 시점까지 남은 초", schema = @Schema(type = "string", example = "86400"))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
                             examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
@@ -99,9 +101,12 @@ public class FriendFoundationController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "자기 자신의 코드",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
                             examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_SELF_NOT_ALLOWED))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "코드 없음 또는 폐기됨",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "코드 없음, 폐기됨 또는 가입한 활성 회원 없음",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_CODE_NOT_FOUND))),
+                            examples = {
+                                    @ExampleObject(name = "FRIEND_CODE_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_CODE_NOT_FOUND),
+                                    @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND)
+                            })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "요청 검증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
                             examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION))),

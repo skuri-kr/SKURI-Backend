@@ -1,6 +1,7 @@
 package com.skuri.skuri_backend.domain.friend.service;
 
 import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
+import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +27,8 @@ public class FriendProfileBackfillService {
 
     @EventListener(ApplicationReadyEvent.class)
     public void backfillActiveMemberProfiles() {
-        long backfilledCount = 0;
+        long processedCount = 0;
+        long withdrawnDuringBackfillCount = 0;
         while (true) {
             List<String> missingMemberIds = memberRepository.findActiveMemberIdsWithoutFriendProfile(
                     PageRequest.of(0, BATCH_SIZE)
@@ -34,8 +36,15 @@ public class FriendProfileBackfillService {
             if (missingMemberIds.isEmpty()) {
                 break;
             }
-            missingMemberIds.forEach(provisioningService::ensureForActiveMember);
-            backfilledCount += missingMemberIds.size();
+            for (String memberId : missingMemberIds) {
+                try {
+                    provisioningService.ensureForActiveMember(memberId);
+                    processedCount++;
+                } catch (MemberNotFoundException ignored) {
+                    withdrawnDuringBackfillCount++;
+                    log.debug("친구 공개 프로필 backfill 중 탈퇴한 회원 건너뜀: memberId={}", memberId);
+                }
+            }
         }
 
         long activeMemberCount = memberRepository.countByStatus(
@@ -46,6 +55,10 @@ public class FriendProfileBackfillService {
             log.error("친구 공개 프로필 backfill 누락: activeMembers={}, profiles={}", activeMemberCount, provisionedCount);
             return;
         }
-        log.info("친구 공개 프로필 backfill 완료: {}건, 기존 프로필 유지: {}건", backfilledCount, provisionedCount - backfilledCount);
+        log.info(
+                "친구 공개 프로필 backfill 완료: 처리 {}건, 탈퇴로 건너뜀: {}건",
+                processedCount,
+                withdrawnDuringBackfillCount
+        );
     }
 }
