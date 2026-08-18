@@ -1029,7 +1029,7 @@ Taxi history 계약 메모:
 
 | 테이블 | 핵심 컬럼·제약 | 설명 |
 |------|------|------|
-| friendships | `member_low_id`, `member_high_id` pair unique | 두 내부 ID를 Java 문자열 비교 기준 오름차순으로 저장해 DB collation과 무관하게 상호 친구를 한 행으로 표현 |
+| friendships | `(member_low_id, member_high_id)` pair unique, `member_high_id` index | 두 내부 ID를 Java 문자열 비교 기준 오름차순으로 저장해 DB collation과 무관하게 상호 친구를 한 행으로 표현. pair unique는 low-side 조회와 중복 방지를, high-side index는 친구 목록의 반대 방향 조회를 지원 |
 | friend_preferences | `(owner_member_id, friend_member_id)` composite PK | 즐겨찾기는 소유자 방향별 독립 설정 |
 | member_blocks | `(blocker_id, blocked_id)` composite PK | 차단은 단방향이며 차단 시 관계·PENDING 요청을 정리 |
 
