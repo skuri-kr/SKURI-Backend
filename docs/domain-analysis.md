@@ -1,6 +1,6 @@
 # Spring 백엔드 도메인 분석
 
-> 최종 수정일: 2026-04-01
+> 최종 수정일: 2026-08-18
 > 분석 기준: 레거시 Firestore/Cloud Functions 구조 + 현재 RN repository/transport 구조 + 현재 Spring 구현
 
 본 문서는 SKURI Taxi의 레거시 Firebase 구조와 현재 Spring Boot + MySQL 구현을 함께 대조해 정리한 **도메인 분석 결과**입니다.
@@ -36,6 +36,7 @@
 | 프론트 레포 `docs/references/legacy/scripts/` | 레거시 운영 스크립트/이벤트 처리 참고 |
 | 프론트 레포 `src/features`, `src/shared`, `src/di` | 현재 RN repository/query/transport 구조 |
 | 백엔드 레포 `src/main/java/com/skuri/skuri_backend/domain` | 현재 Spring 도메인 구현 |
+| `docs/features/friends.md` | 승인된 Phase 14 Friend 도메인과 기존 도메인 협력 계획 |
 
 ### 1.3 설계 결정 사항
 
@@ -45,12 +46,15 @@
 | Minecraft 연동 | `Minecraft` 도메인 + `Chat` 연계 | 플러그인/화이트리스트/서버 상태/검증을 Spring으로 이관 |
 | Settlement(정산) | Party 내부에 임베디드 | 실제 결제/송금 API 연동 계획 없음 |
 | Notification | 인프라 계층으로 유지 | 자체 비즈니스 규칙 없음, 이벤트 결과 전달용 |
+| Friend | Supporting 도메인으로 분리 | 친구 코드·요청·관계·즐겨찾기·차단을 소유하고 기존 도메인의 시간표·초대·계정 규칙은 침범하지 않음 |
 
 ---
 
 ## 2. 도메인 목록
 
-### 2.1 최종 도메인 (8개 + 인프라)
+### 2.1 승인된 목표 도메인 (9개 + 인프라)
+
+> Friend는 Phase 14에서 승인된 계획 도메인이며 현재 런타임에는 아직 구현되지 않았다. 아래 나머지 도메인은 현재 구현 기준이고, Friend의 실제 패키지·엔티티·API는 별도 코드 구현 승인 후 추가한다.
 
 | # | 도메인 | 유형 | 핵심 책임 | 주요 엔티티 |
 |---|--------|------|----------|------------|
@@ -62,6 +66,7 @@
 | 6 | **Notice** | Supporting | 학교 공지 크롤링/조회, 앱 공지 | Notice, NoticeComment, AppNotice, NoticeReadStatus, AppNoticeReadStatus |
 | 7 | **Academic** | Generic | 강의 정보, 시간표, 학사 일정 | Course, UserTimetable, AcademicSchedule |
 | 8 | **Support** | Generic | 문의/신고 접수, 앱 버전, 법적 문서, 학식 메뉴 | Inquiry, Report, AppVersion, LegalDocument, CafeteriaMenu |
+| 9 | **Friend** | Supporting | 친구 코드, 검색 허용, 요청, 상호 관계, 즐겨찾기, 친구 끊기, 차단 | FriendProfile, FriendCodeRegistry, FriendRequest, Friendship, FriendPreference, MemberBlock (계획) |
 | - | **Notification** | Infra | 도메인 이벤트 기반 알림 인박스 | UserNotification |
 
 ### 2.2 도메인 유형 정의
@@ -799,6 +804,41 @@ Hooks:
   - 자유서술 `content` 전체 자동 마스킹은 Phase 10 범위에서 제외
 ```
 
+### 3.9 Friend (친구, Phase 14 계획)
+
+> 상태: 정책·책임 경계 승인 완료, 런타임 미구현
+> 상세 기준: `docs/features/friends.md`
+> 구현 시작 조건: 사용자의 별도 코드 구현 승인
+
+```
+유형: Supporting
+
+소유 책임:
+  - ACTIVE·RETIRED 영구 코드 registry와 코드 preview
+  - 닉네임 검색 허용 설정
+  - 친구 요청과 상호 friendship
+  - 사용자 방향별 즐겨찾기
+  - 친구 끊기와 차단
+  - friendPublicId 기반 신고 진입과 내부 Member 대상 해석
+
+계획 엔티티:
+  - FriendProfile
+  - FriendCodeRegistry
+  - FriendRequest
+  - Friendship
+  - FriendPreference
+  - MemberBlock
+
+소유하지 않는 책임:
+  - 시간표 공개 범위와 projection: Academic
+  - 택시파티 초대 상태·정원·참여: TaxiParty
+  - 공개방 초대 상태·방 자격·정원: Chat
+  - 친구용 계정 projection: Minecraft
+  - 알림 인박스·SSE·FCM 전달: Notification 인프라
+  - ACTIVE 회원·알림 설정과 탈퇴 orchestration: Member
+  - 신고 저장·중복 정책·운영 처리: Support
+```
+
 ---
 
 ## 4. 도메인 간 관계
@@ -843,6 +883,17 @@ Hooks:
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
+위 다이어그램은 현재 런타임 구조다. 승인된 Phase 14 계획에서는 다음 협력이 추가되며 각 도메인은 상대 도메인의 내부 엔티티를 직접 수정하지 않는다.
+
+```text
+Member ◄── Friend ──► Notification
+              │
+              ├── friendship 확인 ──► Academic 시간표 projection
+              ├── friendship 확인 ──► TaxiParty 초대
+              ├── friendship 확인 ──► Chat 공개방 초대
+              └── friendship 확인 ──► Minecraft 계정 projection
+```
+
 ### 4.2 의존 관계 설명
 
 | 관계 | 유형 | 설명 |
@@ -851,7 +902,13 @@ Hooks:
 | TaxiParty → Chat | 사용 | 파티 채팅은 Chat 엔진 사용, 규칙은 TaxiParty에서 관리 |
 | TaxiParty ↔ PartyChat | 강결합 | 파티 생성/종료 시 채팅방도 함께 생성/비활성화 |
 | Board, Notice → Member | 약결합 | 작성자 참조만 |
-| Academic, Support | 독립 | 공용 데이터, 다른 도메인과 직접 의존 없음 |
+| Support | 독립 | 공용 데이터, 다른 도메인과 직접 의존 없음 |
+| Friend → Member | 약결합, Phase 14 계획 | 공개 ID 해석 뒤 ordered Member 잠금을 획득하고 요청자·대상이 모두 ACTIVE인지 재확인하며 내부 회원 ID만 참조 |
+| Academic → Friend | 정책 확인, Phase 14 계획 | friendship·차단을 확인한 뒤 Academic이 시간표 공개 projection을 결정 |
+| TaxiParty, Chat → Friend | 정책 확인, Phase 14 계획 | 초대 생성·수락 시 friendship·차단을 재검증하되 초대 상태는 각 도메인이 소유 |
+| Minecraft → Friend | 정책 확인, Phase 14 계획 | friendship·차단 확인 후 Minecraft가 안전 계정 projection을 생성 |
+| Friend, TaxiParty, Chat → Notification | 이벤트, Phase 14 계획 | 친구 요청·수락과 친구 기반 초대를 인박스·SSE·FCM으로 전달 |
+| Friend → Support | 위임, Phase 14 계획 | Friend가 friendPublicId를 내부 Member로 해석하고 Support의 기존 MEMBER 신고 생성·중복·운영 처리에 위임 |
 
 ### 4.3 도메인 이벤트
 
@@ -869,6 +926,9 @@ Hooks:
 | Board | CommentCreatedEvent | Notification |
 | Notice | NoticeCreatedEvent | Notification |
 | Notice | AppNoticeCreatedEvent | Notification |
+| Friend | FriendRequestCreatedEvent, FriendAcceptedEvent (계획) | Notification |
+| TaxiParty | PartyInvitationCreatedEvent (계획) | Notification |
+| Chat | ChatRoomInvitationCreatedEvent (계획) | Notification |
 
 ---
 
@@ -1649,6 +1709,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
 | 6 | **Board** | 중간 | 비교적 단순한 CRUD | 중 |
 | 7 | **Academic** | 낮음 | 읽기 위주, 낮은 복잡도 | 하 |
 | 8 | **Support** | 낮음 | 관리 기능, 마지막 | 하 |
+| 9 | **Friend** | Phase 14 계획 | 시간표·택시파티·공개방·Minecraft를 잇는 소셜 관계 기반 | 상 |
 
 ### 8.2 마이그레이션 체크리스트
 
@@ -1680,18 +1741,26 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
   - [ ] 점진적 트래픽 전환
   - [ ] Firebase Functions 비활성화
 
+- [ ] **Phase 14: Friend 도메인과 기존 도메인 협력**
+  - [ ] 별도 코드 구현 승인
+  - [ ] Friend 핵심 관계와 차단
+  - [ ] Academic·TaxiParty·Chat·Minecraft·Notification 협력 구현
+  - [ ] OpenAPI·ERD·Contract·Service 테스트 동기화
+
 ---
 
 ## 참고 문서
 
 - 레거시 Firestore 데이터 구조: 프론트 레포 `docs/references/legacy/firestore-data-structure.md`
 - 현재 API 계약: `api-specification.md`
+- 승인된 Friend 기능 기준: `features/friends.md`
 - [역할 정의](./role-definition.md)
 - 마인크래프트 상세 설계/이력: 백엔드 레포 `docs/minecraft-spring-migration-plan.md`
 
 ---
 
 > **문서 이력**
+> - 2026-08-18: Phase 14 Friend 계획 보완 — 영구 미재사용 코드 registry, 잠금 후 Member ACTIVE 재확인과 탈퇴 orchestration 책임을 반영
 > - 2026-04-06: Admin Chat read API 반영 — 관리자 공개 채팅방 목록/상세/메시지 조회와 관리자 파티 채팅 메시지 조회 책임, membership 우회 범위를 Chat/TaxiParty 협력 규칙에 추가
 > - 2026-03-30: Minecraft 도메인 분석 추가 — 별도 도메인 분리 결정, public/internal API, whitelist/서버 상태/bridge outbox 설계를 반영
 > - 2026-02-03: 초안 작성 (도메인 분석 완료)
