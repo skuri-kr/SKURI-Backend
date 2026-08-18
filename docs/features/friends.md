@@ -54,6 +54,9 @@
 - 재발급하면 이전 코드는 즉시 무효화되며 기존 친구 관계에는 영향을 주지 않는다.
 - QR payload는 skuri-friend:v1:{friendCode} 형식의 버전 계약을 사용한다.
 - QR 인식 후 바로 요청하지 않고 대상 공개 프로필 확인과 명시적 발송 단계를 거친다.
+- 코드 입력과 QR 해석 결과는 부작용 없는 친구 코드 preview API로 확인한다.
+- preview 응답은 friendPublicId, 닉네임, 프로필 사진, 학과와 현재 요청 가능 상태만 제공하며 친구 요청을 생성하지 않는다.
+- 사용자가 확인 화면에서 발송을 누른 뒤 preview 응답의 friendPublicId로 별도 친구 요청을 생성한다.
 - URL 딥링크는 QR payload에 포함하지 않는다.
 
 ### 2.3 닉네임 검색
@@ -118,8 +121,11 @@
 - 초대는 좌석을 예약하지 않는다.
 - 남은 자리보다 많은 대기 초대를 발송할 수 있다.
 - 수락 시점에 파티 상태, 정원, 기존 참여, 다른 활성 파티 참여 여부, 친구·차단 관계를 다시 검증한다.
-- 정원이 먼저 찼다면 뒤늦은 수락은 실패하며 파티 정원 마감 안내를 반환한다.
-- 파티가 OPEN이 아니게 되면 처리되지 않은 초대는 더 이상 수락할 수 없다.
+- 파티가 OPEN이 아니게 되거나 정원이 먼저 차면 처리되지 않은 PENDING 초대는 EXPIRED로 확정하고 구체적인 만료 사유를 반환한다.
+- 초대자가 파티 참가자가 아니게 되거나 기존 친구 관계가 종료·차단된 경우에도 해당 PENDING 초대를 EXPIRED로 확정한다.
+- 정원이 다시 생기거나 파티가 다시 열려도 EXPIRED 초대는 복원하지 않으며 새 초대를 발송해야 한다.
+- 수신자가 다른 활성 파티에 참여 중인 상태는 대상 파티가 여전히 OPEN이고 자리가 있으며 친구 관계가 유효한 동안에만 PENDING을 유지할 수 있는 일시적 수락 실패다.
+- 파티 상태·정원·참여자·친구 관계 변경 시 선제적으로 만료시키고, 받은 초대 목록·badge count·수락 처리에서도 누락된 만료를 재검증한다.
 
 ### 2.7 공개 채팅방 친구 초대
 
@@ -170,12 +176,18 @@
 
 알림 정책:
 
-- 회원 알림 설정에 친구 및 초대 알림 항목을 추가한다.
+- 기존 회원 알림 설정 요청·응답에 `friendAndInvitationNotifications` 단일 Boolean 필드를 추가한다.
+- 신규 회원 기본값은 true이며 기존 회원도 migration 또는 backfill로 true를 채운다. backfill 완료 전 null은 true로 해석하고 응답에는 항상 유효 Boolean 값을 반환한다.
+- 부분 PATCH에서 필드가 null 또는 생략되면 기존 값을 유지한다.
+- 친구·초대 알림의 유효 수신 조건은 `allNotifications && friendAndInvitationNotifications`다.
+- `partyNotifications`는 최초 PARTY_INVITATION을 제어하지 않고, 초대 수락 후 기존 파티 활동 알림에만 적용한다.
 - 친구 요청은 수신자에게, 친구 수락은 원 요청자에게 알린다.
 - 택시파티와 공개방 초대는 수신자에게 알린다.
 - 거절, 취소, 친구 끊기, 차단은 푸시 알림을 발송하지 않는다.
-- 푸시를 끈 경우에도 서버 인박스의 요청·초대 원본 상태는 유지한다.
-- FRIEND_REQUEST는 친구 허브 요청 탭, FRIEND_ACCEPTED는 수락한 친구 상세, PARTY_INVITATION과 CHAT_ROOM_INVITATION은 친구 허브 초대 탭으로 이동한다.
+- 유효 수신 조건이 false면 일반 알림 인박스 row, 알림 SSE와 FCM은 생성·전송하지 않지만 FriendHub의 친구 요청·초대 도메인 원본과 PENDING badge는 유지한다.
+- FRIEND_REQUEST payload는 requestId, FRIEND_ACCEPTED payload는 friendPublicId를 포함한다.
+- PARTY_INVITATION과 CHAT_ROOM_INVITATION payload는 invitationId와 invitationType을 포함한다.
+- FRIEND_REQUEST는 친구 허브 요청 탭, FRIEND_ACCEPTED는 수락한 친구 상세, 초대 알림은 친구 허브 초대 탭의 해당 invitationId 카드로 이동한다.
 
 ---
 
@@ -336,6 +348,16 @@ member_low_id + member_high_id는 unique다.
 
 동일 파티·방과 같은 수신자에 대한 PENDING 초대는 중복 생성하지 않는다.
 
+### 6.10 기존 회원 알림 설정 확장
+
+| 필드 | 설명 |
+| --- | --- |
+| friend_and_invitation_notifications | 친구 요청·수락과 택시파티·공개방 초대 알림 허용, 기본 true |
+
+- 기존 NotificationSetting에 포함하며 별도 친구 설정 테이블을 만들지 않는다.
+- DB migration과 backfill 완료 전 호환 구간에서는 null을 true로 해석한다.
+- API 요청·응답 필드명은 `friendAndInvitationNotifications`를 사용한다.
+
 ---
 
 ## 7. 상태 전이
@@ -367,10 +389,12 @@ ACTIVE ── 어느 한쪽 차단 ──> 삭제
 PENDING ── 수락 성공 ──> ACCEPTED + 파티 참여
    ├────── 거절 ──> DECLINED
    ├────── 발송자 취소 ──> CANCELED
-   └────── 파티 비OPEN·정원 마감·관계 상실 ──> EXPIRED 또는 수락 실패
+   ├────── 파티 비OPEN·정원 마감 ──> EXPIRED
+   ├────── 초대자 파티 이탈·기존 참여 ──> EXPIRED
+   └────── 친구 해제·차단 ──> EXPIRED
 ~~~
 
-정원 확인과 파티 참여는 같은 트랜잭션과 잠금 경계에서 처리한다.
+정원 확인과 파티 참여는 같은 트랜잭션과 잠금 경계에서 처리한다. 정원이 가득 차는 순간 남아 있는 PENDING 초대를 EXPIRED로 전환하며, 초대 목록·badge count·수락 진입 시에도 lazy reconciliation으로 같은 terminal 조건을 적용한다. EXPIRED는 파티 재개방이나 자리 발생으로 복원하지 않는다. 수신자의 다른 활성 파티 참여만 대상 초대의 다른 terminal 조건이 충족되지 않은 동안 PENDING을 유지할 수 있는 재시도 가능 사유다.
 
 ### 7.4 공개방 초대
 
@@ -415,6 +439,7 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 | DELETE | /v1/friends/{friendPublicId} | 친구 끊기 |
 | PATCH | /v1/friends/{friendPublicId}/favorite | 즐겨찾기 변경 |
 | GET | /v1/friends/search | nickname 검색 |
+| POST | /v1/friend-codes/preview | 친구 코드·QR 대상 공개 프로필 확인, 요청 생성 없음 |
 | GET | /v1/friends/me/code | 내 친구 코드 |
 | POST | /v1/friends/me/code/regenerate | 친구 코드 재발급 |
 | PATCH | /v1/friends/me/privacy | 닉네임 검색 허용 설정 |
@@ -436,12 +461,12 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 | Method | Path | 설명 |
 | --- | --- | --- |
 | GET | /v1/friend-requests | direction 기준 받은·보낸 요청 |
-| POST | /v1/friend-requests | targetPublicId 또는 friendCode로 요청 |
+| POST | /v1/friend-requests | targetPublicId로 요청 |
 | POST | /v1/friend-requests/{requestId}/accept | 수락 |
 | POST | /v1/friend-requests/{requestId}/decline | 거절 |
 | DELETE | /v1/friend-requests/{requestId} | 요청자 취소 |
 
-POST 요청은 targetPublicId와 friendCode 중 정확히 하나만 허용한다. 닉네임 검색 결과와 코드 확인 결과는 내부 members.id 대신 targetPublicId를 제공한다.
+`POST /v1/friend-codes/preview`는 body의 friendCode를 정규화해 공개 프로필과 targetPublicId를 반환하는 부작용 없는 확인 API다. 친구 코드는 query string이나 로그에 원문으로 남기지 않는다. `POST /v1/friend-requests`는 확인·검색 결과의 targetPublicId만 받으며 내부 members.id와 friendCode를 요청 생성 계약에 사용하지 않는다.
 
 ### 9.3 차단
 
@@ -459,9 +484,9 @@ POST 요청은 targetPublicId와 friendCode 중 정확히 하나만 허용한다
 | PATCH | /v1/timetables/my/sharing-settings | 기본 공개 범위 변경 |
 | PUT | /v1/timetables/my/sharing-overrides/{friendPublicId} | 친구별 예외 저장 |
 | DELETE | /v1/timetables/my/sharing-overrides/{friendPublicId} | 친구별 예외 제거 |
-| GET | /v1/timetables/friends/{friendPublicId} | 친구 시간표 조회 |
+| GET | /v1/timetables/friends/{friendPublicId}?semester={semester} | 필수 학기 기준 친구 시간표 조회 |
 
-친구 시간표 응답은 effectiveScope를 항상 포함한다.
+semester는 `2026-1` 형식의 필수 query parameter다. 친구 시간표 응답은 요청을 해석한 semester와 effectiveScope를 항상 포함한다.
 
 - PRIVATE: 시간표 필드는 비우고 공개되지 않았음을 표현한다.
 - BUSY_ONLY: slots만 제공하고 course 식별·이름 필드는 제공하지 않는다.
@@ -499,11 +524,23 @@ eligible 응답은 이미 참여, 다른 활성 파티, 차단, 중복 PENDING �
 | POST | /v1/chat-room-invitations/{invitationId}/decline | 초대 거절 |
 | DELETE | /v1/chat-room-invitations/{invitationId} | 발송자 취소 |
 
+### 9.8 회원 알림 설정 확장
+
+기존 회원 알림 설정 PATCH 요청과 조회 응답에 `friendAndInvitationNotifications`를 additive field로 추가한다.
+
+- 요청: nullable Boolean이며 null·생략은 기존 값 유지
+- 응답: null이 아닌 유효 Boolean
+- 신규·기존 회원 유효 기본값: true
+- 알림 대상 조건: `allNotifications && friendAndInvitationNotifications`
+- 조건이 false여도 친구 요청·초대 원본과 FriendHub PENDING badge는 유지
+
 ---
 
 ## 10. 동시성, 멱등성, 보안
 
-- 친구 요청 수락은 요청 row와 정규화된 friendship pair를 잠그거나 unique constraint 충돌을 멱등 성공으로 해석한다.
+- 동일 회원 쌍을 변경하는 친구 요청 생성·수락, 친구 관계 삭제, 차단·차단 해제는 두 Member row를 내부 ID 오름차순으로 같은 PESSIMISTIC_WRITE 잠금 경계에서 획득한다.
+- 잠금 획득 후 차단, PENDING 요청과 friendship을 다시 조회하고 조건을 재검증한다. unique constraint는 마지막 중복 방어선이며 공통 잠금을 대체하지 않는다.
+- 친구 관계를 전제로 하는 택시파티·공개방 초대 생성과 수락도 같은 회원 쌍 잠금 또는 동등한 pair serialization 경계 안에서 친구·차단 상태를 재검증한다.
 - 양방향 동시 요청은 friendship 한 건만 만든다.
 - 같은 요청·초대의 accept 재호출은 이미 성공한 동일 수신자라면 멱등 응답을 우선한다.
 - 택시 초대 수락은 기존 TaxiParty 참여 로직과 같은 잠금 경계를 사용한다.
@@ -570,15 +607,20 @@ eligible 응답은 이미 참여, 다른 활성 파티, 차단, 중복 PENDING �
 ### 14.1 백엔드 자동 검증
 
 - 친구 요청 정상, self, 차단, 중복 PENDING, 양방향 동시 요청
+- 친구 코드 preview가 요청을 생성하지 않고 targetPublicId 공개 프로필만 반환하는지 검증
 - 30일 만료와 만료 요청 수락 차단
+- 친구 요청 수락과 차단 경쟁에서 차단 후 friendship이 남지 않는지 검증
 - 즐겨찾기 방향 독립성과 정렬
 - PRIVATE, BUSY_ONLY, DETAILS projection 필드 미노출 검증
+- 선택 학기 요청·응답 일치와 과거 학기 시간표 없음 상태 검증
 - 친구 해제·차단 후 시간표와 Minecraft 접근 차단
 - OPEN이 아닌 파티 초대 차단
 - 택시 마지막 좌석 동시 수락에서 한 명만 성공
 - 공개 non-PARTY 방만 초대 가능
 - 학과방 입장 자격과 7일 만료
-- 알림 설정 off 시 FCM 미발송, 인박스 원본 유지
+- 알림 설정 신규·기존 회원 기본 true, 마스터 우선순위와 backfill 검증
+- 알림 설정 off 시 일반 알림 인박스·SSE·FCM 미생성, FriendHub 요청·초대 원본과 PENDING badge 유지
+- 파티 비OPEN·정원 마감·관계 상실 시 PENDING 초대 EXPIRED와 비복원 검증
 - 탈퇴 cleanup
 
 ### 14.2 통합·실기기 검증
@@ -616,6 +658,10 @@ eligible 응답은 이미 참여, 다른 활성 파티, 차단, 중복 PENDING �
 - [x] Minecraft SELF와 모든 FRIEND 계정, 최근 접속·온라인 상태 미노출이 반영되어 있다.
 - [x] 차단이 소셜 기능에만 적용되고 공개 콘텐츠 전역 필터가 제외되어 있다.
 - [x] 기존 Firebase UID 결합 회원 ID를 새 친구 API에 노출하지 않도록 friendPublicId 계약을 추가했다.
+- [x] 친구 코드 preview와 명시적 친구 요청 생성을 분리했다.
+- [x] 친구 시간표 요청·응답 학기와 초대 알림 target 계약을 명시했다.
+- [x] 파티 초대 terminal 상태와 친구 쌍 공통 잠금 경계를 명시했다.
+- [x] 친구·초대 알림 설정 필드, 기본값, 우선순위와 backfill을 명시했다.
 - [x] 예정 API가 현재 운영 API와 구분되어 있다.
 - [x] 실제 코드 구현 승인 gate가 명시되어 있다.
 
@@ -637,3 +683,7 @@ eligible 응답은 이미 참여, 다른 활성 파티, 차단, 중복 PENDING �
 | 2026-08-18 | 친구의 Minecraft SELF와 모든 FRIEND 계정을 제공하되 최근 접속·온라인 상태는 숨김 |
 | 2026-08-18 | 차단은 소셜 기능에 적용하고 공개 콘텐츠 전역 숨김은 제외 |
 | 2026-08-18 | V1 관리자 친구 관계망 운영 UI는 추가하지 않음 |
+| 2026-08-18 | 친구 코드 preview는 요청 생성과 분리하고 실제 요청은 targetPublicId로 발송 |
+| 2026-08-18 | 친구 시간표는 선택한 semester를 필수로 요청하고 응답에도 같은 학기를 포함 |
+| 2026-08-18 | 파티 비OPEN·정원 마감·관계 상실 초대는 EXPIRED이며 상태 회복 후에도 복원하지 않음 |
+| 2026-08-18 | 친구·초대 알림은 friendAndInvitationNotifications 단일 설정, 기본 true, allNotifications 우선 |
