@@ -1041,7 +1041,7 @@ SSE 운영 제약:
 
 ### Phase 14: 친구·시간표 공유·친구 초대
 
-> 상태: Foundation(친구 공개 프로필·코드·닉네임 검색 공개 설정) 완료, 친구 관계·공유·초대는 후속 구현
+> 상태: Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·검색·PENDING 목록) 완료, 공유·초대·알림은 후속 구현
 > 상세 기준: docs/features/friends.md
 > 구현 시작 조건: 기준 문서 검토 후 사용자의 별도 코드 구현 승인
 
@@ -1075,14 +1075,15 @@ SSE 운영 제약:
 #### 14-3. 구현 단위
 
 1. [x] FriendProfile·FriendCodeRegistry schema, 멱등 provisioning service와 기존 ACTIVE 회원 backfill·누락 0건 검증, 코드 조회·재발급·preview, nicknameSearchable GET·PATCH
-2. Friend 핵심 요청·관계 API, 잠금 후 Member ACTIVE 재확인과 모든 terminal 전이 잠금
-3. nicknameSearchable 조회·변경, PENDING 요청 cursor 목록과 friendPublicId 신고 진입
-4. 시간표 공유 설정과 친구 시간표 조회
-5. Minecraft 친구 계정 projection
-6. TaxiParty 수신자별 부분 성공 친구 초대
-7. 공개 Chat 수신자별 부분 성공 친구 초대
-8. Notification·badge·회원 탈퇴 cleanup
-9. OpenAPI, ERD, 도메인 문서, Contract·Service 테스트 동기화
+2. [x] Friend 핵심 요청·관계 API, 잠금 후 Member ACTIVE 재확인과 terminal 전이 잠금
+3. [x] nickname 검색과 PENDING 요청 cursor 목록, 즐겨찾기·친구 끊기·차단, 친구 요청 badge count
+4. friendPublicId 신고 진입
+5. 시간표 공유 설정과 친구 시간표 조회
+6. Minecraft 친구 계정 projection
+7. TaxiParty 수신자별 부분 성공 친구 초대
+8. 공개 Chat 수신자별 부분 성공 친구 초대
+9. Notification·badge·회원 탈퇴 cleanup
+10. OpenAPI, ERD, 도메인 문서, Contract·Service 테스트 동기화
 
 #### 14-4. 제외 범위
 

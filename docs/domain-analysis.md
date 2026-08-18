@@ -804,9 +804,9 @@ Hooks:
   - 자유서술 `content` 전체 자동 마스킹은 Phase 10 범위에서 제외
 ```
 
-### 3.9 Friend (친구, Phase 14 Foundation 구현)
+### 3.9 Friend (친구, Phase 14 관계 Core 구현)
 
-> 상태: 공개 프로필·코드 registry·preview·닉네임 검색 공개 설정 구현 완료. 나머지 정책은 후속 구현 예정
+> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회 구현 완료. 시간표 공유·Minecraft projection·초대·알림·신고 진입은 후속 구현 예정
 > 상세 기준: `docs/features/friends.md`
 > 구현 시작 조건: 사용자의 별도 코드 구현 승인
 
@@ -824,8 +824,6 @@ Hooks:
 현재 엔티티:
   - FriendProfile
   - FriendCodeRegistry
-
-계획 엔티티:
   - FriendRequest
   - Friendship
   - FriendPreference

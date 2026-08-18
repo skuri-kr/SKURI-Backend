@@ -107,7 +107,7 @@ Spring 백엔드는 마인크래프트 기능도 예외 없이 최종 판단한�
 
 ### 4.5 Phase 14 Friend 도메인과 협력 책임
 
-> 상태: Foundation(공개 프로필·영구 코드 registry·preview·검색 공개 설정) 구현 완료, 친구 관계·공유·초대는 후속 구현 예정
+> 상태: Foundation과 친구 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·PENDING 목록) 구현 완료, 공유·초대·알림은 후속 구현 예정
 
 Friend는 Supporting 도메인으로서 영구 미재사용 친구 코드 registry·요청·상호 관계·즐겨찾기·친구 끊기·차단을 소유한다. 모든 mutation과 lazy provisioning은 Member 잠금 후 요청자·대상이 모두 ACTIVE인지 다시 확인한다. friendPublicId 신고 진입에서는 내부 Member 대상만 해석하고 신고 저장·중복·운영 규칙은 Support에 위임한다. 다른 기능의 최종 규칙은 해당 도메인이 계속 소유하며 Friend가 내부 엔티티를 직접 수정하지 않는다.
 
@@ -122,7 +122,7 @@ Friend는 Supporting 도메인으로서 영구 미재사용 친구 코드 regist
 | Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, PARTY_INVITATION, CHAT_ROOM_INVITATION의 인박스·SSE·FCM 전달 |
 | Support | Friend가 해석한 내부 Member 대상의 기존 신고 저장·중복 정책·운영 처리 |
 
-Friend Foundation의 API·DB 엔티티는 현재 런타임에 존재한다. 요청·관계·즐겨찾기·차단·공유·초대·알림 책임은 아직 계획 상태이며, 상세 상태 전이와 데이터 노출 정책은 `docs/features/friends.md`를 기준으로 한다.
+Friend Foundation과 관계 Core의 API·DB 엔티티는 현재 런타임에 존재한다. 친구 요청은 30일 PENDING·역방향 자동 수락·수락 멱등성·terminal 409을 서버가 강제하며, 차단은 일반 대상 없음으로 마스킹한다. 시간표 공유·Minecraft projection·택시·공개방 초대·알림은 아직 계획 상태이며, 상세 상태 전이와 데이터 노출 정책은 `docs/features/friends.md`를 기준으로 한다.
 친구 신고의 계획 진입점은 `POST /v1/friends/{friendPublicId}/report`이며 Friend가 공개 ID를 해석한 뒤 Support의 기존 MEMBER 신고 처리에 위임한다.
 
 ---

@@ -677,12 +677,16 @@ erDiagram
     }
 ```
 
-### 1.5 Friend Foundation
+### 1.5 Friend
 
 ```mermaid
 erDiagram
     members ||--o| friend_profiles : "owns"
     friend_code_registry ||--o| friend_profiles : "active code"
+    members ||--o{ friend_requests : "requests or receives"
+    members ||--o{ friendships : "member pair"
+    members ||--o{ friend_preferences : "owns"
+    members ||--o{ member_blocks : "blocks"
 
     friend_profiles {
         varchar(36) member_id PK "Member 내부 식별자"
@@ -701,6 +705,41 @@ erDiagram
         enum status "ACTIVE,RETIRED"
         datetime issued_at
         datetime retired_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    friend_requests {
+        varchar(36) id PK
+        varchar(36) requester_id
+        varchar(36) recipient_id
+        enum status "PENDING,ACCEPTED,DECLINED,CANCELED,EXPIRED"
+        datetime expires_at
+        datetime responded_at
+        varchar(73) active_pair_key UK "PENDING일 때만 non-null"
+        datetime created_at
+        datetime updated_at
+    }
+
+    friendships {
+        varchar(36) id PK
+        varchar(36) member_low_id "정렬된 pair의 앞 ID"
+        varchar(36) member_high_id "정렬된 pair의 뒤 ID"
+        datetime created_at
+        datetime updated_at
+    }
+
+    friend_preferences {
+        varchar(36) owner_member_id PK
+        varchar(36) friend_member_id PK
+        boolean favorite
+        datetime created_at
+        datetime updated_at
+    }
+
+    member_blocks {
+        varchar(36) blocker_id PK
+        varchar(36) blocked_id PK
         datetime created_at
         datetime updated_at
     }
@@ -934,12 +973,16 @@ Taxi history 계약 메모:
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
 
-### 2.5 Friend Foundation
+### 2.5 Friend
 
 | 테이블 | 설명 | 예상 레코드 수 |
 |--------|------|---------------|
 | `friend_profiles` | 회원별 친구 공개 식별자·검색 공개 설정·현재 코드 참조 | 활성 회원 수와 동일 |
 | `friend_code_registry` | ACTIVE·RETIRED 친구 코드의 영구 미재사용 registry | 재발급 횟수에 비례 |
+| `friend_requests` | 요청의 PENDING·terminal 이력. 현재 PENDING pair는 한 건만 허용 | 친구 요청량에 비례 |
+| `friendships` | 정렬된 두 Member ID의 상호 친구 관계 | 친구 관계 수 |
+| `friend_preferences` | 소유자 방향의 즐겨찾기 설정 | 친구 관계의 최대 2배 |
+| `member_blocks` | 차단자 방향의 소셜 차단 관계 | 차단 수 |
 
 **friend_profiles 테이블 상세:**
 
@@ -965,6 +1008,30 @@ Taxi history 계약 메모:
 | retired_at | DATETIME | NULL | 재발급·탈퇴 폐기 시각 |
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
+
+**friend_requests 테이블 상세:**
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|------|------|---------|------|
+| id | VARCHAR(36) | PK | 친구 요청 식별자 |
+| requester_id | VARCHAR(36) | NOT NULL | 요청자 내부 ID. 외부 API 미노출 |
+| recipient_id | VARCHAR(36) | NOT NULL | 수신자 내부 ID. 외부 API 미노출 |
+| status | VARCHAR(20) | NOT NULL | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
+| expires_at | DATETIME | NOT NULL | 생성 시각 기준 30일 후 |
+| responded_at | DATETIME | NULL | terminal 전이 시각 |
+| active_pair_key | VARCHAR(73) | UK, NULL | 정렬된 pair. PENDING일 때만 non-null |
+| created_at | DATETIME | NOT NULL | 생성일 |
+| updated_at | DATETIME | NOT NULL | 수정일 |
+
+`recipient_id,status,created_at`, `requester_id,status,created_at` 인덱스로 받은·보낸 PENDING cursor 목록을 지원한다.
+
+**friendships / friend_preferences / member_blocks 테이블 상세:**
+
+| 테이블 | 핵심 컬럼·제약 | 설명 |
+|------|------|------|
+| friendships | `member_low_id`, `member_high_id` pair unique | 두 내부 ID를 오름차순으로 저장해 상호 친구를 한 행으로 표현 |
+| friend_preferences | `(owner_member_id, friend_member_id)` composite PK | 즐겨찾기는 소유자 방향별 독립 설정 |
+| member_blocks | `(blocker_id, blocked_id)` composite PK | 차단은 단방향이며 차단 시 관계·PENDING 요청을 정리 |
 
 ### 2.6 Board 도메인
 
@@ -1420,7 +1487,7 @@ CREATE INDEX idx_audit_logs_target ON admin_audit_logs(target_type, target_id);
 CREATE INDEX idx_audit_logs_timestamp ON admin_audit_logs(timestamp DESC);
 ```
 
-### 4.11 Friend Foundation
+### 4.11 Friend
 
 ```sql
 -- friend_profiles
@@ -1430,6 +1497,14 @@ CREATE UNIQUE INDEX uk_friend_profiles_active_code ON friend_profiles(active_fri
 -- friend_code_registry
 CREATE UNIQUE INDEX uk_friend_code_registry_normalized_code ON friend_code_registry(normalized_code);
 CREATE UNIQUE INDEX uk_friend_code_registry_owner_member ON friend_code_registry(owner_member_id);
+
+-- friend_requests
+CREATE UNIQUE INDEX uk_friend_requests_active_pair ON friend_requests(active_pair_key);
+CREATE INDEX idx_friend_requests_recipient_status_created ON friend_requests(recipient_id, status, created_at);
+CREATE INDEX idx_friend_requests_requester_status_created ON friend_requests(requester_id, status, created_at);
+
+-- friendships
+CREATE UNIQUE INDEX uk_friendships_member_pair ON friendships(member_low_id, member_high_id);
 ```
 
 ---
@@ -1443,6 +1518,7 @@ CREATE UNIQUE INDEX uk_friend_code_registry_owner_member ON friend_code_registry
 ---
 
 > **문서 이력**
+> - 2026-08-18: Friend 관계 Core 테이블 추가 — `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`와 PENDING pair unique·cursor 인덱스를 반영
 > - 2026-08-18: Friend Foundation 테이블 추가 — `friend_profiles`, `friend_code_registry`의 공개 식별자·ACTIVE/RETIRED 영구 코드 registry와 unique 제약을 반영
 > - 2026-03-30: Minecraft 도메인 테이블 추가 — `minecraft_accounts`, `minecraft_server_state`, `minecraft_online_players`, `minecraft_bridge_events`와 관련 인덱스, chat sender key/Minotar 전제를 반영
 > - 2026-02-03: 초안 작성
