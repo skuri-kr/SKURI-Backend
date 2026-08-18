@@ -7445,7 +7445,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 성공 응답은 `friendPublicId`, `nickname`, `photoUrl`, `department`, `canSendFriendRequest`만 포함한다. 현재 Foundation 단계의 `canSendFriendRequest`는 유효한 타인 코드인지 여부만 나타내며, 친구 관계·PENDING·차단 검증은 후속 요청 단위에서 추가한다.
 
-잘못되었거나 폐기된 코드는 모두 `404 FRIEND_CODE_NOT_FOUND`로 처리한다. 자신의 코드는 `400 FRIEND_SELF_NOT_ALLOWED`다.
+잘못되었거나 폐기된 코드는 `404 FRIEND_CODE_NOT_FOUND`로 처리한다. 인증된 UID에 가입한 ACTIVE 회원이 없으면 코드 확인 전 `404 MEMBER_NOT_FOUND`를 반환한다. 자신의 코드는 `400 FRIEND_SELF_NOT_ALLOWED`다.
 
 ### 14.3 닉네임 검색 공개 설정
 
