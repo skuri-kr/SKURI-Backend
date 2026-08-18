@@ -111,6 +111,11 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         assertTrue(paths.has("/v1/friends/me/code/regenerate"));
         assertTrue(paths.has("/v1/friend-codes/preview"));
         assertTrue(paths.has("/v1/friends/me/privacy"));
+        assertTrue(paths.has("/v1/friends"));
+        assertTrue(paths.has("/v1/friends/search"));
+        assertTrue(paths.has("/v1/friend-requests"));
+        assertTrue(paths.has("/v1/friends/blocks"));
+        assertTrue(paths.has("/v1/friends/inbox-counts"));
 
         JsonNode regenerate429 = paths.path("/v1/friends/me/code/regenerate")
                 .path("post")
@@ -128,6 +133,16 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
                 .path("examples");
         assertTrue(preview404Examples.has("FRIEND_CODE_NOT_FOUND"));
         assertTrue(preview404Examples.has("MEMBER_NOT_FOUND"));
+
+        JsonNode requestMutationExamples = paths.path("/v1/friend-requests")
+                .path("post")
+                .path("responses")
+                .path("200")
+                .path("content")
+                .path("application/json")
+                .path("examples");
+        assertTrue(requestMutationExamples.has("PENDING"));
+        assertTrue(requestMutationExamples.has("ACCEPTED"));
     }
 
     private JsonNode apiDocs() throws Exception {
