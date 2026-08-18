@@ -24,7 +24,8 @@ import java.time.LocalDateTime;
         uniqueConstraints = @UniqueConstraint(name = "uk_friend_requests_active_pair", columnNames = "active_pair_key"),
         indexes = {
                 @Index(name = "idx_friend_requests_recipient_status_created", columnList = "recipient_id,status,created_at"),
-                @Index(name = "idx_friend_requests_requester_status_created", columnList = "requester_id,status,created_at")
+                @Index(name = "idx_friend_requests_requester_status_created", columnList = "requester_id,status,created_at"),
+                @Index(name = "idx_friend_requests_status_expires", columnList = "status,expires_at,id")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
