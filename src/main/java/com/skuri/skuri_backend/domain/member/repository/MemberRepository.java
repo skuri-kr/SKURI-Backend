@@ -62,6 +62,15 @@ public interface MemberRepository extends JpaRepository<Member, String>, MemberR
             """)
     List<Member> findAllActiveByIdInForUpdateOrdered(@Param("memberIds") Collection<String> memberIds);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select m
+            from Member m
+            where m.id in :memberIds
+            order by m.id asc
+            """)
+    List<Member> findAllByIdInForUpdateOrdered(@Param("memberIds") Collection<String> memberIds);
+
     @Query("""
             select m.id
             from Member m

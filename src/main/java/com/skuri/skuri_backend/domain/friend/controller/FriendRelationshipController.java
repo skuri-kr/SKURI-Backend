@@ -77,7 +77,7 @@ public class FriendRelationshipController {
     @Operation(summary = "친구 상세 조회")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiFriendSchemas.FriendSummaryApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.SUCCESS_FRIEND_LIST))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiFriendSchemas.FriendSummaryApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.SUCCESS_FRIEND_DETAIL))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상이 없거나 친구 관계가 아님",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
                             @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND),
@@ -204,11 +204,8 @@ public class FriendRelationshipController {
     ) {
         String memberId = memberId(authenticatedMember);
         FriendRelationshipService.FriendRequestCreationResult result = friendRelationshipService.createRequest(memberId, request.friendPublicId());
-        FriendSummaryResponse friend = result.accepted()
-                ? friendRelationshipQueryService.getFriendByMemberId(memberId, result.friendMemberId())
-                : null;
         return ResponseEntity.ok(ApiResponse.success(new FriendRequestMutationResponse(
-                result.accepted() ? "ACCEPTED" : "PENDING", result.requestId(), friend
+                result.accepted() ? "ACCEPTED" : "PENDING", result.requestId(), result.friend()
         )));
     }
 
@@ -220,7 +217,10 @@ public class FriendRelationshipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "수신자만 처리 가능",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = "{\"success\":false,\"message\":\"친구 요청 수신자만 처리할 수 있습니다.\",\"errorCode\":\"FRIEND_REQUEST_RECIPIENT_REQUIRED\",\"timestamp\":\"2026-08-18T12:00:00\"}"))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "요청 없음 또는 차단 관계",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "FRIEND_REQUEST_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_REQUEST_NOT_FOUND),
+                            @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND)
+                    })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "현재 PENDING이 아닌 요청",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_REQUEST_STATE_NOT_ALLOWED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
@@ -230,10 +230,10 @@ public class FriendRelationshipController {
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember authenticatedMember,
             @PathVariable String requestId
     ) {
-        String memberId = memberId(authenticatedMember);
-        String friendMemberId = friendRelationshipService.acceptRequest(memberId, requestId);
+        FriendRelationshipService.FriendRequestAcceptResult result = friendRelationshipService
+                .acceptRequest(memberId(authenticatedMember), requestId);
         return ResponseEntity.ok(ApiResponse.success(new FriendRequestMutationResponse(
-                "ACCEPTED", requestId, friendRelationshipQueryService.getFriendByMemberId(memberId, friendMemberId)
+                "ACCEPTED", requestId, result.friend()
         )));
     }
 
@@ -243,6 +243,11 @@ public class FriendRelationshipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "거절 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "수신자만 처리 가능",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = "{\"success\":false,\"message\":\"친구 요청 수신자만 처리할 수 있습니다.\",\"errorCode\":\"FRIEND_REQUEST_RECIPIENT_REQUIRED\",\"timestamp\":\"2026-08-18T12:00:00\"}"))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "요청 없음 또는 대상 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "FRIEND_REQUEST_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_REQUEST_NOT_FOUND),
+                            @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND)
+                    })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "현재 PENDING이 아닌 요청",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_REQUEST_STATE_NOT_ALLOWED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
@@ -262,6 +267,11 @@ public class FriendRelationshipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "취소 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "요청자만 취소 가능",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = "{\"success\":false,\"message\":\"친구 요청자만 취소할 수 있습니다.\",\"errorCode\":\"FRIEND_REQUEST_REQUESTER_REQUIRED\",\"timestamp\":\"2026-08-18T12:00:00\"}"))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "요청 없음 또는 대상 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "FRIEND_REQUEST_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_REQUEST_NOT_FOUND),
+                            @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND)
+                    })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "현재 PENDING이 아닌 요청",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_REQUEST_STATE_NOT_ALLOWED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",

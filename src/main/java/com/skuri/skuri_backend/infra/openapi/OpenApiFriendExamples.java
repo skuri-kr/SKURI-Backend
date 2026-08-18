@@ -86,6 +86,19 @@ public final class OpenApiFriendExamples {
             }
             """;
 
+    public static final String SUCCESS_FRIEND_DETAIL = """
+            {
+              "success": true,
+              "data": {
+                "friendPublicId": "2fdbf426-a778-4b6a-8261-9c0549a8b2b4",
+                "nickname": "스쿠리",
+                "department": "컴퓨터공학과",
+                "photoUrl": null,
+                "favorite": true
+              }
+            }
+            """;
+
     public static final String SUCCESS_FRIEND_REQUEST_PENDING = """
             {
               "success": true,
@@ -182,6 +195,8 @@ public final class OpenApiFriendExamples {
             "{\"success\":false,\"message\":\"자기 자신의 친구 코드는 확인할 수 없습니다.\",\"errorCode\":\"FRIEND_SELF_NOT_ALLOWED\",\"timestamp\":\"2026-08-18T12:00:00\"}";
     public static final String ERROR_FRIEND_TARGET_NOT_FOUND =
             "{\"success\":false,\"message\":\"친구 대상을 찾을 수 없습니다.\",\"errorCode\":\"FRIEND_TARGET_NOT_FOUND\",\"timestamp\":\"2026-08-18T12:00:00\"}";
+    public static final String ERROR_FRIEND_REQUEST_NOT_FOUND =
+            "{\"success\":false,\"message\":\"친구 요청을 찾을 수 없습니다.\",\"errorCode\":\"FRIEND_REQUEST_NOT_FOUND\",\"timestamp\":\"2026-08-18T12:00:00\"}";
     public static final String ERROR_FRIEND_REQUEST_ALREADY_PENDING =
             "{\"success\":false,\"message\":\"이미 친구 요청을 보냈습니다.\",\"errorCode\":\"FRIEND_REQUEST_ALREADY_PENDING\",\"timestamp\":\"2026-08-18T12:00:00\"}";
     public static final String ERROR_FRIEND_REQUEST_STATE_NOT_ALLOWED =

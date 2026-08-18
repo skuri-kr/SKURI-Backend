@@ -15,6 +15,8 @@ public interface FriendProfileRepository extends JpaRepository<FriendProfile, St
 
     Optional<FriendProfile> findByPublicId(String publicId);
 
+    Optional<FriendProfile> findByMemberId(String memberId);
+
     List<FriendProfile> findAllByMemberIdIn(Collection<String> memberIds);
 
     @Query("""
@@ -28,7 +30,7 @@ public interface FriendProfileRepository extends JpaRepository<FriendProfile, St
             where m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
               and p.nicknameSearchable = true
               and p.memberId <> :requesterMemberId
-              and lower(m.nickname) like lower(concat('%', :query, '%'))
+              and lower(m.nickname) like lower(concat('%', :escapedQuery, '%')) escape '!'
               and not exists (
                     select b.blockerId
                     from MemberBlock b
@@ -44,7 +46,7 @@ public interface FriendProfileRepository extends JpaRepository<FriendProfile, St
             """)
     List<FriendSearchProjection> findNicknameSearchResults(
             @Param("requesterMemberId") String requesterMemberId,
-            @Param("query") String query,
+            @Param("escapedQuery") String escapedQuery,
             @Param("cursorNickname") String cursorNickname,
             @Param("cursorFriendPublicId") String cursorFriendPublicId,
             org.springframework.data.domain.Pageable pageable

@@ -33,6 +33,7 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,6 +46,7 @@ public class FriendRelationshipQueryService {
 
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 20;
+    private static final int REQUEST_SCAN_BATCH_SIZE = 50;
 
     private final FriendProfileProvisioningService provisioningService;
     private final FriendProfileRepository friendProfileRepository;
@@ -53,6 +55,7 @@ public class FriendRelationshipQueryService {
     private final FriendPreferenceRepository friendPreferenceRepository;
     private final MemberBlockRepository memberBlockRepository;
     private final MemberRepository memberRepository;
+    private final FriendRequestTransitionService friendRequestTransitionService;
 
     @Transactional
     public List<FriendSummaryResponse> getFriends(String ownerMemberId) {
@@ -102,7 +105,8 @@ public class FriendRelationshipQueryService {
         if (isBlockedPair(ownerMemberId, friend.memberId())) {
             throw new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND);
         }
-        if (friendshipRepository.findByMemberPair(lowMemberId(ownerMemberId, friend.memberId()), highMemberId(ownerMemberId, friend.memberId())).isEmpty()) {
+        FriendMemberPair pair = FriendMemberPair.of(ownerMemberId, friend.memberId());
+        if (friendshipRepository.findByMemberPair(pair.lowMemberId(), pair.highMemberId()).isEmpty()) {
             throw new BusinessException(ErrorCode.FRIENDSHIP_NOT_FOUND);
         }
         boolean favorite = friendPreferenceRepository
@@ -117,22 +121,41 @@ public class FriendRelationshipQueryService {
         provisioningService.ensureForActiveMember(requesterMemberId);
         int pageSize = resolveSize(size);
         SearchCursor searchCursor = decodeSearchCursor(cursor, query);
+        String escapedQuery = escapeLike(query);
         List<FriendSearchProjection> fetched = friendProfileRepository.findNicknameSearchResults(
                 requesterMemberId,
-                query,
+                escapedQuery,
                 searchCursor == null ? null : searchCursor.nickname(),
                 searchCursor == null ? null : searchCursor.friendPublicId(),
                 PageRequest.of(0, pageSize + 1)
         );
         boolean hasNext = fetched.size() > pageSize;
         List<FriendSearchProjection> page = hasNext ? fetched.subList(0, pageSize) : fetched;
+        Set<String> candidateMemberIds = page.stream()
+                .map(FriendSearchProjection::getMemberId)
+                .collect(Collectors.toSet());
+        Set<String> existingFriendMemberIds = candidateMemberIds.isEmpty()
+                ? Set.of()
+                : Set.copyOf(friendshipRepository
+                .findFriendMemberIdsByOwnerMemberIdAndCandidateMemberIds(requesterMemberId, candidateMemberIds));
+        Set<String> activePairKeys = candidateMemberIds.stream()
+                .map(candidateMemberId -> FriendMemberPair.of(requesterMemberId, candidateMemberId).activePairKey())
+                .collect(Collectors.toSet());
+        LocalDateTime now = LocalDateTime.now();
+        Set<String> pendingPairKeys = activePairKeys.isEmpty()
+                ? Set.of()
+                : friendRequestRepository.findAllByActivePairKeyIn(activePairKeys).stream()
+                .filter(request -> !request.isExpiredAt(now))
+                .map(FriendRequest::getActivePairKey)
+                .collect(Collectors.toSet());
         List<FriendSearchResultResponse> items = page.stream()
                 .map(result -> new FriendSearchResultResponse(
                         result.getFriendPublicId(),
                         result.getNickname(),
                         result.getDepartment(),
                         result.getPhotoUrl(),
-                        canSendFriendRequest(requesterMemberId, result.getMemberId())
+                        !existingFriendMemberIds.contains(result.getMemberId())
+                                && !pendingPairKeys.contains(FriendMemberPair.of(requesterMemberId, result.getMemberId()).activePairKey())
                 ))
                 .toList();
         String nextCursor = null;
@@ -153,14 +176,7 @@ public class FriendRelationshipQueryService {
         provisioningService.ensureForActiveMember(memberId);
         int pageSize = resolveSize(size);
         RequestCursor requestCursor = decodeRequestCursor(cursor, direction);
-        List<FriendRequest> requests = direction == FriendRequestDirection.RECEIVED
-                ? friendRequestRepository.findAllByRecipientIdAndStatusOrderByCreatedAtDescIdDesc(memberId, FriendRequestStatus.PENDING)
-                : friendRequestRepository.findAllByRequesterIdAndStatusOrderByCreatedAtDescIdDesc(memberId, FriendRequestStatus.PENDING);
-        List<FriendRequest> pending = requests.stream()
-                .filter(request -> reconcileExpiration(request))
-                .filter(request -> isAfterRequestCursor(request, requestCursor))
-                .limit(pageSize + 1L)
-                .toList();
+        List<FriendRequest> pending = findPendingRequests(memberId, direction, requestCursor, pageSize);
         boolean hasNext = pending.size() > pageSize;
         List<FriendRequest> page = hasNext ? pending.subList(0, pageSize) : pending;
         Set<String> counterpartIds = page.stream()
@@ -200,9 +216,11 @@ public class FriendRelationshipQueryService {
     @Transactional
     public FriendInboxCountsResponse getInboxCounts(String memberId) {
         provisioningService.ensureForActiveMember(memberId);
-        List<FriendRequest> requests = friendRequestRepository
-                .findAllByRecipientIdAndStatusOrderByCreatedAtDescIdDesc(memberId, FriendRequestStatus.PENDING);
-        int incomingRequestCount = (int) requests.stream().filter(this::reconcileExpiration).count();
+        int incomingRequestCount = Math.toIntExact(friendRequestRepository.countByRecipientIdAndStatusAndExpiresAtAfter(
+                memberId,
+                FriendRequestStatus.PENDING,
+                LocalDateTime.now()
+        ));
         return new FriendInboxCountsResponse(incomingRequestCount, 0, 0, incomingRequestCount);
     }
 
@@ -217,36 +235,21 @@ public class FriendRelationshipQueryService {
         if (requesterMemberId.equals(targetMemberId) || isBlockedPair(requesterMemberId, targetMemberId)) {
             return false;
         }
-        String lowMemberId = lowMemberId(requesterMemberId, targetMemberId);
-        String highMemberId = highMemberId(requesterMemberId, targetMemberId);
-        if (friendshipRepository.findByMemberPair(lowMemberId, highMemberId).isPresent()) {
+        FriendMemberPair pair = FriendMemberPair.of(requesterMemberId, targetMemberId);
+        if (friendshipRepository.findByMemberPair(pair.lowMemberId(), pair.highMemberId()).isPresent()) {
             return false;
         }
-        return friendRequestRepository.findByActivePairKey(activePairKey(lowMemberId, highMemberId))
+        return friendRequestRepository.findByActivePairKey(pair.activePairKey())
                 .map(request -> request.isExpiredAt(LocalDateTime.now()))
                 .orElse(true);
     }
 
     private boolean reconcileExpiration(FriendRequest snapshot) {
-        LocalDateTime now = LocalDateTime.now();
-        if (!snapshot.isExpiredAt(now)) {
+        if (!snapshot.isExpiredAt(LocalDateTime.now())) {
             return true;
         }
-        List<Member> members = memberRepository.findAllActiveByIdInForUpdateOrdered(
-                Set.of(snapshot.getRequesterId(), snapshot.getRecipientId())
-        );
-        if (members.size() != 2) {
-            return false;
-        }
-        FriendRequest request = friendRequestRepository.findByIdForUpdate(snapshot.getId()).orElse(null);
-        if (request == null || !request.isPending()) {
-            return false;
-        }
-        if (request.isExpiredAt(now)) {
-            request.expire(now);
-            return false;
-        }
-        return true;
+        friendRequestTransitionService.expireRequestIfNeeded(snapshot.getId());
+        return false;
     }
 
     private FriendRequestItemResponse toRequestItem(FriendRequest request, PublicMember friend) {
@@ -293,14 +296,6 @@ public class FriendRelationshipQueryService {
             return DEFAULT_PAGE_SIZE;
         }
         return Math.min(Math.max(1, size), MAX_PAGE_SIZE);
-    }
-
-    private boolean isAfterRequestCursor(FriendRequest request, RequestCursor cursor) {
-        if (cursor == null) {
-            return true;
-        }
-        int createdAtComparison = request.getCreatedAt().compareTo(cursor.createdAt());
-        return createdAtComparison < 0 || (createdAtComparison == 0 && request.getId().compareTo(cursor.requestId()) < 0);
     }
 
     private String otherPartyId(FriendRequest request, String memberId) {
@@ -357,16 +352,54 @@ public class FriendRelationshipQueryService {
         }
     }
 
-    private String lowMemberId(String firstMemberId, String secondMemberId) {
-        return firstMemberId.compareTo(secondMemberId) <= 0 ? firstMemberId : secondMemberId;
+    private List<FriendRequest> findPendingRequests(
+            String memberId,
+            FriendRequestDirection direction,
+            RequestCursor requestCursor,
+            int pageSize
+    ) {
+        List<FriendRequest> pending = new ArrayList<>(pageSize + 1);
+        RequestCursor scanCursor = requestCursor;
+
+        while (pending.size() <= pageSize) {
+            List<FriendRequest> batch = direction == FriendRequestDirection.RECEIVED
+                    ? friendRequestRepository.findPendingReceivedAfterCursor(
+                    memberId,
+                    scanCursor == null ? null : scanCursor.createdAt(),
+                    scanCursor == null ? null : scanCursor.requestId(),
+                    PageRequest.of(0, REQUEST_SCAN_BATCH_SIZE)
+            )
+                    : friendRequestRepository.findPendingSentAfterCursor(
+                    memberId,
+                    scanCursor == null ? null : scanCursor.createdAt(),
+                    scanCursor == null ? null : scanCursor.requestId(),
+                    PageRequest.of(0, REQUEST_SCAN_BATCH_SIZE)
+            );
+            if (batch.isEmpty()) {
+                break;
+            }
+
+            for (FriendRequest request : batch) {
+                if (reconcileExpiration(request)) {
+                    pending.add(request);
+                    if (pending.size() > pageSize) {
+                        break;
+                    }
+                }
+            }
+            if (pending.size() > pageSize || batch.size() < REQUEST_SCAN_BATCH_SIZE) {
+                break;
+            }
+            FriendRequest last = batch.getLast();
+            scanCursor = new RequestCursor(last.getCreatedAt(), last.getId());
+        }
+        return pending;
     }
 
-    private String highMemberId(String firstMemberId, String secondMemberId) {
-        return firstMemberId.compareTo(secondMemberId) <= 0 ? secondMemberId : firstMemberId;
-    }
-
-    private String activePairKey(String lowMemberId, String highMemberId) {
-        return lowMemberId + ":" + highMemberId;
+    private String escapeLike(String query) {
+        return query.replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_");
     }
 
     public enum FriendRequestDirection {

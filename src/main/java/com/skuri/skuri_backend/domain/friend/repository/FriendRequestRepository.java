@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,16 +26,50 @@ public interface FriendRequestRepository extends JpaRepository<FriendRequest, St
     @Query("select r from FriendRequest r where r.id = :requestId")
     Optional<FriendRequest> findByIdForUpdate(@Param("requestId") String requestId);
 
-    long countByRecipientIdAndStatus(String recipientId, FriendRequestStatus status);
-
-    List<FriendRequest> findAllByRecipientIdAndStatusOrderByCreatedAtDescIdDesc(
-            String recipientId,
-            FriendRequestStatus status
+    @Query("""
+            select r
+            from FriendRequest r
+            where r.recipientId = :memberId
+              and r.status = com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus.PENDING
+              and (
+                    :cursorCreatedAt is null
+                    or r.createdAt < :cursorCreatedAt
+                    or (r.createdAt = :cursorCreatedAt and r.id < :cursorRequestId)
+              )
+            order by r.createdAt desc, r.id desc
+            """)
+    List<FriendRequest> findPendingReceivedAfterCursor(
+            @Param("memberId") String memberId,
+            @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
+            @Param("cursorRequestId") String cursorRequestId,
+            Pageable pageable
     );
 
-    List<FriendRequest> findAllByRequesterIdAndStatusOrderByCreatedAtDescIdDesc(
-            String requesterId,
-            FriendRequestStatus status
+    @Query("""
+            select r
+            from FriendRequest r
+            where r.requesterId = :memberId
+              and r.status = com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus.PENDING
+              and (
+                    :cursorCreatedAt is null
+                    or r.createdAt < :cursorCreatedAt
+                    or (r.createdAt = :cursorCreatedAt and r.id < :cursorRequestId)
+              )
+            order by r.createdAt desc, r.id desc
+            """)
+    List<FriendRequest> findPendingSentAfterCursor(
+            @Param("memberId") String memberId,
+            @Param("cursorCreatedAt") LocalDateTime cursorCreatedAt,
+            @Param("cursorRequestId") String cursorRequestId,
+            Pageable pageable
+    );
+
+    List<FriendRequest> findAllByActivePairKeyIn(Collection<String> activePairKeys);
+
+    long countByRecipientIdAndStatusAndExpiresAtAfter(
+            String recipientId,
+            FriendRequestStatus status,
+            LocalDateTime expiresAt
     );
 
     @Query("""

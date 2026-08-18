@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 
 public interface FriendshipRepository extends JpaRepository<Friendship, String> {
@@ -43,4 +44,18 @@ public interface FriendshipRepository extends JpaRepository<Friendship, String> 
             order by f.createdAt asc, f.id asc
             """)
     List<Friendship> findAllByMemberId(@Param("memberId") String memberId);
+
+    @Query("""
+            select case
+                    when f.memberLowId = :ownerMemberId then f.memberHighId
+                    else f.memberLowId
+                   end
+            from Friendship f
+            where (f.memberLowId = :ownerMemberId and f.memberHighId in :candidateMemberIds)
+               or (f.memberHighId = :ownerMemberId and f.memberLowId in :candidateMemberIds)
+            """)
+    List<String> findFriendMemberIdsByOwnerMemberIdAndCandidateMemberIds(
+            @Param("ownerMemberId") String ownerMemberId,
+            @Param("candidateMemberIds") Collection<String> candidateMemberIds
+    );
 }
