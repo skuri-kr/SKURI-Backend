@@ -38,6 +38,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         FriendCodeRegenerationAttemptService.class,
         FriendMemberPairLockService.class,
         FriendSummarySnapshotFactory.class,
+        FriendRequestTransitionPreflightService.class,
+        FriendRequestTransitionMutationService.class,
         FriendRequestTransitionService.class,
         FriendRequestExpiryService.class,
         FriendRelationshipService.class,

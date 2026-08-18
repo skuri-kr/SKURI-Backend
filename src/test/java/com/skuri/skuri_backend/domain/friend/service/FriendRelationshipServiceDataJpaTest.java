@@ -12,12 +12,15 @@ import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
+import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +29,12 @@ import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 @DataJpaTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -36,6 +45,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         FriendProfileProvisioningService.class,
         FriendMemberPairLockService.class,
         FriendSummarySnapshotFactory.class,
+        FriendRequestTransitionPreflightService.class,
+        FriendRequestTransitionMutationService.class,
         FriendRequestTransitionService.class,
         FriendRequestExpiryService.class,
         FriendRequestExpirationScheduler.class,
@@ -56,7 +67,7 @@ class FriendRelationshipServiceDataJpaTest {
     @Autowired
     private FriendCodeRegistryRepository friendCodeRegistryRepository;
 
-    @Autowired
+    @MockitoSpyBean
     private FriendRequestRepository friendRequestRepository;
 
     @Autowired
@@ -201,6 +212,21 @@ class FriendRelationshipServiceDataJpaTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(error -> ((BusinessException) error).getErrorCode())
                 .isEqualTo(ErrorCode.FRIEND_REQUEST_REQUESTER_REQUIRED);
+        assertPending(requestId);
+    }
+
+    @Test
+    void 등록되지않은호출자는_요청조회전에_MEMBER_NOT_FOUND를반환한다() {
+        FriendPair pair = createPair();
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+
+        assertThatThrownBy(() -> friendRelationshipService.acceptRequest("unknown-member", requestId))
+                .isInstanceOf(MemberNotFoundException.class);
+        assertThatThrownBy(() -> friendRelationshipService.declineRequest("unknown-member", requestId))
+                .isInstanceOf(MemberNotFoundException.class);
+        assertThatThrownBy(() -> friendRelationshipService.cancelRequest("unknown-member", requestId))
+                .isInstanceOf(MemberNotFoundException.class);
+
         assertPending(requestId);
     }
 
@@ -563,6 +589,36 @@ class FriendRelationshipServiceDataJpaTest {
         ).items()).isEmpty();
         assertThat(friendRequestRepository.findById(requestId)).get()
                 .extracting(request -> request.getStatus()).isEqualTo(FriendRequestStatus.PENDING);
+    }
+
+    @Test
+    void 요청목록은_탈퇴상대요청을_DB에서제외하고_유효요청을한번에조회한다() {
+        saveMember("recipient", "recipient@sungkyul.ac.kr", "수신자");
+        String recipientPublicId = provisioningService.ensureForActiveMember("recipient").getPublicId();
+        saveMember("valid-sender", "valid@sungkyul.ac.kr", "유효발신자");
+        provisioningService.ensureForActiveMember("valid-sender");
+        String validRequestId = friendRelationshipService.createRequest("valid-sender", recipientPublicId).requestId();
+
+        for (int index = 1; index <= 51; index++) {
+            String memberId = "withdrawn-sender-" + index;
+            saveMember(memberId, "withdrawn" + index + "@sungkyul.ac.kr", "탈퇴발신자" + index);
+            provisioningService.ensureForActiveMember(memberId);
+            friendRelationshipService.createRequest(memberId, recipientPublicId);
+            Member member = memberRepository.findById(memberId).orElseThrow();
+            member.withdraw(LocalDateTime.now());
+            memberRepository.saveAndFlush(member);
+        }
+
+        reset(friendRequestRepository);
+
+        var page = friendRelationshipQueryService.getRequests(
+                "recipient", FriendRelationshipQueryService.FriendRequestDirection.RECEIVED, null, 1
+        );
+
+        assertThat(page.items()).singleElement().extracting(item -> item.requestId()).isEqualTo(validRequestId);
+        verify(friendRequestRepository, times(1)).findPendingReceivedAfterCursor(
+                eq("recipient"), nullable(LocalDateTime.class), nullable(String.class), any(Pageable.class)
+        );
     }
 
     @Test
