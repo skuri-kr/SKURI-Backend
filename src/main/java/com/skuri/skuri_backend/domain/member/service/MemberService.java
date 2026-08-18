@@ -3,6 +3,7 @@ package com.skuri.skuri_backend.domain.member.service;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.chat.service.ChatService;
+import com.skuri.skuri_backend.domain.friend.service.FriendProfileProvisioningService;
 import com.skuri.skuri_backend.domain.image.service.ProfileImageStorageService;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberBankAccountRequest;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberNotificationSettingsRequest;
@@ -44,10 +45,12 @@ public class MemberService {
     private final ChatService chatService;
     private final ProfileImageStorageService profileImageStorageService;
     private final DepartmentService departmentService;
+    private final FriendProfileProvisioningService friendProfileProvisioningService;
 
     // Intentionally non-transactional: insert 충돌(DataIntegrityViolationException) 이후
     // 복구 조회를 새로운 JPA 세션/트랜잭션에서 수행해 Session 오염을 피한다.
     public MemberUpsertResult createMember(AuthenticatedMember authenticatedMember) {
+        MemberUpsertResult result;
         try {
             LocalDateTime now = LocalDateTime.now();
             Member createdMember = Member.create(
@@ -58,7 +61,7 @@ public class MemberService {
             );
             memberRepository.insert(createdMember);
             createLinkedAccount(createdMember, authenticatedMember);
-            return MemberUpsertResult.created(toMemberCreateResponse(createdMember));
+            result = MemberUpsertResult.created(toMemberCreateResponse(createdMember));
         } catch (DataIntegrityViolationException e) {
             Member existingMember = memberRepository.findById(authenticatedMember.uid())
                     .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT, "회원 생성 처리 중 충돌이 발생했습니다."));
@@ -66,8 +69,10 @@ public class MemberService {
                 throw new WithdrawnMemberRejoinNotAllowedException();
             }
             createLinkedAccount(existingMember, authenticatedMember);
-            return MemberUpsertResult.existing(toMemberCreateResponse(existingMember));
+            result = MemberUpsertResult.existing(toMemberCreateResponse(existingMember));
         }
+        friendProfileProvisioningService.ensureForActiveMember(result.member().id());
+        return result;
     }
 
     @Transactional

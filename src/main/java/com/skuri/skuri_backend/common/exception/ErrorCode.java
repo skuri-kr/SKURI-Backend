@@ -30,6 +30,12 @@ public enum ErrorCode {
     MEMBER_ACTIVITY_NOT_AVAILABLE_FOR_WITHDRAWN(HttpStatus.CONFLICT, "MEMBER_ACTIVITY_NOT_AVAILABLE_FOR_WITHDRAWN", "탈퇴한 회원의 활동 요약은 조회할 수 없습니다."),
     BANK_ACCOUNT_REQUIRED(HttpStatus.UNPROCESSABLE_CONTENT, "BANK_ACCOUNT_REQUIRED", "계좌 정보 등록 후 이용 가능합니다."),
 
+    // 친구(Friend) 도메인 에러.
+    // 친구 코드와 공개 프로필의 안전한 발급·조회에 사용한다.
+    FRIEND_CODE_NOT_FOUND(HttpStatus.NOT_FOUND, "FRIEND_CODE_NOT_FOUND", "친구 코드를 찾을 수 없습니다."),
+    FRIEND_CODE_REGENERATION_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "FRIEND_CODE_REGENERATION_COOLDOWN", "친구 코드는 24시간에 한 번만 재발급할 수 있습니다."),
+    FRIEND_SELF_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "FRIEND_SELF_NOT_ALLOWED", "자기 자신의 친구 코드는 확인할 수 없습니다."),
+
     // 이미지(Image) 업로드/미디어 도메인 에러.
     // 파일 크기, 해상도, 포맷, 저장 실패처럼 공통 업로드 인프라에서 발생하는 예외를 담당한다.
     IMAGE_DIMENSIONS_EXCEEDED(HttpStatus.UNPROCESSABLE_CONTENT, "IMAGE_DIMENSIONS_EXCEEDED", "이미지 해상도가 허용 범위를 초과했습니다."),
