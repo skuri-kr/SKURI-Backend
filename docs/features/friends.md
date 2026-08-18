@@ -57,6 +57,7 @@
 - 코드 입력과 QR 해석 결과는 부작용 없는 친구 코드 preview API로 확인한다.
 - preview 응답은 friendPublicId, 닉네임, 프로필 사진, 학과와 현재 요청 가능 상태만 제공하며 친구 요청을 생성하지 않는다.
 - 사용자가 확인 화면에서 발송을 누른 뒤 preview 응답의 friendPublicId로 별도 친구 요청을 생성한다.
+- 요청자와 대상 사이 어느 방향으로든 차단이 있으면 preview를 거부하고, 잘못되거나 폐기된 코드와 같은 일반적인 대상 없음 응답을 사용해 차단 여부를 노출하지 않는다.
 - URL 딥링크는 QR payload에 포함하지 않는다.
 
 ### 2.3 닉네임 검색
@@ -67,6 +68,7 @@
 - 닉네임 2글자 이상 부분 일치로 검색하며 최대 20건을 반환한다.
 - 닉네임은 고유하지 않으므로 결과에는 프로필 사진과 학과를 함께 제공한다.
 - 이메일, 실명, 학번, Firebase UID는 검색 결과에 노출하지 않는다.
+- 검색 결과의 공개 식별자 필드명은 friendPublicId로 통일한다.
 - 차단 관계는 양방향 모두 검색 결과에서 제외한다.
 
 ### 2.4 즐겨찾기와 정렬
@@ -136,7 +138,9 @@
 - 수신자는 초대자의 현재 친구여야 한다.
 - 학과방 등 기존 채팅방 입장 자격을 발송 및 수락 시점에 모두 검증한다.
 - 공개방 초대는 생성 후 7일이 지나면 만료된다.
-- 방 삭제, 비공개 전환, 기존 참여, 친구 해제, 차단, 초대자 탈퇴 시 더 이상 수락할 수 없다.
+- 방 삭제, 비공개 전환, 정원 마감, 기존 참여, 친구 해제, 차단, 초대자 탈퇴 시 PENDING 초대를 EXPIRED로 확정한다.
+- 정원이 다시 생기거나 최대 인원이 늘어나도 EXPIRED 초대는 복원하지 않으며 새 초대를 발송해야 한다.
+- 방 상태·정원·참여자·친구 관계 변경 시 선제적으로 만료시키고, 받은 초대 목록·badge count·수락 처리에서도 누락된 만료를 재검증한다.
 
 ### 2.8 마인크래프트 계정 노출
 
@@ -161,7 +165,7 @@
 
 - 차단은 차단자 기준 단방향 관계다.
 - 차단 시 기존 친구 관계, 양방향 PENDING 친구 요청, 친구 기반 택시·공개방 초대를 정리한다.
-- 차단 관계에서는 친구 검색, 요청, 친구 상세, 친구 시간표, 마인크래프트 계정, 택시·채팅 초대를 제공하지 않는다.
+- 차단 관계에서는 친구 코드 preview, 친구 검색, 요청, 친구 상세, 친구 시간표, 마인크래프트 계정, 택시·채팅 초대를 제공하지 않는다.
 - 차단 해제 후 친구 관계와 공유 설정은 자동 복원하지 않는다.
 - V1에서는 공개 게시판과 공개 채팅의 기존 콘텐츠를 전역 필터링하지 않는다.
 
@@ -262,6 +266,7 @@ Friend 도메인은 다른 도메인의 내부 엔티티를 직접 수정하지 
 | rotated_at | 재발급 시각 |
 
 public_id와 friend_code는 members.id 또는 Firebase UID에서 파생하지 않는다. 모바일과 외부 API는 members.id를 친구 식별자로 노출하지 않는다.
+코드 preview, 닉네임 검색, 요청 생성, 친구·차단 목록과 상세에서 이 공개 ID의 JSON·path field 명칭은 friendPublicId로 통일한다.
 
 ### 6.2 friend_requests
 
@@ -402,8 +407,11 @@ PENDING ── 수락 성공 ──> ACCEPTED + 파티 참여
 PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
    ├────── 거절 ──> DECLINED
    ├────── 발송자 취소 ──> CANCELED
-   └────── 7일 경과·자격 상실·방 상태 변경 ──> EXPIRED
+   ├────── 7일 경과·자격 상실·방 상태 변경 ──> EXPIRED
+   └────── 정원 마감·기존 참여 ──> EXPIRED
 ~~~
+
+정원 제한이 있는 공개방이 가득 차는 순간 남아 있는 PENDING 초대를 EXPIRED로 전환한다. 초대 목록·badge count·수락 진입 시에도 lazy reconciliation으로 같은 terminal 조건을 적용하며, 자리 발생이나 최대 인원 증가로 EXPIRED를 복원하지 않는다.
 
 ---
 
@@ -411,6 +419,7 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 
 | 기능 | 요구 조건 | 서버 최종 검증 |
 | --- | --- | --- |
+| 친구 코드 preview | 인증 ACTIVE 회원 | 유효 코드, self 아님, 양방향 차단 아님. 차단은 일반 대상 없음으로 응답 |
 | 닉네임 검색 | 인증 ACTIVE 회원 | 검색 허용, 차단 아님 |
 | 친구 요청 | 인증 ACTIVE 회원 | self·기존 친구·중복 PENDING·차단 아님 |
 | 친구 상세 | 상호 친구 | ACTIVE 관계와 차단 없음 |
@@ -419,7 +428,7 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 | 택시 초대 | OPEN 파티 참가자 | 친구, 대상 참여 가능, 중복 초대 아님 |
 | 택시 수락 | 초대 수신자 | 파티 lock 후 OPEN·정원·활성 파티 재검증 |
 | 공개방 초대 | 공개방 참가자 | 공개 non-PARTY, 친구, 입장 자격 |
-| 공개방 수락 | 초대 수신자 | 만료·방 상태·입장 자격·초대자 참여 재검증 |
+| 공개방 수락 | 초대 수신자 | 만료·방 상태·정원·입장 자격·초대자 참여 재검증 |
 | 즐겨찾기 | 상호 친구 | 설정 소유자 방향만 변경 |
 | 친구 끊기 | 상호 친구 중 한 명 | 양방향 파생 데이터 정리 |
 | 차단 | 인증 ACTIVE 회원 | self 차단 금지, 멱등 처리 |
@@ -456,17 +465,25 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 - primaryMinecraftGameName
 - minecraftAccountCount
 
+inbox-counts 응답:
+
+- incomingRequestCount: 내가 받은 유효 PENDING 친구 요청 수
+- partyInvitationCount: 내가 받은 유효 PENDING 택시파티 초대 수
+- chatRoomInvitationCount: 내가 받은 유효 PENDING 공개방 초대 수
+- totalActionCount: 위 세 값의 합계
+- 내가 보낸 PENDING 친구 요청은 어떤 badge count에도 포함하지 않는다.
+
 ### 9.2 친구 요청
 
 | Method | Path | 설명 |
 | --- | --- | --- |
 | GET | /v1/friend-requests | direction 기준 받은·보낸 요청 |
-| POST | /v1/friend-requests | targetPublicId로 요청 |
+| POST | /v1/friend-requests | friendPublicId로 요청 |
 | POST | /v1/friend-requests/{requestId}/accept | 수락 |
 | POST | /v1/friend-requests/{requestId}/decline | 거절 |
 | DELETE | /v1/friend-requests/{requestId} | 요청자 취소 |
 
-`POST /v1/friend-codes/preview`는 body의 friendCode를 정규화해 공개 프로필과 targetPublicId를 반환하는 부작용 없는 확인 API다. 친구 코드는 query string이나 로그에 원문으로 남기지 않는다. `POST /v1/friend-requests`는 확인·검색 결과의 targetPublicId만 받으며 내부 members.id와 friendCode를 요청 생성 계약에 사용하지 않는다.
+`POST /v1/friend-codes/preview`는 body의 friendCode를 정규화해 공개 프로필과 friendPublicId를 반환하는 부작용 없는 확인 API다. 양방향 차단은 잘못되거나 폐기된 코드와 같은 일반 대상 없음 응답으로 처리한다. 친구 코드는 query string이나 로그에 원문으로 남기지 않는다. `POST /v1/friend-requests`는 확인·검색 결과의 friendPublicId만 받으며 내부 members.id와 friendCode를 요청 생성 계약에 사용하지 않는다.
 
 ### 9.3 차단
 
@@ -474,7 +491,9 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 | --- | --- | --- |
 | GET | /v1/friends/blocks | 내 차단 목록 |
 | POST | /v1/friends/blocks | 회원 차단 |
-| DELETE | /v1/friends/blocks/{memberPublicId} | 차단 해제 |
+| DELETE | /v1/friends/blocks/{friendPublicId} | 차단 해제 |
+
+차단 목록 item은 friendPublicId, 닉네임, 프로필 사진, 학과와 차단 시각을 제공한다. 차단 해제 path는 이 item의 friendPublicId를 사용하며 내부 members.id를 노출하지 않는다.
 
 ### 9.4 시간표 공유
 
@@ -538,8 +557,8 @@ eligible 응답은 이미 참여, 다른 활성 파티, 차단, 중복 PENDING �
 
 ## 10. 동시성, 멱등성, 보안
 
-- 동일 회원 쌍을 변경하는 친구 요청 생성·수락, 친구 관계 삭제, 차단·차단 해제는 두 Member row를 내부 ID 오름차순으로 같은 PESSIMISTIC_WRITE 잠금 경계에서 획득한다.
-- 잠금 획득 후 차단, PENDING 요청과 friendship을 다시 조회하고 조건을 재검증한다. unique constraint는 마지막 중복 방어선이며 공통 잠금을 대체하지 않는다.
+- 동일 회원 쌍을 변경하는 친구 요청 생성·수락, 친구 관계 삭제, 차단·차단 해제, 즐겨찾기 변경, 친구별 시간표 override 생성·변경·삭제는 두 Member row를 내부 ID 오름차순으로 같은 PESSIMISTIC_WRITE 잠금 경계에서 획득한다.
+- 잠금 획득 후 차단, PENDING 요청과 friendship을 다시 조회하고 조건을 재검증한다. 즐겨찾기와 시간표 override는 ACTIVE friendship이 없으면 쓰지 않는다. unique constraint는 마지막 중복 방어선이며 공통 잠금을 대체하지 않는다.
 - 친구 관계를 전제로 하는 택시파티·공개방 초대 생성과 수락도 같은 회원 쌍 잠금 또는 동등한 pair serialization 경계 안에서 친구·차단 상태를 재검증한다.
 - 양방향 동시 요청은 friendship 한 건만 만든다.
 - 같은 요청·초대의 accept 재호출은 이미 성공한 동일 수신자라면 멱등 응답을 우선한다.
@@ -607,17 +626,20 @@ eligible 응답은 이미 참여, 다른 활성 파티, 차단, 중복 PENDING �
 ### 14.1 백엔드 자동 검증
 
 - 친구 요청 정상, self, 차단, 중복 PENDING, 양방향 동시 요청
-- 친구 코드 preview가 요청을 생성하지 않고 targetPublicId 공개 프로필만 반환하는지 검증
+- 친구 코드 preview가 요청을 생성하지 않고 friendPublicId 공개 프로필만 반환하는지 검증
+- 양방향 차단 시 코드 preview가 일반 대상 없음으로 실패하고 차단 여부를 노출하지 않는지 검증
 - 30일 만료와 만료 요청 수락 차단
 - 친구 요청 수락과 차단 경쟁에서 차단 후 friendship이 남지 않는지 검증
 - 즐겨찾기 방향 독립성과 정렬
+- 즐겨찾기·시간표 override 쓰기와 친구 끊기·차단 경쟁 후 파생 설정이 남지 않는지 검증
 - PRIVATE, BUSY_ONLY, DETAILS projection 필드 미노출 검증
 - 선택 학기 요청·응답 일치와 과거 학기 시간표 없음 상태 검증
 - 친구 해제·차단 후 시간표와 Minecraft 접근 차단
 - OPEN이 아닌 파티 초대 차단
 - 택시 마지막 좌석 동시 수락에서 한 명만 성공
 - 공개 non-PARTY 방만 초대 가능
-- 학과방 입장 자격과 7일 만료
+- 학과방 입장 자격, 7일 만료와 정원 마감 시 EXPIRED·비복원
+- inbox-counts가 받은 PENDING 요청·초대만 합산하고 보낸 요청을 제외하는지 검증
 - 알림 설정 신규·기존 회원 기본 true, 마스터 우선순위와 backfill 검증
 - 알림 설정 off 시 일반 알림 인박스·SSE·FCM 미생성, FriendHub 요청·초대 원본과 PENDING badge 유지
 - 파티 비OPEN·정원 마감·관계 상실 시 PENDING 초대 EXPIRED와 비복원 검증
@@ -662,10 +684,13 @@ eligible 응답은 이미 참여, 다른 활성 파티, 차단, 중복 PENDING �
 - [x] 친구 시간표 요청·응답 학기와 초대 알림 target 계약을 명시했다.
 - [x] 파티 초대 terminal 상태와 친구 쌍 공통 잠금 경계를 명시했다.
 - [x] 친구·초대 알림 설정 필드, 기본값, 우선순위와 backfill을 명시했다.
+- [x] 공개 식별자 field를 friendPublicId로 통일하고 차단 목록·해제 계약을 명시했다.
+- [x] 공개방 정원 마감 초대의 EXPIRED·비복원 정책을 명시했다.
+- [x] 즐겨찾기·시간표 override와 관계 삭제의 공통 pair lock을 명시했다.
 - [x] 예정 API가 현재 운영 API와 구분되어 있다.
 - [x] 실제 코드 구현 승인 gate가 명시되어 있다.
 
-현재 런타임의 docs/api-specification.md, docs/domain-analysis.md, docs/erd.md, docs/role-definition.md에는 미구현 친구 엔티티와 API를 현재형으로 추가하지 않았다. 각 런타임 PR에서 실제 구현과 함께 동기화한다.
+docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 유형의 승인된 계획 도메인으로 표시하고 Phase 14 책임 경계를 동기화했다. 현재 런타임의 docs/api-specification.md와 docs/erd.md에는 미구현 친구 엔티티와 API를 현재형으로 추가하지 않으며 각 런타임 PR에서 실제 구현과 함께 동기화한다.
 
 ---
 
@@ -683,7 +708,10 @@ eligible 응답은 이미 참여, 다른 활성 파티, 차단, 중복 PENDING �
 | 2026-08-18 | 친구의 Minecraft SELF와 모든 FRIEND 계정을 제공하되 최근 접속·온라인 상태는 숨김 |
 | 2026-08-18 | 차단은 소셜 기능에 적용하고 공개 콘텐츠 전역 숨김은 제외 |
 | 2026-08-18 | V1 관리자 친구 관계망 운영 UI는 추가하지 않음 |
-| 2026-08-18 | 친구 코드 preview는 요청 생성과 분리하고 실제 요청은 targetPublicId로 발송 |
+| 2026-08-18 | 친구 코드 preview는 요청 생성과 분리하고 외부 공개 식별자는 friendPublicId로 통일 |
 | 2026-08-18 | 친구 시간표는 선택한 semester를 필수로 요청하고 응답에도 같은 학기를 포함 |
 | 2026-08-18 | 파티 비OPEN·정원 마감·관계 상실 초대는 EXPIRED이며 상태 회복 후에도 복원하지 않음 |
 | 2026-08-18 | 친구·초대 알림은 friendAndInvitationNotifications 단일 설정, 기본 true, allNotifications 우선 |
+| 2026-08-18 | badge는 받은 PENDING 요청·초대만 합산하고 보낸 요청은 제외 |
+| 2026-08-18 | 정원이 찬 공개방 초대는 EXPIRED이며 자리 발생 후에도 복원하지 않음 |
+| 2026-08-18 | Friend는 Supporting 유형의 승인된 계획 도메인으로 기존 기준 문서에 표시 |
