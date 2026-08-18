@@ -19,4 +19,16 @@ public interface FriendProfileRepository extends JpaRepository<FriendProfile, St
     Optional<FriendProfile> findByMemberIdForUpdate(@Param("memberId") String memberId);
 
     long countByMemberIdIn(Collection<String> memberIds);
+
+    @Query("""
+            select count(p)
+            from FriendProfile p
+            where exists (
+                select m.id
+                from Member m
+                where m.id = p.memberId
+                  and m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+            )
+            """)
+    long countForActiveMembers();
 }

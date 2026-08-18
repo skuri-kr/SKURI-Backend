@@ -50,7 +50,10 @@ public class FriendFoundationController {
                             examples = @ExampleObject(value = OpenApiFriendExamples.SUCCESS_MY_FRIEND_CODE))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
+                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND)))
     })
     public ResponseEntity<ApiResponse<FriendCodeResponse>> getMyCode(
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember authenticatedMember
@@ -71,7 +74,10 @@ public class FriendFoundationController {
                             examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_CODE_REGENERATION_COOLDOWN))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
+                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND)))
     })
     public ResponseEntity<ApiResponse<FriendCodeResponse>> regenerateMyCode(
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember authenticatedMember
@@ -98,7 +104,10 @@ public class FriendFoundationController {
                             examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_CODE_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "요청 검증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION)))
+                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
     })
     public ResponseEntity<ApiResponse<FriendCodePreviewResponse>> previewCode(
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember authenticatedMember,
@@ -117,7 +126,10 @@ public class FriendFoundationController {
                             examples = @ExampleObject(value = OpenApiFriendExamples.SUCCESS_FRIEND_PRIVACY))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
+                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND)))
     })
     public ResponseEntity<ApiResponse<FriendPrivacyResponse>> getMyPrivacy(
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember authenticatedMember
@@ -141,7 +153,10 @@ public class FriendFoundationController {
                             examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "요청 검증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION)))
+                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND)))
     })
     public ResponseEntity<ApiResponse<FriendPrivacyResponse>> updateMyPrivacy(
             @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember authenticatedMember,

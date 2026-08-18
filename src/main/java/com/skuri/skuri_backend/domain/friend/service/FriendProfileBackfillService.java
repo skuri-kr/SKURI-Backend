@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -25,19 +26,26 @@ public class FriendProfileBackfillService {
 
     @EventListener(ApplicationReadyEvent.class)
     public void backfillActiveMemberProfiles() {
-        List<String> activeMemberIds = memberRepository.findAllMemberIds();
-        for (int start = 0; start < activeMemberIds.size(); start += BATCH_SIZE) {
-            int end = Math.min(start + BATCH_SIZE, activeMemberIds.size());
-            activeMemberIds.subList(start, end).forEach(provisioningService::ensureForActiveMember);
+        long backfilledCount = 0;
+        while (true) {
+            List<String> missingMemberIds = memberRepository.findActiveMemberIdsWithoutFriendProfile(
+                    PageRequest.of(0, BATCH_SIZE)
+            );
+            if (missingMemberIds.isEmpty()) {
+                break;
+            }
+            missingMemberIds.forEach(provisioningService::ensureForActiveMember);
+            backfilledCount += missingMemberIds.size();
         }
 
-        long provisionedCount = activeMemberIds.isEmpty()
-                ? 0
-                : friendProfileRepository.countByMemberIdIn(activeMemberIds);
-        if (provisionedCount != activeMemberIds.size()) {
-            log.error("친구 공개 프로필 backfill 누락: activeMembers={}, profiles={}", activeMemberIds.size(), provisionedCount);
+        long activeMemberCount = memberRepository.countByStatus(
+                com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+        );
+        long provisionedCount = friendProfileRepository.countForActiveMembers();
+        if (provisionedCount != activeMemberCount) {
+            log.error("친구 공개 프로필 backfill 누락: activeMembers={}, profiles={}", activeMemberCount, provisionedCount);
             return;
         }
-        log.info("친구 공개 프로필 backfill 완료: {}건", provisionedCount);
+        log.info("친구 공개 프로필 backfill 완료: {}건, 기존 프로필 유지: {}건", backfilledCount, provisionedCount - backfilledCount);
     }
 }

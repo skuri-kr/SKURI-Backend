@@ -194,4 +194,12 @@ public class OpenApiConfig {
                 )
                 .build();
     }
+
+    @Bean
+    public GroupedOpenApi friendApi() {
+        return GroupedOpenApi.builder()
+                .group("friend")
+                .pathsToMatch("/v1/friends/**", "/v1/friend-codes/**")
+                .build();
+    }
 }
