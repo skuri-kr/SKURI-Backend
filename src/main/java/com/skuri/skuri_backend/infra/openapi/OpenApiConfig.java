@@ -199,7 +199,7 @@ public class OpenApiConfig {
     public GroupedOpenApi friendApi() {
         return GroupedOpenApi.builder()
                 .group("friend")
-                .pathsToMatch("/v1/friends/**", "/v1/friend-codes/**")
+                .pathsToMatch("/v1/friends/**", "/v1/friend-codes/**", "/v1/friend-requests/**")
                 .build();
     }
 }

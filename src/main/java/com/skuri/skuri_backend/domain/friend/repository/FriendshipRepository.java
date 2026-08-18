@@ -12,6 +12,17 @@ import java.util.Optional;
 
 public interface FriendshipRepository extends JpaRepository<Friendship, String> {
 
+    @Query("""
+            select f
+            from Friendship f
+            where f.memberLowId = :memberLowId
+              and f.memberHighId = :memberHighId
+            """)
+    Optional<Friendship> findByMemberPair(
+            @Param("memberLowId") String memberLowId,
+            @Param("memberHighId") String memberHighId
+    );
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select f

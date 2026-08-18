@@ -31,6 +31,14 @@ public interface MemberRepository extends JpaRepository<Member, String>, MemberR
             """)
     Optional<Member> findActiveById(@Param("memberId") String memberId);
 
+    @Query("""
+            select m
+            from Member m
+            where m.id in :memberIds
+              and m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+            """)
+    List<Member> findAllActiveByIdIn(@Param("memberIds") Collection<String> memberIds);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select m from Member m where m.id = :memberId")
     Optional<Member> findByIdForUpdate(@Param("memberId") String memberId);

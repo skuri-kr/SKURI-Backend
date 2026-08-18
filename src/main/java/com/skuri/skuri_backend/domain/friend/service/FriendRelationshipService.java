@@ -40,7 +40,7 @@ public class FriendRelationshipService {
         provisioningService.ensureForActiveMember(requesterMemberId);
         String targetMemberId = resolveTargetMemberId(targetFriendPublicId);
         if (requesterMemberId.equals(targetMemberId)) {
-            throw new BusinessException(ErrorCode.FRIEND_SELF_NOT_ALLOWED);
+            throw new BusinessException(ErrorCode.FRIEND_SELF_REQUEST_NOT_ALLOWED);
         }
         LockedPair pair = lockActivePair(requesterMemberId, targetMemberId);
         rejectBlockedPair(pair);
@@ -133,6 +133,25 @@ public class FriendRelationshipService {
             throw new BusinessException(ErrorCode.FRIEND_REQUEST_STATE_NOT_ALLOWED);
         }
         request.cancel(now);
+    }
+
+    @Transactional
+    public boolean expireRequestIfNeeded(String requestId) {
+        FriendRequest snapshot = friendRequestRepository.findById(requestId).orElse(null);
+        if (snapshot == null) {
+            return false;
+        }
+        lockActivePair(snapshot.getRequesterId(), snapshot.getRecipientId());
+        FriendRequest request = friendRequestRepository.findByIdForUpdate(requestId).orElse(null);
+        if (request == null || !request.isPending()) {
+            return false;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (!request.isExpiredAt(now)) {
+            return false;
+        }
+        request.expire(now);
+        return true;
     }
 
     @Transactional

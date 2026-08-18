@@ -1,0 +1,12 @@
+package com.skuri.skuri_backend.domain.friend.dto.request;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
+
+@Schema(description = "회원 차단 요청")
+public record CreateMemberBlockRequest(
+        @Schema(description = "차단할 친구 공개 식별자", example = "2fdbf426-a778-4b6a-8261-9c0549a8b2b4")
+        @NotBlank(message = "친구 공개 식별자는 필수입니다.")
+        String friendPublicId
+) {
+}

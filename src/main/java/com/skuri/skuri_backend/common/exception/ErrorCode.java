@@ -35,6 +35,7 @@ public enum ErrorCode {
     FRIEND_CODE_NOT_FOUND(HttpStatus.NOT_FOUND, "FRIEND_CODE_NOT_FOUND", "친구 코드를 찾을 수 없습니다."),
     FRIEND_CODE_REGENERATION_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "FRIEND_CODE_REGENERATION_COOLDOWN", "친구 코드는 24시간에 한 번만 재발급할 수 있습니다."),
     FRIEND_SELF_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "FRIEND_SELF_NOT_ALLOWED", "자기 자신의 친구 코드는 확인할 수 없습니다."),
+    FRIEND_SELF_REQUEST_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "FRIEND_SELF_REQUEST_NOT_ALLOWED", "자기 자신에게 친구 요청을 보낼 수 없습니다."),
     FRIEND_TARGET_NOT_FOUND(HttpStatus.NOT_FOUND, "FRIEND_TARGET_NOT_FOUND", "친구 대상을 찾을 수 없습니다."),
     FRIEND_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "FRIEND_REQUEST_NOT_FOUND", "친구 요청을 찾을 수 없습니다."),
     FRIENDSHIP_NOT_FOUND(HttpStatus.NOT_FOUND, "FRIENDSHIP_NOT_FOUND", "친구 관계를 찾을 수 없습니다."),

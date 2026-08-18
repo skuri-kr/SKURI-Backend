@@ -31,6 +31,7 @@ public class FriendCodeService {
     private final FriendProfileRepository friendProfileRepository;
     private final FriendCodeRegistryRepository friendCodeRegistryRepository;
     private final MemberRepository memberRepository;
+    private final FriendRelationshipQueryService friendRelationshipQueryService;
 
     @Transactional(readOnly = true)
     public FriendCodeResponse getMyCode(String memberId) {
@@ -93,12 +94,15 @@ public class FriendCodeService {
                 .orElseThrow(FriendCodeNotFoundException::new);
         Member member = memberRepository.findActiveById(code.getOwnerMemberId())
                 .orElseThrow(FriendCodeNotFoundException::new);
+        if (friendRelationshipQueryService.isBlockedPair(requesterMemberId, member.getId())) {
+            throw new FriendCodeNotFoundException();
+        }
         return new FriendCodePreviewResponse(
                 profile.getPublicId(),
                 member.getNickname(),
                 member.getPhotoUrl(),
                 member.getDepartment(),
-                true
+                friendRelationshipQueryService.canSendFriendRequest(requesterMemberId, member.getId())
         );
     }
 }
