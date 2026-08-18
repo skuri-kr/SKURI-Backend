@@ -1023,7 +1023,7 @@ Taxi history 계약 메모:
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
 
-`recipient_id,status,created_at`, `requester_id,status,created_at` 인덱스로 받은·보낸 PENDING cursor 목록을 지원한다.
+`recipient_id,status,created_at`, `requester_id,status,created_at` 인덱스로 받은·보낸 PENDING cursor 목록을 지원한다. `status,expires_at,id` 인덱스는 10분 주기 전역 만료 batch의 후보 조회·정렬을 지원한다.
 
 **friendships / friend_preferences / member_blocks 테이블 상세:**
 
@@ -1502,6 +1502,7 @@ CREATE UNIQUE INDEX uk_friend_code_registry_owner_member ON friend_code_registry
 CREATE UNIQUE INDEX uk_friend_requests_active_pair ON friend_requests(active_pair_key);
 CREATE INDEX idx_friend_requests_recipient_status_created ON friend_requests(recipient_id, status, created_at);
 CREATE INDEX idx_friend_requests_requester_status_created ON friend_requests(requester_id, status, created_at);
+CREATE INDEX idx_friend_requests_status_expires ON friend_requests(status, expires_at, id);
 
 -- friendships
 CREATE UNIQUE INDEX uk_friendships_member_pair ON friendships(member_low_id, member_high_id);
