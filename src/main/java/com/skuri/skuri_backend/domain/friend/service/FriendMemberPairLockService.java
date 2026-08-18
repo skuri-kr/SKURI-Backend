@@ -17,9 +17,13 @@ public class FriendMemberPairLockService {
 
     private final MemberRepository memberRepository;
 
+    public void lockActiveMember(String memberId) {
+        memberRepository.findActiveByIdForUpdate(memberId).orElseThrow(MemberNotFoundException::new);
+    }
+
     public FriendMemberPair lockActivePair(String firstMemberId, String secondMemberId) {
         if (firstMemberId.equals(secondMemberId)) {
-            memberRepository.findActiveByIdForUpdate(firstMemberId).orElseThrow(MemberNotFoundException::new);
+            lockActiveMember(firstMemberId);
             return FriendMemberPair.of(firstMemberId, secondMemberId);
         }
 
