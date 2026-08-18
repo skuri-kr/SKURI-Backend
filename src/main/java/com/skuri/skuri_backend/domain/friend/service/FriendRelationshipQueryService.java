@@ -71,12 +71,19 @@ public class FriendRelationshipQueryService {
                 .filter(FriendPreference::isFavorite)
                 .map(FriendPreference::getFriendMemberId)
                 .collect(Collectors.toSet());
+        Set<String> blockedFriendMemberIds = friendMemberIds.isEmpty()
+                ? Set.of()
+                : memberBlockRepository.findBlockedCounterpartIdsByOwnerMemberIdAndCandidateMemberIds(
+                                ownerMemberId,
+                                friendMemberIds
+                        ).stream()
+                        .collect(Collectors.toSet());
 
         Collator koreanCollator = Collator.getInstance(java.util.Locale.KOREAN);
         return friendMemberIds.stream()
                 .map(members::get)
                 .filter(Objects::nonNull)
-                .filter(member -> !isBlockedPair(ownerMemberId, member.memberId()))
+                .filter(member -> !blockedFriendMemberIds.contains(member.memberId()))
                 .sorted(Comparator.<PublicMember, Boolean>comparing(member -> favorites.contains(member.memberId())).reversed()
                         .thenComparing(PublicMember::nickname, koreanCollator)
                         .thenComparing(PublicMember::memberId))
