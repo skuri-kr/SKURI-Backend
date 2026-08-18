@@ -195,6 +195,8 @@ public final class OpenApiFriendExamples {
             "{\"success\":false,\"message\":\"자기 자신의 친구 코드는 확인할 수 없습니다.\",\"errorCode\":\"FRIEND_SELF_NOT_ALLOWED\",\"timestamp\":\"2026-08-18T12:00:00\"}";
     public static final String ERROR_FRIEND_TARGET_NOT_FOUND =
             "{\"success\":false,\"message\":\"친구 대상을 찾을 수 없습니다.\",\"errorCode\":\"FRIEND_TARGET_NOT_FOUND\",\"timestamp\":\"2026-08-18T12:00:00\"}";
+    public static final String ERROR_FRIENDSHIP_NOT_FOUND =
+            "{\"success\":false,\"message\":\"친구 관계를 찾을 수 없습니다.\",\"errorCode\":\"FRIENDSHIP_NOT_FOUND\",\"timestamp\":\"2026-08-18T12:00:00\"}";
     public static final String ERROR_FRIEND_REQUEST_NOT_FOUND =
             "{\"success\":false,\"message\":\"친구 요청을 찾을 수 없습니다.\",\"errorCode\":\"FRIEND_REQUEST_NOT_FOUND\",\"timestamp\":\"2026-08-18T12:00:00\"}";
     public static final String ERROR_FRIEND_REQUEST_ALREADY_PENDING =
