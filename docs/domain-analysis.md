@@ -1,6 +1,6 @@
 # Spring 백엔드 도메인 분석
 
-> 최종 수정일: 2026-04-01
+> 최종 수정일: 2026-08-18
 > 분석 기준: 레거시 Firestore/Cloud Functions 구조 + 현재 RN repository/transport 구조 + 현재 Spring 구현
 
 본 문서는 SKURI Taxi의 레거시 Firebase 구조와 현재 Spring Boot + MySQL 구현을 함께 대조해 정리한 **도메인 분석 결과**입니다.
@@ -66,7 +66,7 @@
 | 6 | **Notice** | Supporting | 학교 공지 크롤링/조회, 앱 공지 | Notice, NoticeComment, AppNotice, NoticeReadStatus, AppNoticeReadStatus |
 | 7 | **Academic** | Generic | 강의 정보, 시간표, 학사 일정 | Course, UserTimetable, AcademicSchedule |
 | 8 | **Support** | Generic | 문의/신고 접수, 앱 버전, 법적 문서, 학식 메뉴 | Inquiry, Report, AppVersion, LegalDocument, CafeteriaMenu |
-| 9 | **Friend** | Supporting | 친구 코드, 검색 허용, 요청, 상호 관계, 즐겨찾기, 친구 끊기, 차단 | FriendProfile, FriendRequest, Friendship, FriendPreference, MemberBlock (계획) |
+| 9 | **Friend** | Supporting | 친구 코드, 검색 허용, 요청, 상호 관계, 즐겨찾기, 친구 끊기, 차단 | FriendProfile, FriendCodeRegistry, FriendRequest, Friendship, FriendPreference, MemberBlock (계획) |
 | - | **Notification** | Infra | 도메인 이벤트 기반 알림 인박스 | UserNotification |
 
 ### 2.2 도메인 유형 정의
@@ -814,7 +814,7 @@ Hooks:
 유형: Supporting
 
 소유 책임:
-  - 친구 코드와 코드 preview
+  - ACTIVE·RETIRED 영구 코드 registry와 코드 preview
   - 닉네임 검색 허용 설정
   - 친구 요청과 상호 friendship
   - 사용자 방향별 즐겨찾기
@@ -823,6 +823,7 @@ Hooks:
 
 계획 엔티티:
   - FriendProfile
+  - FriendCodeRegistry
   - FriendRequest
   - Friendship
   - FriendPreference
@@ -834,7 +835,7 @@ Hooks:
   - 공개방 초대 상태·방 자격·정원: Chat
   - 친구용 계정 projection: Minecraft
   - 알림 인박스·SSE·FCM 전달: Notification 인프라
-  - ACTIVE 회원과 알림 설정: Member
+  - ACTIVE 회원·알림 설정과 탈퇴 orchestration: Member
   - 신고 저장·중복 정책·운영 처리: Support
 ```
 
@@ -902,7 +903,7 @@ Member ◄── Friend ──► Notification
 | TaxiParty ↔ PartyChat | 강결합 | 파티 생성/종료 시 채팅방도 함께 생성/비활성화 |
 | Board, Notice → Member | 약결합 | 작성자 참조만 |
 | Support | 독립 | 공용 데이터, 다른 도메인과 직접 의존 없음 |
-| Friend → Member | 약결합, Phase 14 계획 | ACTIVE 회원과 공개 프로필을 확인하고 내부 회원 ID만 참조 |
+| Friend → Member | 약결합, Phase 14 계획 | 공개 ID 해석 뒤 ordered Member 잠금을 획득하고 요청자·대상이 모두 ACTIVE인지 재확인하며 내부 회원 ID만 참조 |
 | Academic → Friend | 정책 확인, Phase 14 계획 | friendship·차단을 확인한 뒤 Academic이 시간표 공개 projection을 결정 |
 | TaxiParty, Chat → Friend | 정책 확인, Phase 14 계획 | 초대 생성·수락 시 friendship·차단을 재검증하되 초대 상태는 각 도메인이 소유 |
 | Minecraft → Friend | 정책 확인, Phase 14 계획 | friendship·차단 확인 후 Minecraft가 안전 계정 projection을 생성 |
@@ -1759,6 +1760,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
 ---
 
 > **문서 이력**
+> - 2026-08-18: Phase 14 Friend 계획 보완 — 영구 미재사용 코드 registry, 잠금 후 Member ACTIVE 재확인과 탈퇴 orchestration 책임을 반영
 > - 2026-04-06: Admin Chat read API 반영 — 관리자 공개 채팅방 목록/상세/메시지 조회와 관리자 파티 채팅 메시지 조회 책임, membership 우회 범위를 Chat/TaxiParty 협력 규칙에 추가
 > - 2026-03-30: Minecraft 도메인 분석 추가 — 별도 도메인 분리 결정, public/internal API, whitelist/서버 상태/bridge outbox 설계를 반영
 > - 2026-02-03: 초안 작성 (도메인 분석 완료)

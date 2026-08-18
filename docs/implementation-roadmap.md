@@ -1048,6 +1048,7 @@ SSE 운영 제약:
 #### 14-1. 목표
 
 - 친구 코드, QR, 닉네임 검색을 통한 상호 친구 관계 구축
+- 재발급·탈퇴한 친구 코드를 영구 미재사용하는 ACTIVE·RETIRED registry 구축
 - 기존 ACTIVE 회원 FriendProfile backfill과 멱등 provisioning 이후 모바일 노출
 - 즐겨찾기, 친구 끊기, 차단과 요청·초대 badge 제공
 - PRIVATE, BUSY_ONLY, DETAILS 기반 시간표 공유와 친구별 예외
@@ -1057,12 +1058,13 @@ SSE 운영 제약:
 - 친구의 Minecraft SELF와 모든 FRIEND 계정 안전 projection
 - 기존 Notification 인프라를 이용한 친구·초대 인박스, FCM, SSE
 - friendPublicId 전용 진입에서 기존 Support MEMBER 신고 처리 위임
+- 모든 Friend mutation·lazy provisioning에서 Member 잠금 후 양쪽 ACTIVE 상태 재확인
 
 #### 14-2. 도메인 분리
 
 | 영역 | 최종 책임 |
 | --- | --- |
-| friend 신규 도메인 | 코드, cursor 검색, 요청, 관계, 즐겨찾기, 친구 끊기, 차단, friendPublicId 신고 진입 |
+| friend 신규 도메인 | ACTIVE·RETIRED 코드 registry, PENDING cursor 검색, 요청, 관계, 즐겨찾기, 친구 끊기, 차단, friendPublicId 신고 진입 |
 | Academic | 시간표 공유 설정과 허용 범위별 projection |
 | TaxiParty | OPEN 파티 초대, 수락 정원·참여 동시성 |
 | Chat | 공개 non-PARTY 방 초대와 입장 자격 |
@@ -1072,9 +1074,9 @@ SSE 운영 제약:
 
 #### 14-3. 구현 단위
 
-1. Friend schema, provisioning service와 기존 ACTIVE 회원 backfill·누락 0건 검증
-2. Friend 핵심 요청·관계 API와 모든 terminal 전이 잠금
-3. cursor 검색과 friendPublicId 신고 진입
+1. FriendProfile·FriendCodeRegistry schema, 멱등 provisioning service와 기존 ACTIVE 회원 backfill·누락 0건 검증
+2. Friend 핵심 요청·관계 API, 잠금 후 Member ACTIVE 재확인과 모든 terminal 전이 잠금
+3. nicknameSearchable 조회·변경, PENDING 요청 cursor 목록과 friendPublicId 신고 진입
 4. 시간표 공유 설정과 친구 시간표 조회
 5. Minecraft 친구 계정 projection
 6. TaxiParty 수신자별 부분 성공 친구 초대
@@ -1097,8 +1099,11 @@ SSE 운영 제약:
 
 - [ ] 친구 요청 30일 만료, 즉시 재요청, 중복·차단·동시 요청 규칙 검증
 - [ ] 기존 ACTIVE 회원 FriendProfile backfill·멱등 재실행·충돌 재시도·누락 0건 검증
+- [ ] 재발급·탈퇴한 RETIRED 친구 코드의 영구 미재사용과 과거 코드·QR preview 실패 검증
+- [ ] Friend mutation·lazy provisioning과 탈퇴 경쟁에서 잠금 후 ACTIVE 재확인 및 파생 데이터 비복원 검증
 - [ ] 요청·초대 accept와 decline·cancel·expire 경쟁의 단일 terminal 부수효과 검증
-- [ ] 닉네임 cursor 검색 안정 정렬과 다중 초대 수신자별 부분 성공 검증
+- [ ] 닉네임 cursor 검색, privacy GET·PATCH, PENDING 요청 20건 cursor 목록 검증
+- [ ] 다중 초대 수신자별 부분 성공, outcome별 nullable invitationId와 immutable expiryReason 검증
 - [ ] friendPublicId 신고의 내부 ID 미노출과 기존 Support 중복·self 신고 정책 검증
 - [ ] 친구 즐겨찾기와 한글 정렬 검증
 - [ ] 시간표 PRIVATE, BUSY_ONLY, DETAILS 필드 미노출 Contract 검증
@@ -1179,6 +1184,7 @@ Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 ---
 
 > **문서 이력**
+> - 2026-08-18: Phase 14 리뷰 보완 — 영구 코드 registry, privacy·PENDING cursor 계약, invitationId·expiryReason과 탈퇴 경쟁 검증을 추가
 > - 2026-08-18: Phase 14 친구·시간표 공유·친구 초대 계획 추가 — 정책 기준 문서, 도메인 분리, 구현 중지선과 완료 기준을 문서화
 > - 2026-04-06: Admin Chat read API 구현 반영 — 공개 채팅방 관리자 목록/상세/메시지 조회와 관리자 파티 메시지 조회를 Phase 3/Phase 2 운영 API 및 완료 기준에 추가
 > - 2026-04-01: Phase 13 구현 반영 완료 상태로 갱신 — 마인크래프트 public/internal API, public SSE, bridge outbox, IMAGE placeholder, notification policy, 테스트/문서 완료 기준을 체크 상태로 동기화
