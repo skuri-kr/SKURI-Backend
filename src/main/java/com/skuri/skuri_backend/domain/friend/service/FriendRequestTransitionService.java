@@ -30,16 +30,17 @@ public class FriendRequestTransitionService {
     public FriendRequestAcceptAttempt acceptRequest(String recipientMemberId, String requestId) {
         FriendRequest snapshot = findRequest(requestId);
         requireRecipient(snapshot, recipientMemberId);
+        rejectBlockedPair(FriendMemberPair.of(snapshot.getRequesterId(), snapshot.getRecipientId()));
         if (expireIfNeededBeforeActiveMemberLock(snapshot)) {
             return FriendRequestAcceptAttempt.stateNotAllowed();
         }
-        FriendMemberPair pair = pairLockService.lockActivePair(snapshot.getRequesterId(), snapshot.getRecipientId());
+        FriendMemberPair pair = pairLockService.lockActivePair(recipientMemberId, snapshot.getRequesterId());
         FriendRequest request = findRequestForUpdate(requestId);
         requireRecipient(request, recipientMemberId);
+        rejectBlockedPair(pair);
 
         if (request.getStatus() == FriendRequestStatus.ACCEPTED) {
             if (friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId()).isPresent()) {
-                rejectBlockedPair(pair);
                 return FriendRequestAcceptAttempt.accepted(
                         friendSummarySnapshotFactory.create(recipientMemberId, request.getRequesterId())
                 );
@@ -56,7 +57,6 @@ public class FriendRequestTransitionService {
             return FriendRequestAcceptAttempt.stateNotAllowed();
         }
 
-        rejectBlockedPair(pair);
         request.accept(now);
         friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId())
                 .orElseGet(() -> friendshipRepository.save(Friendship.create(pair.lowMemberId(), pair.highMemberId())));
@@ -69,12 +69,14 @@ public class FriendRequestTransitionService {
     public FriendRequestTerminalAttempt declineRequest(String recipientMemberId, String requestId) {
         FriendRequest snapshot = findRequest(requestId);
         requireRecipient(snapshot, recipientMemberId);
+        rejectBlockedPair(FriendMemberPair.of(snapshot.getRequesterId(), snapshot.getRecipientId()));
         if (expireIfNeededBeforeActiveMemberLock(snapshot)) {
             return FriendRequestTerminalAttempt.stateNotAllowed();
         }
-        pairLockService.lockActivePair(snapshot.getRequesterId(), snapshot.getRecipientId());
+        FriendMemberPair pair = pairLockService.lockActivePair(recipientMemberId, snapshot.getRequesterId());
         FriendRequest request = findRequestForUpdate(requestId);
         requireRecipient(request, recipientMemberId);
+        rejectBlockedPair(pair);
 
         LocalDateTime now = LocalDateTime.now();
         if (request.isExpiredAt(now)) {
@@ -92,12 +94,14 @@ public class FriendRequestTransitionService {
     public FriendRequestTerminalAttempt cancelRequest(String requesterMemberId, String requestId) {
         FriendRequest snapshot = findRequest(requestId);
         requireRequester(snapshot, requesterMemberId);
+        rejectBlockedPair(FriendMemberPair.of(snapshot.getRequesterId(), snapshot.getRecipientId()));
         if (expireIfNeededBeforeActiveMemberLock(snapshot)) {
             return FriendRequestTerminalAttempt.stateNotAllowed();
         }
-        pairLockService.lockActivePair(snapshot.getRequesterId(), snapshot.getRecipientId());
+        FriendMemberPair pair = pairLockService.lockActivePair(requesterMemberId, snapshot.getRecipientId());
         FriendRequest request = findRequestForUpdate(requestId);
         requireRequester(request, requesterMemberId);
+        rejectBlockedPair(pair);
 
         LocalDateTime now = LocalDateTime.now();
         if (request.isExpiredAt(now)) {

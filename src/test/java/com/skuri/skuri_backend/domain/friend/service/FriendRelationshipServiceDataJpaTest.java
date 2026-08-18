@@ -247,6 +247,57 @@ class FriendRelationshipServiceDataJpaTest {
     }
 
     @Test
+    void 탈퇴한요청자의_비만료요청을_수신자가처리하면_대상없음이다() {
+        FriendPair pair = createPair();
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        Member requester = memberRepository.findById(pair.firstMemberId()).orElseThrow();
+        requester.withdraw(LocalDateTime.now());
+        memberRepository.saveAndFlush(requester);
+
+        assertThatThrownBy(() -> friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_TARGET_NOT_FOUND);
+        assertThatThrownBy(() -> friendRelationshipService.declineRequest(pair.secondMemberId(), requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_TARGET_NOT_FOUND);
+    }
+
+    @Test
+    void 차단관계는_terminal친구요청상태보다_먼저_대상없음으로_마스킹한다() {
+        FriendPair pair = createPair();
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        friendRelationshipService.blockMember(pair.secondMemberId(), pair.firstPublicId());
+
+        assertThatThrownBy(() -> friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_TARGET_NOT_FOUND);
+        assertThatThrownBy(() -> friendRelationshipService.declineRequest(pair.secondMemberId(), requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_TARGET_NOT_FOUND);
+        assertThatThrownBy(() -> friendRelationshipService.cancelRequest(pair.firstMemberId(), requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_TARGET_NOT_FOUND);
+    }
+
+    @Test
+    void 차단된_ACCEPTED요청의_재수락도_대상없음으로_마스킹한다() {
+        FriendPair pair = createPair();
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId);
+        friendRelationshipService.blockMember(pair.secondMemberId(), pair.firstPublicId());
+
+        assertThatThrownBy(() -> friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_TARGET_NOT_FOUND);
+    }
+
+    @Test
     void 탈퇴회원의_만료요청이_있어도_뒤의_만료요청까지_배치처리한다() {
         FriendPair withdrawnPair = createPair();
         String withdrawnRequestId = friendRelationshipService.createRequest(
