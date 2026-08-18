@@ -52,6 +52,7 @@
 - 0/O, 1/I/L처럼 혼동하기 쉬운 문자는 생성 문자 집합에서 제외한다.
 - 코드는 회원당 활성 코드 한 개만 유지한다.
 - 재발급하면 이전 코드는 즉시 무효화되며 기존 친구 관계에는 영향을 주지 않는다.
+- 재발급·탈퇴로 RETIRED가 된 코드는 영구 예약하고 다른 회원에게 다시 할당하지 않는다. 과거에 복사한 코드와 QR은 이후에도 계속 일반적인 대상 없음으로만 해석되어야 한다.
 - QR payload는 skuri-friend:v1:{friendCode} 형식의 버전 계약을 사용한다.
 - QR 인식 후 바로 요청하지 않고 대상 공개 프로필 확인과 명시적 발송 단계를 거친다.
 - 코드 입력과 QR 해석 결과는 부작용 없는 친구 코드 preview API로 확인한다.
@@ -65,6 +66,7 @@
 - 인증된 ACTIVE 회원만 검색할 수 있다.
 - 검색 허용 설정을 켠 회원만 결과에 포함한다.
 - 검색 허용 기본값은 false다.
+- FriendSettings는 서버의 현재 nicknameSearchable 값을 먼저 조회하고 사용자가 변경한 최종 값을 PATCH 응답으로 다시 받는다.
 - 닉네임 2글자 이상 부분 일치로 검색하며 한 페이지는 최대 20건이다.
 - 결과는 닉네임 가나다순, friendPublicId 오름차순으로 안정 정렬한다.
 - opaque cursor 기반으로 hasNext와 nextCursor를 반환하며 cursor는 마지막 결과의 정렬 위치를 서버만 해석할 수 있게 표현한다.
@@ -236,6 +238,7 @@
 - 상호 친구 이름과 목록
 - 온라인 상태와 최근 활동 시각
 - 자동 친구 추천과 추천 알림
+- 친구 요청의 거절·취소·만료 terminal 이력 조회
 - 공개 게시판·공개 채팅에서 차단 상대 콘텐츠 전역 숨김
 - 관리자 친구 관계망 조회와 강제 친구 관리
 
@@ -247,7 +250,7 @@ Friend 기능을 하나의 거대한 서비스에 모으지 않고 각 도메인
 
 | 도메인 | 책임 |
 | --- | --- |
-| friend 신규 도메인 | 친구 코드, 검색 허용, 요청, 상호 관계, 즐겨찾기, 친구 끊기, 차단 |
+| friend 신규 도메인 | ACTIVE·RETIRED 친구 코드 registry, 검색 허용, 요청, 상호 관계, 즐겨찾기, 친구 끊기, 차단 |
 | academic | 시간표 공개 기본값·친구별 예외, 권한에 맞춘 친구 시간표 projection |
 | taxiparty | 초대 생성, OPEN·정원·참여 상태 검증, 수락 동시성 |
 | chat | 공개방 초대 생성, 방 유형·공개 여부·입장 자격 검증 |
@@ -269,21 +272,37 @@ Friend 도메인은 다른 도메인의 내부 엔티티를 직접 수정하지 
 | --- | --- |
 | member_id | 회원 내부 ID, PK |
 | public_id | 친구 기능 전용 무작위 공개 ID, unique |
-| friend_code | 정규화된 활성 코드, unique |
+| active_friend_code_id | friend_code_registry의 ACTIVE 코드 참조, unique |
 | nickname_searchable | 닉네임 검색 허용, 기본 false |
 | created_at | 생성 시각 |
 | rotated_at | 재발급 시각 |
 
-public_id와 friend_code는 members.id 또는 Firebase UID에서 파생하지 않는다. 모바일과 외부 API는 members.id를 친구 식별자로 노출하지 않는다.
+public_id와 활성 친구 코드는 members.id 또는 Firebase UID에서 파생하지 않는다. 모바일과 외부 API는 members.id를 친구 식별자로 노출하지 않는다.
 코드 preview, 닉네임 검색, 요청 생성, 친구·차단 목록과 상세에서 이 공개 ID의 JSON·path field 명칭은 friendPublicId로 통일한다.
+
+friend_code_registry:
+
+| 필드 | 설명 |
+| --- | --- |
+| id | 불투명 내부 ID |
+| normalized_code | 정규화된 친구 코드, 영구 unique |
+| owner_member_id | ACTIVE일 때 소유 회원, RETIRED면 null 허용, non-null unique |
+| status | ACTIVE, RETIRED |
+| issued_at | 발급 시각 |
+| retired_at | 재발급·탈퇴로 폐기된 시각, ACTIVE면 null |
+
+- 생성기는 registry에 새 normalized_code를 INSERT하고 영구 unique 충돌 시 새 무작위 값으로 제한된 횟수만 재시도한다.
+- 재발급은 현재 registry row를 RETIRED로 바꾸고 owner_member_id를 제거한 뒤 새 ACTIVE row와 profile 참조를 같은 트랜잭션에서 확정한다.
+- RETIRED registry row는 탈퇴 cleanup에서도 삭제하지 않는다. preview는 ACTIVE row와 ACTIVE Member profile이 함께 존재할 때만 성공한다.
+- ACTIVE row는 owner_member_id와 이를 참조하는 FriendProfile이 모두 필요하다. owner_member_id의 non-null unique와 profile의 active_friend_code_id unique로 회원당 ACTIVE 코드 한 개와 코드당 profile 한 개를 보장한다.
 
 기존 회원 provisioning:
 
 - schema 배포 후 모바일 노출 전에 모든 기존 ACTIVE Member를 대상으로 FriendProfile을 batch backfill한다.
 - 신규 가입과 backfill은 같은 멱등 provisioning service를 사용하고 이미 존재하는 profile은 다시 만들지 않는다.
-- public_id와 friend_code는 각각 unique constraint 충돌 시 새 무작위 값을 생성해 제한된 횟수만 재시도하며 members.id나 Firebase UID에서 파생하지 않는다.
+- public_id와 friend_code_registry.normalized_code는 각각 unique constraint 충돌 시 새 무작위 값을 생성해 제한된 횟수만 재시도하며 members.id나 Firebase UID에서 파생하지 않는다.
 - 친구 API 진입 시 ACTIVE Member인데 profile이 없는 비정상·과도기 상태는 같은 service로 lazy ensure해 self-heal한다. 닉네임 검색 대상은 batch backfill로 먼저 완성하고 lazy ensure만으로 누락 회원을 방치하지 않는다.
-- 배포 검증에서 ACTIVE Member 수와 FriendProfile 보유 ACTIVE Member 수가 일치하고 중복 public_id·friend_code가 없음을 확인한 뒤 모바일 진입점을 노출한다.
+- 배포 검증에서 ACTIVE Member 수와 FriendProfile 보유 ACTIVE Member 수가 일치하고 중복 public_id·ACTIVE 코드가 없으며 모든 profile이 ACTIVE registry row를 참조하는지 확인한 뒤 모바일 진입점을 노출한다.
 
 ### 6.2 friend_requests
 
@@ -354,6 +373,7 @@ member_low_id + member_high_id는 unique다.
 | inviter_id | 초대한 파티 참가자 |
 | invitee_id | 초대받은 친구 |
 | status | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
+| expiry_reason | EXPIRED terminal 사유, 그 외 상태는 null |
 | responded_at | 처리 시각 |
 
 ### 6.9 chat_room_invitations
@@ -366,9 +386,19 @@ member_low_id + member_high_id는 unique다.
 | invitee_id | 초대받은 친구 |
 | status | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
 | expires_at | created_at + 7일 |
+| expiry_reason | EXPIRED terminal 사유, 그 외 상태는 null |
 | responded_at | 처리 시각 |
 
 동일 파티·방과 같은 수신자에 대한 PENDING 초대는 중복 생성하지 않는다.
+
+초대 expiry_reason:
+
+- INVITATION_TIMEOUT, TARGET_UNAVAILABLE, CAPACITY_FULL, INVITER_LEFT, ALREADY_JOINED, RELATIONSHIP_UNAVAILABLE, ELIGIBILITY_CHANGED, MEMBER_WITHDRAWN을 외부 안전 enum으로 사용한다.
+- expires_at 경과는 INVITATION_TIMEOUT, 파티 비OPEN·방 삭제·비공개 전환 등 대상 aggregate 사용 불가는 TARGET_UNAVAILABLE, 정원 마감은 CAPACITY_FULL, 초대자의 파티·방 이탈은 INVITER_LEFT, 수신자의 기존 참여는 ALREADY_JOINED로 기록한다.
+- 차단 여부와 구체적인 관계 상실 원인은 RELATIONSHIP_UNAVAILABLE로 통합한다.
+- 관계 외 학과방 자격 같은 입장 조건 변경은 ELIGIBILITY_CHANGED, 초대자·수신자 탈퇴는 MEMBER_WITHDRAWN으로 기록한다. 택시 수신자의 다른 활성 파티 참여는 앞선 terminal 조건이 없는 동안 재시도 가능한 상태이므로 expiry_reason을 기록하지 않고 PENDING을 유지한다.
+- PENDING에서 EXPIRED로 전이하는 트랜잭션이 expiry_reason과 responded_at을 함께 한 번만 기록하며 이후 상태 회복이나 lazy reconciliation이 값을 덮어쓰지 않는다.
+- 받은 초대 응답은 status가 EXPIRED일 때만 expiryReason을 제공하고 현재 파티·방 상태로 과거 사유를 재계산하지 않는다.
 
 ### 6.10 기존 회원 알림 설정 확장
 
@@ -473,6 +503,7 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 | POST | /v1/friend-codes/preview | 친구 코드·QR 대상 공개 프로필 확인, 요청 생성 없음 |
 | GET | /v1/friends/me/code | 내 친구 코드 |
 | POST | /v1/friends/me/code/regenerate | 친구 코드 재발급 |
+| GET | /v1/friends/me/privacy | 현재 닉네임 검색 허용 설정 조회 |
 | PATCH | /v1/friends/me/privacy | 닉네임 검색 허용 설정 |
 | GET | /v1/friends/inbox-counts | 받은 요청·초대 badge count |
 
@@ -493,6 +524,12 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 - response: items, hasNext, nextCursor
 - items는 닉네임 가나다순, friendPublicId 오름차순이며 cursor는 같은 nickname query에만 사용할 수 있다.
 
+privacy 조회·변경 응답:
+
+- GET과 PATCH 모두 null이 아닌 nicknameSearchable을 반환한다.
+- PATCH body의 nicknameSearchable은 필수 Boolean이며 저장된 최종 값을 응답한다.
+- 모바일은 GET 완료 전 로컬 기본값으로 toggle을 추측하지 않는다.
+
 inbox-counts 응답:
 
 - incomingRequestCount: 내가 받은 유효 PENDING 친구 요청 수
@@ -505,13 +542,20 @@ inbox-counts 응답:
 
 | Method | Path | 설명 |
 | --- | --- | --- |
-| GET | /v1/friend-requests | direction 기준 받은·보낸 요청 |
+| GET | /v1/friend-requests | direction·opaque cursor 기준 현재 PENDING 받은·보낸 요청 |
 | POST | /v1/friend-requests | friendPublicId로 요청 |
 | POST | /v1/friend-requests/{requestId}/accept | 수락 |
 | POST | /v1/friend-requests/{requestId}/decline | 거절 |
 | DELETE | /v1/friend-requests/{requestId} | 요청자 취소 |
 
 `POST /v1/friend-codes/preview`는 body의 friendCode를 정규화해 공개 프로필과 friendPublicId를 반환하는 부작용 없는 확인 API다. 양방향 차단은 잘못되거나 폐기된 코드와 같은 일반 대상 없음 응답으로 처리한다. 친구 코드는 query string이나 로그에 원문으로 남기지 않는다. `POST /v1/friend-requests`는 확인·검색 결과의 friendPublicId만 받으며 내부 members.id와 friendCode를 요청 생성 계약에 사용하지 않는다.
+
+요청 목록 계약:
+
+- query의 direction은 RECEIVED 또는 SENT 필수이며 cursor는 선택, size는 기본 20·최대 20이다.
+- V1 목록은 lazy expiry를 반영한 현재 PENDING 요청만 반환하고 terminal 요청 이력은 제공하지 않는다.
+- 정렬은 createdAt DESC, requestId DESC이며 response는 items, hasNext, nextCursor를 사용한다.
+- 처리 직후 terminal 상태는 mutation 응답과 클라이언트의 짧은 완료 상태로 표시한 뒤 목록에서 제거한다. terminal 이력 조회는 후속 TODO다.
 
 ### 9.3 차단
 
@@ -563,7 +607,8 @@ eligible 응답은 이미 참여, 다른 활성 파티, 차단, 중복 PENDING �
 batch 요청과 응답:
 
 - 요청은 중복을 제거한 순서 있는 friendPublicIds를 받으며 첫 등장 순서를 유지한다.
-- 각 item은 friendPublicId와 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE 중 하나의 outcome을 반환한다.
+- 각 item은 friendPublicId, outcome과 nullable invitationId를 반환한다.
+- SENT는 생성된 invitationId가 필수다. ALREADY_PENDING은 기존 PENDING 초대의 inviter가 현재 요청자일 때만 같은 invitationId를 반환하고 다른 참가자가 발송한 초대면 null이다. ALREADY_MEMBER와 NOT_ELIGIBLE은 null이다.
 - 각 수신자 처리는 독립된 원자적 경계이며 일부 item 실패로 이미 SENT인 초대를 rollback하지 않는다.
 - batch orchestration은 item 결과를 요청 순서대로 모아 200으로 반환한다. 파티 전체 조건이나 요청 형식 오류만 전체 4xx다.
 
@@ -578,7 +623,7 @@ batch 요청과 응답:
 | POST | /v1/chat-room-invitations/{invitationId}/decline | 초대 거절 |
 | DELETE | /v1/chat-room-invitations/{invitationId} | 발송자 취소 |
 
-공개방 batch도 택시파티와 같은 요청 순서·수신자별 outcome·부분 성공 계약을 사용한다. 차단 여부와 구체적인 관계 상실 사유는 NOT_ELIGIBLE 밖으로 노출하지 않는다.
+공개방 batch도 택시파티와 같은 요청 순서·수신자별 outcome·nullable invitationId·부분 성공 계약을 사용한다. 차단 여부와 구체적인 관계 상실 사유는 NOT_ELIGIBLE 밖으로 노출하지 않는다.
 
 ### 9.8 회원 알림 설정 확장
 
@@ -606,13 +651,16 @@ batch 요청과 응답:
 
 ## 10. 동시성, 멱등성, 보안
 
+- 모든 Friend write와 lazy provisioning은 작업에 관련된 Member row를 먼저 잠그고 상태를 다시 읽는다. 회원 쌍 작업은 양쪽 모두, 내 코드·privacy 같은 단일 회원 작업은 현재 회원이 ACTIVE여야만 계속한다.
 - 동일 회원 쌍을 변경하는 친구 요청 생성·terminal 전이, 친구 관계 삭제, 차단·차단 해제, 즐겨찾기 변경, 친구별 시간표 override 생성·변경·삭제는 두 Member row를 내부 ID 오름차순으로 같은 PESSIMISTIC_WRITE 잠금 경계에서 획득한다.
+- friendPublicId 해석 결과만 신뢰하지 않고 잠금 획득 후 요청자와 대상 Member를 다시 읽어 둘 다 ACTIVE인지 확인한다. 하나라도 WITHDRAWN이면 어떤 Friend row나 파생 데이터도 만들거나 복원하지 않는다.
 - 친구 요청 accept·decline·cancel·expire·역방향 자동 수락은 ordered Member pair 다음 FriendRequest 행을 PESSIMISTIC_WRITE로 잠그고 상태·expires_at을 다시 읽는다. 최초로 PENDING을 terminal 상태로 바꾼 트랜잭션만 friendship 생성이나 active_pair_key 해제 같은 부수효과를 수행한다.
 - 시간 기준 만료 batch처럼 Member pair가 필요 없는 경로는 FriendRequest 행만 잠그고 그 뒤 Member pair 잠금을 추가로 획득하지 않아 잠금 순서를 역전하지 않는다.
 - 잠금 획득 후 차단, 유효 PENDING 요청과 friendship을 다시 조회하고 조건을 재검증한다. 즐겨찾기와 시간표 override는 ACTIVE friendship이 없으면 쓰지 않는다. unique constraint는 마지막 중복 방어선이며 공통 잠금을 대체하지 않는다.
 - 택시파티·공개방 초대의 accept·decline·cancel·expire도 Invitation 행을 PESSIMISTIC_WRITE로 잠그고 PENDING을 재확인한 트랜잭션만 terminal 상태와 참여 부수효과를 확정한다.
 - 초대 생성·수락과 파티·방 상태가 필요한 선제 만료의 잠금 순서는 Party 또는 ChatRoom aggregate, 필요한 ordered Member pair, Invitation 행 순서로 고정한다. decline·cancel·시간 만료처럼 Invitation만 잠그는 경로는 이후 aggregate나 Member pair 잠금을 추가로 얻지 않는다.
 - 친구 관계를 전제로 하는 택시파티·공개방 초대 생성과 수락은 위 고정 순서 안에서 친구·차단 상태를 재검증한다.
+- 친구 코드 발급·재발급과 lazy provisioning은 해당 Member row를 PESSIMISTIC_WRITE로 잠근 뒤 ACTIVE를 재확인한다. 탈퇴가 먼저 확정됐다면 FriendProfile이나 ACTIVE 코드 registry row를 생성하지 않는다.
 - 양방향 동시 요청은 friendship 한 건만 만든다.
 - 같은 요청·초대의 accept 재호출은 이미 성공한 동일 수신자라면 멱등 응답을 우선한다.
 - 택시 초대 수락은 기존 TaxiParty 참여 로직과 같은 잠금 경계를 사용한다.
@@ -626,14 +674,18 @@ batch 요청과 응답:
 
 ## 11. 회원 탈퇴와 정리
 
-회원 탈퇴 시 다음 데이터를 정리한다.
+회원 탈퇴 트랜잭션은 Member를 WITHDRAWN으로 변경한 뒤 다음 데이터를 정리한다.
 
-- 친구 공개 ID, 친구 코드와 검색 허용 설정
+- FriendProfile의 친구 공개 ID와 검색 허용 설정을 삭제하고 현재 ACTIVE 코드는 RETIRED로 바꾸되 registry tombstone은 영구 보존
 - 받은·보낸 친구 요청
 - 모든 친구 관계와 양방향 즐겨찾기
 - 차단·피차단 관계
 - 시간표 공개 기본값과 친구별 예외
-- 발송·수신한 처리 중 택시파티·공개방 초대
+- 발송·수신한 PENDING 택시파티·공개방 초대는 EXPIRED + MEMBER_WITHDRAWN으로 전이
+
+- 탈퇴 orchestration과 Friend mutation은 같은 Member row 잠금을 공유하며, 대기 중이던 mutation은 잠금 후 WITHDRAWN을 확인해 중단한다.
+- Support 신고 이력은 기존 탈퇴 정책대로 보존한다.
+- 상세한 Phase 14 계획 cleanup은 docs/member-withdrawal-policy.md와 함께 유지한다.
 
 기존 도메인의 공개 게시물, 채팅 tombstone, 파티 이력은 각 도메인의 기존 탈퇴 정책을 유지한다.
 
@@ -652,8 +704,8 @@ batch 요청과 응답:
 ## 13. 구현 및 배포 순서
 
 1. 기준 문서 검토·병합
-2. Friend schema와 멱등 provisioning service 배포, 기존 ACTIVE Member batch backfill·충돌 재시도·누락 0건 검증
-3. Friend 핵심 요청, 관계, 즐겨찾기, 차단과 terminal 전이 잠금
+2. FriendProfile·FriendCodeRegistry schema와 멱등 provisioning service 배포, 기존 ACTIVE Member batch backfill·충돌 재시도·누락 0건 검증
+3. Friend 핵심 요청, 관계, 즐겨찾기, 차단, 잠금 후 Member ACTIVE 재확인과 terminal 전이 잠금
 4. 모바일 친구 허브와 코드·cursor 닉네임 검색·QR·신고 흐름
 5. Academic 시간표 공유와 모바일 아코디언
 6. Minecraft 안전 projection과 친구 상세 계층
@@ -680,12 +732,14 @@ batch 요청과 응답:
 ### 14.1 백엔드 자동 검증
 
 - 친구 요청 정상, self, 차단, 중복 PENDING, 양방향 동시 요청
-- 기존 ACTIVE Member FriendProfile backfill, 멱등 재실행, public_id·friend_code 충돌 재시도와 누락 0건
+- 기존 ACTIVE Member FriendProfile backfill, 멱등 재실행, public_id·registry code 충돌 재시도와 누락 0건
+- 재발급·탈퇴한 RETIRED 코드 영구 미재사용과 과거 코드·QR preview 실패
 - 닉네임 검색 안정 정렬, 20건 cursor 경계, 중복 닉네임 다음 페이지와 잘못된 query·cursor 조합
 - 친구 코드 preview가 요청을 생성하지 않고 friendPublicId 공개 프로필만 반환하는지 검증
 - 양방향 차단 시 코드 preview가 일반 대상 없음으로 실패하고 차단 여부를 노출하지 않는지 검증
 - 30일 만료가 목록·badge·preview·검색·생성·수락·거절·취소·역방향 요청 전에 반영되고 active_pair_key를 해제하는지 검증
 - 요청 accept와 decline·cancel·expire 경쟁에서 terminal 상태와 friendship 부수효과가 하나만 남는지 검증
+- 요청·차단·즐겨찾기·공유 설정·초대·lazy provisioning과 회원 탈퇴 경쟁에서 잠금 후 ACTIVE 재확인으로 Friend 데이터가 다시 생기지 않는지 검증
 - 친구 요청 수락과 차단 경쟁에서 차단 후 friendship이 남지 않는지 검증
 - 즐겨찾기 방향 독립성과 정렬
 - 즐겨찾기·시간표 override 쓰기와 친구 끊기·차단 경쟁 후 파생 설정이 남지 않는지 검증
@@ -693,7 +747,7 @@ batch 요청과 응답:
 - 선택 학기 요청·응답 일치와 과거 학기 시간표 없음 상태 검증
 - 친구 해제·차단 후 시간표와 Minecraft 접근 차단
 - OPEN이 아닌 파티 초대 차단
-- 택시·공개방 batch의 수신자별 SENT·ALREADY_PENDING·ALREADY_MEMBER·NOT_ELIGIBLE 순서와 일부 성공 비rollback
+- 택시·공개방 batch의 수신자별 SENT·ALREADY_PENDING·ALREADY_MEMBER·NOT_ELIGIBLE 순서, invitationId 조건과 일부 성공 비rollback
 - 택시 마지막 좌석 동시 수락에서 한 명만 성공
 - 초대 accept와 decline·cancel·expire 경쟁에서 terminal 상태와 파티·방 참여 부수효과가 하나만 남는지 검증
 - 공개 non-PARTY 방만 초대 가능
@@ -702,6 +756,8 @@ batch 요청과 응답:
 - 알림 설정 신규·기존 회원 기본 true, 마스터 우선순위와 backfill 검증
 - 알림 설정 off 시 일반 알림 인박스·SSE·FCM 미생성, FriendHub 요청·초대 원본과 PENDING badge 유지
 - 파티 비OPEN·정원 마감·관계 상실 시 PENDING 초대 EXPIRED와 비복원 검증
+- 두 초대의 EXPIRED 전이 시 안전 expiryReason을 한 번만 저장하고 상태 회복 후에도 같은 사유를 반환하는지 검증
+- privacy GET·PATCH가 저장된 nicknameSearchable을 반환하고 PENDING 요청 목록 cursor가 20건 경계와 안정 정렬을 지키는지 검증
 - friendPublicId 신고가 내부 Member로 안전하게 해석되고 내부 ID를 응답·로그에 노출하지 않으며 기존 중복·self 신고 규칙을 유지하는지 검증
 - 탈퇴 cleanup
 
@@ -752,6 +808,11 @@ batch 요청과 응답:
 - [x] 친구 요청 만료가 모든 PENDING 의존 경로에서 active_pair_key 해제와 함께 반영된다.
 - [x] 닉네임 검색 cursor·안정 정렬과 다중 초대 수신자별 부분 성공 계약을 명시했다.
 - [x] friendPublicId 전용 신고 경로와 Support MEMBER 신고 위임 경계를 명시했다.
+- [x] RETIRED 친구 코드 영구 미재사용 registry와 ACTIVE 코드 참조를 명시했다.
+- [x] 모든 Friend mutation·lazy provisioning이 잠금 후 Member ACTIVE를 재확인한다.
+- [x] 초대 outcome의 invitationId 조건과 immutable expiryReason을 명시했다.
+- [x] nicknameSearchable 조회 API와 PENDING 요청 cursor 목록 범위를 명시했다.
+- [x] canonical Member 탈퇴 정책과 Phase 14 cleanup이 동기화 대상임을 명시했다.
 - [x] 예정 API가 현재 운영 API와 구분되어 있다.
 - [x] 실제 코드 구현 승인 gate가 명시되어 있다.
 
@@ -785,3 +846,7 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-18 | 친구 요청 만료는 모든 PENDING 의존 경로에서 lazy reconciliation하고 만료 batch는 보조 수단으로 사용 |
 | 2026-08-18 | 다중 초대는 수신자별 부분 성공이며 민감한 부적격 사유는 NOT_ELIGIBLE로 통합 |
 | 2026-08-18 | 친구 신고는 friendPublicId 전용 경로에서 Support MEMBER 신고 처리에 위임 |
+| 2026-08-18 | 친구 코드는 단일 registry에서 ACTIVE·RETIRED로 관리하고 RETIRED 코드는 탈퇴 후에도 영구 미재사용 |
+| 2026-08-18 | Friend mutation과 lazy provisioning은 Member 잠금 후 요청자·대상의 ACTIVE 상태를 다시 검증 |
+| 2026-08-18 | batch 초대는 SENT와 본인 ALREADY_PENDING에만 invitationId를 제공하고 EXPIRED 사유는 immutable enum으로 저장 |
+| 2026-08-18 | nicknameSearchable은 GET·PATCH로 서버 값을 제공하고 요청 목록은 PENDING 전용 20건 cursor 방식 |
