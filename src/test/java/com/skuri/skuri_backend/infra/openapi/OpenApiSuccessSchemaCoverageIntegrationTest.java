@@ -165,6 +165,40 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         assertTrue(friendDetailExample.path("data").isObject());
     }
 
+    @Test
+    void 친구관계Core_응답필드는_자체설명가능한스키마를제공한다() throws Exception {
+        JsonNode schemas = apiDocs("/v3/api-docs/friend").path("components").path("schemas");
+
+        assertPropertiesHaveDescription(
+                schemas.path("FriendInboxCountsResponse"),
+                "incomingRequestCount", "partyInvitationCount", "chatRoomInvitationCount", "totalActionCount"
+        );
+        assertPropertiesHaveExample(
+                schemas.path("FriendInboxCountsResponse"),
+                "incomingRequestCount", "partyInvitationCount", "chatRoomInvitationCount", "totalActionCount"
+        );
+        assertPropertiesHaveDescription(
+                schemas.path("FriendBlockResponse"),
+                "friendPublicId", "nickname", "department", "photoUrl", "blockedAt"
+        );
+        assertPropertiesHaveExample(
+                schemas.path("FriendBlockResponse"),
+                "friendPublicId", "nickname", "department", "photoUrl", "blockedAt"
+        );
+
+        assertPropertiesHaveDescription(
+                schemas.path("FriendRequestItemResponse"),
+                "requestId", "friendPublicId", "nickname", "department", "photoUrl", "createdAt", "expiresAt"
+        );
+        assertPropertiesHaveExample(
+                schemas.path("FriendRequestItemResponse"),
+                "requestId", "friendPublicId", "nickname", "department", "photoUrl", "createdAt", "expiresAt"
+        );
+
+        assertPageSchemaMetadata(schemas.path("FriendRequestPageResponse"));
+        assertPageSchemaMetadata(schemas.path("FriendSearchPageResponse"));
+    }
+
     private JsonNode apiDocs() throws Exception {
         return apiDocs("/v3/api-docs");
     }
@@ -186,6 +220,27 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
             current = root.path("components").path("schemas").path(schemaName);
         }
         return current;
+    }
+
+    private void assertPageSchemaMetadata(JsonNode pageSchema) {
+        assertPropertiesHaveDescription(pageSchema, "items", "hasNext", "nextCursor");
+        assertPropertiesHaveExample(pageSchema, "hasNext", "nextCursor");
+    }
+
+    private void assertPropertiesHaveDescription(JsonNode schema, String... propertyNames) {
+        for (String propertyName : propertyNames) {
+            String description = schema.path("properties").path(propertyName).path("description").asText();
+            assertTrue(!description.isBlank(), () -> schema + "의 " + propertyName + " 설명이 없습니다.");
+        }
+    }
+
+    private void assertPropertiesHaveExample(JsonNode schema, String... propertyNames) {
+        for (String propertyName : propertyNames) {
+            assertTrue(
+                    schema.path("properties").path(propertyName).has("example"),
+                    () -> schema + "의 " + propertyName + " 예시가 없습니다."
+            );
+        }
     }
 
     private boolean hasConcreteShape(JsonNode schemaNode) {

@@ -14,7 +14,7 @@
 | Java | 21 |
 | 빌드 도구 | Gradle |
 | 현재 의존성 | JPA, Web MVC, Validation, Security, Firebase Admin, Springdoc OpenAPI(Swagger UI/Scalar), Thumbnailator, TwelveMonkeys WebP, Lombok, MySQL Connector |
-| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation 완료·후속 기능 진행 예정 (친구·공유·초대) |
+| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation·관계 Core 완료·후속 도메인 협력 진행 예정 (친구 공유·초대) |
 
 ---
 
@@ -1043,7 +1043,7 @@ SSE 운영 제약:
 
 > 상태: Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·검색·PENDING 목록) 완료, 공유·초대·알림은 후속 구현
 > 상세 기준: docs/features/friends.md
-> 구현 시작 조건: 기준 문서 검토 후 사용자의 별도 코드 구현 승인
+> 후속 구현 시작 조건: 해당 기능 기준 문서 검토 후 사용자의 별도 코드 구현 승인
 
 #### 14-1. 목표
 
@@ -1064,7 +1064,7 @@ SSE 운영 제약:
 
 | 영역 | 최종 책임 |
 | --- | --- |
-| friend 신규 도메인 | ACTIVE·RETIRED 코드 registry, PENDING cursor 검색, 요청, 관계, 즐겨찾기, 친구 끊기, 차단, friendPublicId 신고 진입 |
+| friend 신규 도메인 | ACTIVE·RETIRED 코드 registry, PENDING cursor 검색, 요청, 관계, 즐겨찾기, 친구 끊기, 차단, friendPublicId 신고 진입(후속) |
 | Academic | 시간표 공유 설정과 허용 범위별 projection |
 | TaxiParty | OPEN 파티 초대, 수락 정원·참여 동시성 |
 | Chat | 공개 non-PARTY 방 초대와 입장 자격 |
@@ -1077,13 +1077,14 @@ SSE 운영 제약:
 1. [x] FriendProfile·FriendCodeRegistry schema, 멱등 provisioning service와 기존 ACTIVE 회원 backfill·누락 0건 검증, 코드 조회·재발급·preview, nicknameSearchable GET·PATCH
 2. [x] Friend 핵심 요청·관계 API, 잠금 후 Member ACTIVE 재확인과 terminal 전이 잠금
 3. [x] nickname 검색과 PENDING 요청 cursor 목록, 즐겨찾기·친구 끊기·차단, 친구 요청 badge count
-4. friendPublicId 신고 진입
-5. 시간표 공유 설정과 친구 시간표 조회
-6. Minecraft 친구 계정 projection
-7. TaxiParty 수신자별 부분 성공 친구 초대
-8. 공개 Chat 수신자별 부분 성공 친구 초대
-9. Notification·badge·회원 탈퇴 cleanup
-10. OpenAPI, ERD, 도메인 문서, Contract·Service 테스트 동기화
+4. [ ] friendPublicId 신고 진입
+5. [ ] 시간표 공유 설정과 친구 시간표 조회
+6. [ ] Minecraft 친구 계정 projection
+7. [ ] TaxiParty 수신자별 부분 성공 친구 초대
+8. [ ] 공개 Chat 수신자별 부분 성공 친구 초대
+9. [ ] Notification·badge·회원 탈퇴 cleanup
+10. [x] 관계 Core OpenAPI, ERD, 도메인 문서, Contract·Service 테스트 동기화
+11. [ ] 후속 도메인 협력 OpenAPI, ERD, 도메인 문서, Contract·Service 테스트 동기화
 
 #### 14-4. 제외 범위
 
