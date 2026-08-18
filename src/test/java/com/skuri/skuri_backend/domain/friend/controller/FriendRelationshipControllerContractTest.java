@@ -2,9 +2,13 @@ package com.skuri.skuri_backend.domain.friend.controller;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.domain.friend.dto.response.FriendInboxCountsResponse;
+import com.skuri.skuri_backend.domain.friend.dto.response.FriendRequestPageResponse;
+import com.skuri.skuri_backend.domain.friend.dto.response.FriendSearchPageResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendSummaryResponse;
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService;
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipService;
+import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.minecraft.config.MinecraftInternalSecretFilter;
 import com.skuri.skuri_backend.infra.auth.config.ApiAccessDeniedHandler;
 import com.skuri.skuri_backend.infra.auth.config.ApiAuthenticationEntryPoint;
@@ -81,6 +85,96 @@ class FriendRelationshipControllerContractTest {
     }
 
     @Test
+    void 친구관계Core의_모든경로는_토큰없으면_401이다() throws Exception {
+        mockMvc.perform(get("/v1/friends/friend-public-id"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/v1/friends/friend-public-id"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(patch("/v1/friends/friend-public-id/favorite")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"favorite\":true}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/v1/friends/search").param("query", "가나"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/v1/friend-requests").param("direction", "RECEIVED"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/v1/friend-requests")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"friendPublicId\":\"friend-public-id\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/v1/friend-requests/request-id/accept"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/v1/friend-requests/request-id/decline"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/v1/friend-requests/request-id"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/v1/friends/blocks"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/v1/friends/blocks")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"friendPublicId\":\"friend-public-id\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/v1/friends/blocks/friend-public-id"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/v1/friends/inbox-counts"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(friendRelationshipService, friendRelationshipQueryService);
+    }
+
+    @Test
+    void 가입한활성회원이없으면_MEMBER_NOT_FOUND_404를_반환한다() throws Exception {
+        mockValidToken();
+        doThrow(new MemberNotFoundException())
+                .when(friendRelationshipQueryService).getFriends("firebase-uid");
+
+        mockMvc.perform(get("/v1/friends").header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("MEMBER_NOT_FOUND"));
+    }
+
+    @Test
+    void 친구상세조회는_친구공개요약을_반환한다() throws Exception {
+        mockValidToken();
+        when(friendRelationshipQueryService.getFriend("firebase-uid", "friend-public-id"))
+                .thenReturn(new FriendSummaryResponse("friend-public-id", "스쿠리", "컴퓨터공학과", null, false));
+
+        mockMvc.perform(get("/v1/friends/friend-public-id").header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.friendPublicId").value("friend-public-id"));
+    }
+
+    @Test
+    void 친구상세조회는_친구관계가없으면_404이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.FRIENDSHIP_NOT_FOUND))
+                .when(friendRelationshipQueryService).getFriend("firebase-uid", "friend-public-id");
+
+        mockMvc.perform(get("/v1/friends/friend-public-id").header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("FRIENDSHIP_NOT_FOUND"));
+    }
+
+    @Test
+    void 친구끊기는_204를_반환한다() throws Exception {
+        mockValidToken();
+
+        mockMvc.perform(delete("/v1/friends/friend-public-id").header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 친구끊기는_친구관계가없으면_404이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.FRIENDSHIP_NOT_FOUND))
+                .when(friendRelationshipService).removeFriendship("firebase-uid", "friend-public-id");
+
+        mockMvc.perform(delete("/v1/friends/friend-public-id").header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("FRIENDSHIP_NOT_FOUND"));
+    }
+
+    @Test
     void 친구요청생성은_PENDING과_요청식별자를_반환한다() throws Exception {
         mockValidToken();
         when(friendRelationshipService.createRequest("firebase-uid", "friend-public-id"))
@@ -139,6 +233,46 @@ class FriendRelationshipControllerContractTest {
     }
 
     @Test
+    void 닉네임검색은_검색결과페이지를_반환한다() throws Exception {
+        mockValidToken();
+        when(friendRelationshipQueryService.search("firebase-uid", "가나", null, null))
+                .thenReturn(new FriendSearchPageResponse(List.of(), false, null));
+
+        mockMvc.perform(get("/v1/friends/search")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .param("query", "가나"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty());
+    }
+
+    @Test
+    void 친구요청목록은_페이지를_반환한다() throws Exception {
+        mockValidToken();
+        when(friendRelationshipQueryService.getRequests(
+                "firebase-uid", FriendRelationshipQueryService.FriendRequestDirection.RECEIVED, null, null
+        )).thenReturn(new FriendRequestPageResponse(List.of(), false, null));
+
+        mockMvc.perform(get("/v1/friend-requests")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .param("direction", "RECEIVED"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty());
+    }
+
+    @Test
+    void 친구요청목록의_잘못된방향은_INVALID_REQUEST_400이다() throws Exception {
+        mockValidToken();
+
+        mockMvc.perform(get("/v1/friend-requests")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .param("direction", "INVALID"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+
+        verifyNoInteractions(friendRelationshipService, friendRelationshipQueryService);
+    }
+
+    @Test
     void 친구요청수락은_친구공개요약을_반환한다() throws Exception {
         mockValidToken();
         when(friendRelationshipService.acceptRequest("firebase-uid", "request-id"))
@@ -168,6 +302,48 @@ class FriendRelationshipControllerContractTest {
     }
 
     @Test
+    void 친구요청수락은_수신자가아니면_403이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.FRIEND_REQUEST_RECIPIENT_REQUIRED))
+                .when(friendRelationshipService).acceptRequest("firebase-uid", "request-id");
+
+        mockMvc.perform(post("/v1/friend-requests/request-id/accept")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FRIEND_REQUEST_RECIPIENT_REQUIRED"));
+    }
+
+    @Test
+    void 친구요청거절은_204를_반환한다() throws Exception {
+        mockValidToken();
+
+        mockMvc.perform(post("/v1/friend-requests/request-id/decline")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 친구요청취소는_204를_반환한다() throws Exception {
+        mockValidToken();
+
+        mockMvc.perform(delete("/v1/friend-requests/request-id")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 친구요청취소는_요청자가아니면_403이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.FRIEND_REQUEST_REQUESTER_REQUIRED))
+                .when(friendRelationshipService).cancelRequest("firebase-uid", "request-id");
+
+        mockMvc.perform(delete("/v1/friend-requests/request-id")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("FRIEND_REQUEST_REQUESTER_REQUIRED"));
+    }
+
+    @Test
     void 즐겨찾기변경은_204를_반환한다() throws Exception {
         mockValidToken();
 
@@ -179,12 +355,107 @@ class FriendRelationshipControllerContractTest {
     }
 
     @Test
+    void 즐겨찾기변경은_친구관계가없으면_404이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.FRIENDSHIP_NOT_FOUND))
+                .when(friendRelationshipService).setFavorite("firebase-uid", "friend-public-id", true);
+
+        mockMvc.perform(patch("/v1/friends/friend-public-id/favorite")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"favorite\":true}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("FRIENDSHIP_NOT_FOUND"));
+    }
+
+    @Test
+    void 차단목록은_목록을_반환한다() throws Exception {
+        mockValidToken();
+        when(friendRelationshipQueryService.getBlocks("firebase-uid")).thenReturn(List.of());
+
+        mockMvc.perform(get("/v1/friends/blocks").header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    void 차단목록은_가입한활성회원이없으면_404이다() throws Exception {
+        mockValidToken();
+        doThrow(new MemberNotFoundException())
+                .when(friendRelationshipQueryService).getBlocks("firebase-uid");
+
+        mockMvc.perform(get("/v1/friends/blocks").header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("MEMBER_NOT_FOUND"));
+    }
+
+    @Test
+    void 회원차단은_204를_반환한다() throws Exception {
+        mockValidToken();
+
+        mockMvc.perform(post("/v1/friends/blocks")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"friendPublicId\":\"friend-public-id\"}"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 회원차단은_자기자신이면_400이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.FRIEND_SELF_BLOCK_NOT_ALLOWED))
+                .when(friendRelationshipService).blockMember("firebase-uid", "friend-public-id");
+
+        mockMvc.perform(post("/v1/friends/blocks")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"friendPublicId\":\"friend-public-id\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("FRIEND_SELF_BLOCK_NOT_ALLOWED"));
+    }
+
+    @Test
     void 차단해제는_204를_반환한다() throws Exception {
         mockValidToken();
 
         mockMvc.perform(delete("/v1/friends/blocks/friend-public-id")
                         .header(AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 차단해제는_대상이없으면_404이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND))
+                .when(friendRelationshipService).unblockMember("firebase-uid", "friend-public-id");
+
+        mockMvc.perform(delete("/v1/friends/blocks/friend-public-id")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("FRIEND_TARGET_NOT_FOUND"));
+    }
+
+    @Test
+    void 친구허브처리필요항목수는_응답을_반환한다() throws Exception {
+        mockValidToken();
+        when(friendRelationshipQueryService.getInboxCounts("firebase-uid"))
+                .thenReturn(new FriendInboxCountsResponse(2, 0, 0, 2));
+
+        mockMvc.perform(get("/v1/friends/inbox-counts").header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.incomingRequestCount").value(2))
+                .andExpect(jsonPath("$.data.totalActionCount").value(2));
+    }
+
+    @Test
+    void 친구허브처리필요항목수는_가입한활성회원이없으면_404이다() throws Exception {
+        mockValidToken();
+        doThrow(new MemberNotFoundException())
+                .when(friendRelationshipQueryService).getInboxCounts("firebase-uid");
+
+        mockMvc.perform(get("/v1/friends/inbox-counts").header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("MEMBER_NOT_FOUND"));
     }
 
     private void mockValidToken() {
