@@ -114,17 +114,19 @@
 4. 구현 계획/운영 정책 변경: 관련 계획 문서(예: `docs/implementation-roadmap.md`)
 
 ## Serena Memory 동기화 규칙
-1. Serena 온보딩 메모리(`.serena/memories/*.md`)는 코드/기능/정책 변경과 같은 작업 단위(PR)에서 함께 갱신한다.
-2. 최소 점검 대상 메모리:
+1. Serena 온보딩 메모리(`.serena/memories/*.md`)는 `.gitignore`에 포함된 로컬 도구 상태다. Git에 강제로 추가하지 않는다.
+2. 코드/기능/정책 변경과 같은 작업 단위에서 관련 로컬 메모리를 함께 갱신하고, PR 설명에 변경한 메모리 이름과 요약을 남긴다.
+3. 최소 점검 대상 메모리:
    - `project_overview`, `codebase_structure`, `code_style_and_conventions`, `suggested_commands`, `task_completion_checklist`
-3. 변경 유형별 동기화 기준:
+4. 변경 유형별 동기화 기준:
    - 아키텍처/도메인 구조 변경: `project_overview`, `codebase_structure`
    - 코딩 규칙/리뷰 기준/운영 정책 변경: `code_style_and_conventions`, `task_completion_checklist`
    - 실행/빌드/테스트/운영 명령 변경: `suggested_commands`
-4. 동기화 절차:
-   - `serena.read_memory`로 기존 메모리를 확인하고 `serena.edit_memory` 또는 `serena.write_memory`로 갱신한다.
-   - PR 설명에 "Serena Memory 동기화 내역"을 포함한다.
-5. 머지 전 `serena.check_onboarding_performed`와 `serena.list_memories`로 메모리 누락 여부를 확인한다.
+5. 동기화 절차:
+   - Serena 도구를 사용할 수 있으면 기존 메모리를 읽고 편집한다.
+   - Serena 도구를 사용할 수 없으면 로컬 `.serena/memories/*.md`를 직접 확인하고 갱신한다.
+   - PR 설명에 "Serena Memory 동기화 내역"을 포함하되, ignored 파일을 PR diff에 포함시키지 않는다.
+6. 작업 완료 전 로컬 메모리 파일 목록과 변경 대상 내용을 확인해 누락 여부를 점검한다.
 
 ## 로컬 실행/테스트 환경 규칙
 1. 에이전트가 로컬에서 서버/테스트를 실행할 때 기본 프로필은 `local`로 간주한다.
