@@ -64,6 +64,8 @@ public class FriendRelationshipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiFriendSchemas.FriendSummaryListApiResponse.class),
                             examples = @ExampleObject(value = OpenApiFriendExamples.SUCCESS_FRIEND_LIST))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
     })
@@ -78,8 +80,9 @@ public class FriendRelationshipController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiFriendSchemas.FriendSummaryApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.SUCCESS_FRIEND_DETAIL))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상이 없거나 친구 관계가 아님",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음, 대상 없음 또는 친구 관계가 아님",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
                             @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND),
                             @ExampleObject(name = "FRIENDSHIP_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIENDSHIP_NOT_FOUND)
                     })),
@@ -97,8 +100,9 @@ public class FriendRelationshipController {
     @Operation(summary = "친구 끊기", description = "상호 친구 관계와 양방향 즐겨찾기를 제거합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "친구 끊기 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상이 없거나 친구 관계가 아님",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음, 대상 없음 또는 친구 관계가 아님",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
                             @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND),
                             @ExampleObject(name = "FRIENDSHIP_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIENDSHIP_NOT_FOUND)
                     })),
@@ -119,8 +123,9 @@ public class FriendRelationshipController {
             content = @Content(mediaType = "application/json", schema = @Schema(implementation = UpdateFriendFavoriteRequest.class), examples = @ExampleObject(value = OpenApiFriendExamples.REQUEST_UPDATE_FAVORITE)))
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "변경 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상이 없거나 친구 관계가 아님",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음, 대상 없음 또는 친구 관계가 아님",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
                             @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND),
                             @ExampleObject(name = "FRIENDSHIP_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIENDSHIP_NOT_FOUND)
                     })),
@@ -147,6 +152,8 @@ public class FriendRelationshipController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_INVALID_REQUEST))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "검색어 또는 size 검증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
     })
@@ -168,6 +175,8 @@ public class FriendRelationshipController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_INVALID_REQUEST))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "size 검증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
     })
@@ -192,8 +201,11 @@ public class FriendRelationshipController {
                     })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "자기 자신에게 요청",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = "{\"success\":false,\"message\":\"자기 자신에게 친구 요청을 보낼 수 없습니다.\",\"errorCode\":\"FRIEND_SELF_REQUEST_NOT_ALLOWED\",\"timestamp\":\"2026-08-18T12:00:00\"}"))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상이 없거나 차단 관계",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음, 대상 없음 또는 차단 관계",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
+                            @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND)
+                    })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "기존 친구 또는 동일 방향 PENDING 요청",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
                             @ExampleObject(name = "FRIEND_ALREADY_EXISTS", value = "{\"success\":false,\"message\":\"이미 친구입니다.\",\"errorCode\":\"FRIEND_ALREADY_EXISTS\",\"timestamp\":\"2026-08-18T12:00:00\"}"),
@@ -222,8 +234,9 @@ public class FriendRelationshipController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiFriendSchemas.FriendRequestMutationApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.SUCCESS_FRIEND_REQUEST_ACCEPTED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "수신자만 처리 가능",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = "{\"success\":false,\"message\":\"친구 요청 수신자만 처리할 수 있습니다.\",\"errorCode\":\"FRIEND_REQUEST_RECIPIENT_REQUIRED\",\"timestamp\":\"2026-08-18T12:00:00\"}"))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "요청 없음 또는 차단 관계",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음, 요청 없음 또는 차단 관계",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
                             @ExampleObject(name = "FRIEND_REQUEST_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_REQUEST_NOT_FOUND),
                             @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND)
                     })),
@@ -249,8 +262,9 @@ public class FriendRelationshipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "거절 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "수신자만 처리 가능",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = "{\"success\":false,\"message\":\"친구 요청 수신자만 처리할 수 있습니다.\",\"errorCode\":\"FRIEND_REQUEST_RECIPIENT_REQUIRED\",\"timestamp\":\"2026-08-18T12:00:00\"}"))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "요청 없음 또는 대상 없음",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음, 요청 없음 또는 대상 없음",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
                             @ExampleObject(name = "FRIEND_REQUEST_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_REQUEST_NOT_FOUND),
                             @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND)
                     })),
@@ -273,8 +287,9 @@ public class FriendRelationshipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "취소 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "요청자만 취소 가능",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = "{\"success\":false,\"message\":\"친구 요청자만 취소할 수 있습니다.\",\"errorCode\":\"FRIEND_REQUEST_REQUESTER_REQUIRED\",\"timestamp\":\"2026-08-18T12:00:00\"}"))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "요청 없음 또는 대상 없음",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음, 요청 없음 또는 대상 없음",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
                             @ExampleObject(name = "FRIEND_REQUEST_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_REQUEST_NOT_FOUND),
                             @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND)
                     })),
@@ -296,6 +311,8 @@ public class FriendRelationshipController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiFriendSchemas.FriendBlockListApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.SUCCESS_FRIEND_BLOCK_LIST))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
     })
@@ -313,8 +330,11 @@ public class FriendRelationshipController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "차단 성공 또는 멱등 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "자기 자신 차단",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_SELF_BLOCK_NOT_ALLOWED))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상 없음",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음 또는 대상 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
+                            @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND)
+                    })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "요청 검증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
@@ -332,8 +352,11 @@ public class FriendRelationshipController {
     @Operation(summary = "회원 차단 해제", description = "차단이 없더라도 같은 결과로 멱등 처리합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "차단 해제 성공 또는 멱등 성공"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상 없음",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음 또는 대상 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
+                            @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND)
+                    })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
     })
@@ -350,6 +373,8 @@ public class FriendRelationshipController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiFriendSchemas.FriendInboxCountsApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.SUCCESS_FRIEND_INBOX_COUNTS))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
     })
