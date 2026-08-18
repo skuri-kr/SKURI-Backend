@@ -28,8 +28,11 @@ public interface FriendRequestRepository extends JpaRepository<FriendRequest, St
     @Query("""
             select r
             from FriendRequest r
+            join Member requester on requester.id = r.requesterId
+            join FriendProfile requesterProfile on requesterProfile.memberId = r.requesterId
             where r.recipientId = :memberId
               and r.status = com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus.PENDING
+              and requester.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
               and (
                     :cursorCreatedAt is null
                     or r.createdAt < :cursorCreatedAt
@@ -47,8 +50,11 @@ public interface FriendRequestRepository extends JpaRepository<FriendRequest, St
     @Query("""
             select r
             from FriendRequest r
+            join Member recipient on recipient.id = r.recipientId
+            join FriendProfile recipientProfile on recipientProfile.memberId = r.recipientId
             where r.requesterId = :memberId
               and r.status = com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus.PENDING
+              and recipient.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
               and (
                     :cursorCreatedAt is null
                     or r.createdAt < :cursorCreatedAt
