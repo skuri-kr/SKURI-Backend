@@ -4,6 +4,7 @@ import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.common.config.JpaAuditingConfig;
 import com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus;
+import com.skuri.skuri_backend.domain.friend.entity.MemberBlock;
 import com.skuri.skuri_backend.domain.friend.repository.FriendCodeRegistryRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendPreferenceRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
@@ -36,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         FriendMemberPairLockService.class,
         FriendSummarySnapshotFactory.class,
         FriendRequestTransitionService.class,
+        FriendRequestExpiryService.class,
         FriendRequestExpirationScheduler.class,
         FriendRelationshipService.class,
         FriendRelationshipQueryService.class
@@ -250,6 +252,17 @@ class FriendRelationshipServiceDataJpaTest {
     }
 
     @Test
+    void 친구목록은_양방향차단관계인_친구를_제외한다() {
+        FriendPair pair = createPair();
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId);
+        memberBlockRepository.saveAndFlush(MemberBlock.create(pair.secondMemberId(), pair.firstMemberId()));
+
+        assertThat(friendRelationshipQueryService.getFriends(pair.firstMemberId())).isEmpty();
+        assertThat(friendRelationshipQueryService.getFriends(pair.secondMemberId())).isEmpty();
+    }
+
+    @Test
     void 닉네임검색은_검색허용대상만_반환하고_차단대상은_숨긴다() {
         FriendPair pair = createPair();
         var profile = friendProfileRepository.findById(pair.secondMemberId()).orElseThrow();
@@ -332,6 +345,22 @@ class FriendRelationshipServiceDataJpaTest {
     }
 
     @Test
+    void 닉네임검색은_만료요청을_EXPIRED로_정리하고_요청가능으로_반환한다() {
+        FriendPair pair = createPair();
+        makeSearchable(pair.secondMemberId(), "가나다");
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        expireRequest(requestId);
+
+        assertThat(friendRelationshipQueryService.search(pair.firstMemberId(), "가나", null, 20).items())
+                .singleElement()
+                .extracting(item -> item.canSendFriendRequest())
+                .isEqualTo(true);
+        assertThat(friendRequestRepository.findById(requestId)).get()
+                .extracting(request -> request.getStatus(), request -> request.getActivePairKey())
+                .containsExactly(FriendRequestStatus.EXPIRED, null);
+    }
+
+    @Test
     void 받은친구요청은_20건_cursor페이지로_중복없이_조회한다() {
         saveMember("recipient", "recipient@sungkyul.ac.kr", "수신자");
         String recipientPublicId = provisioningService.ensureForActiveMember("recipient").getPublicId();
@@ -377,6 +406,34 @@ class FriendRelationshipServiceDataJpaTest {
         );
 
         assertThat(page.items()).singleElement().extracting(item -> item.requestId()).isEqualTo(validRequestId);
+    }
+
+    @Test
+    void 탈퇴한발신자의_PENDING은_요청목록과_inboxCount에서_제외한다() {
+        FriendPair pair = createPair();
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        memberRepository.findById(pair.firstMemberId()).orElseThrow().withdraw(LocalDateTime.now());
+        memberRepository.flush();
+        provisioningService.retireForWithdrawnMember(pair.firstMemberId(), LocalDateTime.now());
+
+        assertThat(friendRelationshipQueryService.getInboxCounts(pair.secondMemberId()).incomingRequestCount()).isZero();
+        assertThat(friendRelationshipQueryService.getRequests(
+                pair.secondMemberId(), FriendRelationshipQueryService.FriendRequestDirection.RECEIVED, null, 20
+        ).items()).isEmpty();
+        assertThat(friendRequestRepository.findById(requestId)).get()
+                .extracting(request -> request.getStatus()).isEqualTo(FriendRequestStatus.PENDING);
+    }
+
+    @Test
+    void inboxCount는_만료된_PENDING을_EXPIRED로_정리한_뒤_제외한다() {
+        FriendPair pair = createPair();
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        expireRequest(requestId);
+
+        assertThat(friendRelationshipQueryService.getInboxCounts(pair.secondMemberId()).incomingRequestCount()).isZero();
+        assertThat(friendRequestRepository.findById(requestId)).get()
+                .extracting(request -> request.getStatus(), request -> request.getActivePairKey())
+                .containsExactly(FriendRequestStatus.EXPIRED, null);
     }
 
     private FriendPair createPair() {

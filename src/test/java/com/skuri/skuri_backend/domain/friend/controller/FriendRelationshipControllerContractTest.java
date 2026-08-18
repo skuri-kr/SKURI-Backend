@@ -110,6 +110,33 @@ class FriendRelationshipControllerContractTest {
     }
 
     @Test
+    void 닉네임검색의_짧은검색어는_VALIDATION_ERROR_422이다() throws Exception {
+        mockValidToken();
+
+        mockMvc.perform(get("/v1/friends/search")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .param("query", "가"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+
+        verifyNoInteractions(friendRelationshipService, friendRelationshipQueryService);
+    }
+
+    @Test
+    void 닉네임검색의_범위초과size는_VALIDATION_ERROR_422이다() throws Exception {
+        mockValidToken();
+
+        mockMvc.perform(get("/v1/friends/search")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .param("query", "가나")
+                        .param("size", "21"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+
+        verifyNoInteractions(friendRelationshipService, friendRelationshipQueryService);
+    }
+
+    @Test
     void 친구요청수락은_친구공개요약을_반환한다() throws Exception {
         mockValidToken();
         when(friendRelationshipService.acceptRequest("firebase-uid", "request-id"))

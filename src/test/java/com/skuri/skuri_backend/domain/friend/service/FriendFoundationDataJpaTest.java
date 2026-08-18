@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         FriendMemberPairLockService.class,
         FriendSummarySnapshotFactory.class,
         FriendRequestTransitionService.class,
+        FriendRequestExpiryService.class,
         FriendRelationshipService.class,
         FriendRelationshipQueryService.class,
         FriendCodeService.class,
@@ -165,6 +167,23 @@ class FriendFoundationDataJpaTest {
         friendRelationshipService.blockMember("member-1", provisioningService.ensureForActiveMember("member-2").getPublicId());
         assertThatThrownBy(() -> friendCodeService.preview("member-2", targetCode))
                 .isInstanceOf(FriendCodeNotFoundException.class);
+    }
+
+    @Test
+    void preview는_만료된_PENDING을_EXPIRED로_정리하고_다시요청가능으로_반환한다() {
+        saveMember("member-1", "one@sungkyul.ac.kr", "회원1");
+        saveMember("member-2", "two@sungkyul.ac.kr", "회원2");
+        String targetCode = friendCodeService.getMyCode("member-1").friendCode();
+        String targetPublicId = provisioningService.ensureForActiveMember("member-1").getPublicId();
+        String requestId = friendRelationshipService.createRequest("member-2", targetPublicId).requestId();
+        var request = friendRequestRepository.findById(requestId).orElseThrow();
+        ReflectionTestUtils.setField(request, "expiresAt", LocalDateTime.now().minusSeconds(1));
+        friendRequestRepository.saveAndFlush(request);
+
+        assertThat(friendCodeService.preview("member-2", targetCode).canSendFriendRequest()).isTrue();
+        assertThat(friendRequestRepository.findById(requestId)).get()
+                .extracting(value -> value.getStatus(), value -> value.getActivePairKey())
+                .containsExactly(com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus.EXPIRED, null);
     }
 
     @Test
