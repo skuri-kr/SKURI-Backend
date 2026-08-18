@@ -1,7 +1,9 @@
 package com.skuri.skuri_backend.domain.friend.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(description = "친구 요청 생성 또는 수락 결과")
 public record FriendRequestMutationResponse(
         @Schema(description = "요청 처리 상태", allowableValues = {"PENDING", "ACCEPTED"}, example = "PENDING")
