@@ -1,8 +1,8 @@
 # 백엔드 역할 정의서 v1.0
 (Firebase Serverless → Spring Migration)
 
-> 최종 수정일: 2026-04-01
-> 관련 문서: [도메인 분석](./domain-analysis.md) | [API 명세](./api-specification.md) | [구현 로드맵](./implementation-roadmap.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
+> 최종 수정일: 2026-08-18
+> 관련 문서: [도메인 분석](./domain-analysis.md) | [API 명세](./api-specification.md) | [구현 로드맵](./implementation-roadmap.md) | [Friend 기능 기준](./features/friends.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 > 참고: AS-IS 섹션은 migration kickoff 시점의 legacy Firebase 구조를 설명한다. 마인크래프트 상세 설계/이력은 백엔드 레포 `docs/minecraft-spring-migration-plan.md`를 본다.
 
 ## 1. 문서 목적
@@ -104,6 +104,25 @@ Spring 백엔드는 마인크래프트 기능도 예외 없이 최종 판단한�
 - 마인크래프트 공개방 canonical id는 `public:game:minecraft`로 고정한다.
 - 플러그인 내부 API는 `X-Skuri-Minecraft-Secret` 기반 서버 대 서버 인증으로 보호한다.
 - 앱의 마인크래프트 채팅은 기존 Chat 도메인을 재사용하되, 서버가 `TEXT`/`IMAGE` -> 플러그인 표시 규칙과 시스템 메시지 알림 예외를 강제한다.
+
+### 4.5 Phase 14 Friend 도메인과 협력 책임
+
+> 상태: 정책·책임 경계 승인 완료, 런타임 미구현
+> 구현 시작 조건: 사용자의 별도 코드 구현 승인
+
+Friend는 Supporting 도메인으로서 친구 코드·요청·상호 관계·즐겨찾기·친구 끊기·차단을 소유한다. 다른 기능의 최종 규칙은 해당 도메인이 계속 소유하며 Friend가 내부 엔티티를 직접 수정하지 않는다.
+
+| 영역 | Spring 내 최종 책임 |
+| --- | --- |
+| Friend | 친구 코드 preview, 검색 허용, 요청, friendship, 즐겨찾기, 친구 끊기, 차단 |
+| Member | ACTIVE 회원과 공개 프로필, 친구·초대 알림 설정 |
+| Academic | friendship·차단 확인 후 공개 범위별 친구 시간표 projection |
+| TaxiParty | OPEN·정원·참여 조건을 포함한 택시파티 초대 상태와 수락 |
+| Chat | 공개 non-PARTY 방의 자격·정원·초대 상태와 수락 |
+| Minecraft | friendship·차단 확인 후 SELF·FRIEND 계정 안전 projection |
+| Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, PARTY_INVITATION, CHAT_ROOM_INVITATION의 인박스·SSE·FCM 전달 |
+
+Phase 14 런타임 구현 전까지 위 책임은 계획 상태이며 현재 API·DB 엔티티가 존재하는 것으로 해석하지 않는다. 상세 상태 전이와 데이터 노출 정책은 `docs/features/friends.md`를 기준으로 한다.
 
 ---
 
@@ -493,6 +512,7 @@ Spring 백엔드는 본 프로젝트에서 다음과 같은 역할을 수행한�
 - 데이터 접근의 단일 관문
 - 실시간 데이터 제공자
 - 인증 결과를 신뢰하고 권한을 판단하는 서버
+- Phase 14에서 친구 관계와 기존 도메인 협력 규칙을 최종 강제하는 서버 (현재 계획, 런타임 미구현)
 
 ---
 
