@@ -32,9 +32,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
         ErrorCode errorCode = e.getErrorCode();
         log.warn("BusinessException: {} - {}", errorCode.getCode(), e.getMessage());
-        return ResponseEntity
-                .status(errorCode.getHttpStatus())
-                .body(ApiResponse.error(errorCode.getCode(), e.getMessage()));
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(errorCode.getHttpStatus());
+        if (e instanceof RetryAfterBusinessException retryAfterException) {
+            response.header("Retry-After", String.valueOf(retryAfterException.getRetryAfterSeconds()));
+        }
+        return response.body(ApiResponse.error(errorCode.getCode(), e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

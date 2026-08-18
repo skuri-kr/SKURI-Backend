@@ -102,8 +102,40 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         );
     }
 
+    @Test
+    void friend_그룹은_친구코드와_친구설정_API를_모두_노출한다() throws Exception {
+        JsonNode root = apiDocs("/v3/api-docs/friend");
+        JsonNode paths = root.path("paths");
+
+        assertTrue(paths.has("/v1/friends/me/code"));
+        assertTrue(paths.has("/v1/friends/me/code/regenerate"));
+        assertTrue(paths.has("/v1/friend-codes/preview"));
+        assertTrue(paths.has("/v1/friends/me/privacy"));
+
+        JsonNode regenerate429 = paths.path("/v1/friends/me/code/regenerate")
+                .path("post")
+                .path("responses")
+                .path("429");
+        assertTrue(regenerate429.path("headers").has("Retry-After"));
+        assertTrue(regenerate429.path("headers").path("Retry-After").path("schema").path("type").asText().equals("string"));
+
+        JsonNode preview404Examples = paths.path("/v1/friend-codes/preview")
+                .path("post")
+                .path("responses")
+                .path("404")
+                .path("content")
+                .path("application/json")
+                .path("examples");
+        assertTrue(preview404Examples.has("FRIEND_CODE_NOT_FOUND"));
+        assertTrue(preview404Examples.has("MEMBER_NOT_FOUND"));
+    }
+
     private JsonNode apiDocs() throws Exception {
-        String responseBody = mockMvc.perform(get("/v3/api-docs"))
+        return apiDocs("/v3/api-docs");
+    }
+
+    private JsonNode apiDocs(String path) throws Exception {
+        String responseBody = mockMvc.perform(get(path))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()

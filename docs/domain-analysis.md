@@ -54,7 +54,7 @@
 
 ### 2.1 승인된 목표 도메인 (9개 + 인프라)
 
-> Friend는 Phase 14에서 승인된 계획 도메인이며 현재 런타임에는 아직 구현되지 않았다. 아래 나머지 도메인은 현재 구현 기준이고, Friend의 실제 패키지·엔티티·API는 별도 코드 구현 승인 후 추가한다.
+> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정)은 현재 런타임에 구현되어 있다. 요청·관계·즐겨찾기·차단과 기존 도메인 협력은 승인된 후속 구현 계획이다.
 
 | # | 도메인 | 유형 | 핵심 책임 | 주요 엔티티 |
 |---|--------|------|----------|------------|
@@ -66,7 +66,7 @@
 | 6 | **Notice** | Supporting | 학교 공지 크롤링/조회, 앱 공지 | Notice, NoticeComment, AppNotice, NoticeReadStatus, AppNoticeReadStatus |
 | 7 | **Academic** | Generic | 강의 정보, 시간표, 학사 일정 | Course, UserTimetable, AcademicSchedule |
 | 8 | **Support** | Generic | 문의/신고 접수, 앱 버전, 법적 문서, 학식 메뉴 | Inquiry, Report, AppVersion, LegalDocument, CafeteriaMenu |
-| 9 | **Friend** | Supporting | 친구 코드, 검색 허용, 요청, 상호 관계, 즐겨찾기, 친구 끊기, 차단 | FriendProfile, FriendCodeRegistry, FriendRequest, Friendship, FriendPreference, MemberBlock (계획) |
+| 9 | **Friend** | Supporting | 친구 코드, 검색 허용, 요청, 상호 관계, 즐겨찾기, 친구 끊기, 차단 | FriendProfile, FriendCodeRegistry (구현), FriendRequest, Friendship, FriendPreference, MemberBlock (계획) |
 | - | **Notification** | Infra | 도메인 이벤트 기반 알림 인박스 | UserNotification |
 
 ### 2.2 도메인 유형 정의
@@ -804,9 +804,9 @@ Hooks:
   - 자유서술 `content` 전체 자동 마스킹은 Phase 10 범위에서 제외
 ```
 
-### 3.9 Friend (친구, Phase 14 계획)
+### 3.9 Friend (친구, Phase 14 Foundation 구현)
 
-> 상태: 정책·책임 경계 승인 완료, 런타임 미구현
+> 상태: 공개 프로필·코드 registry·preview·닉네임 검색 공개 설정 구현 완료. 나머지 정책은 후속 구현 예정
 > 상세 기준: `docs/features/friends.md`
 > 구현 시작 조건: 사용자의 별도 코드 구현 승인
 
@@ -821,9 +821,11 @@ Hooks:
   - 친구 끊기와 차단
   - friendPublicId 기반 신고 진입과 내부 Member 대상 해석
 
-계획 엔티티:
+현재 엔티티:
   - FriendProfile
   - FriendCodeRegistry
+
+계획 엔티티:
   - FriendRequest
   - Friendship
   - FriendPreference
@@ -1760,6 +1762,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
 ---
 
 > **문서 이력**
+> - 2026-08-18: Phase 14 Friend Foundation 구현 반영 — FriendProfile·FriendCodeRegistry, 코드 preview·재발급, 검색 공개 설정과 Member lifecycle 연계를 현재 런타임으로 전환
 > - 2026-08-18: Phase 14 Friend 계획 보완 — 영구 미재사용 코드 registry, 잠금 후 Member ACTIVE 재확인과 탈퇴 orchestration 책임을 반영
 > - 2026-04-06: Admin Chat read API 반영 — 관리자 공개 채팅방 목록/상세/메시지 조회와 관리자 파티 채팅 메시지 조회 책임, membership 우회 범위를 Chat/TaxiParty 협력 규칙에 추가
 > - 2026-03-30: Minecraft 도메인 분석 추가 — 별도 도메인 분리 결정, public/internal API, whitelist/서버 상태/bridge outbox 설계를 반영

@@ -16,6 +16,7 @@ import com.skuri.skuri_backend.domain.notice.service.NoticeService;
 import com.skuri.skuri_backend.domain.support.service.InquiryService;
 import com.skuri.skuri_backend.domain.taxiparty.service.TaxiPartyService;
 import com.skuri.skuri_backend.domain.chat.service.ChatService;
+import com.skuri.skuri_backend.domain.friend.service.FriendProfileProvisioningService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,7 @@ public class MemberLifecycleService {
     private final FcmTokenService fcmTokenService;
     private final InquiryService inquiryService;
     private final TimetableService timetableService;
+    private final FriendProfileProvisioningService friendProfileProvisioningService;
     private final AfterCommitApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -47,7 +49,9 @@ public class MemberLifecycleService {
                 .orElseThrow(MemberNotFoundException::new);
         taxiPartyService.validateWithdrawalAllowed(memberId);
 
-        member.withdraw(LocalDateTime.now());
+        LocalDateTime withdrawnAt = LocalDateTime.now();
+        member.withdraw(withdrawnAt);
+        friendProfileProvisioningService.retireForWithdrawnMember(memberId, withdrawnAt);
         linkedAccountRepository.deleteByMemberId(memberId);
         taxiPartyService.handleMemberWithdrawal(memberId);
         chatService.removeMemberFromAllChatRooms(memberId);

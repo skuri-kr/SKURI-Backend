@@ -1,7 +1,9 @@
 package com.skuri.skuri_backend.domain.member.repository;
 
 import com.skuri.skuri_backend.domain.member.entity.Member;
+import com.skuri.skuri_backend.domain.member.entity.MemberStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -77,6 +79,21 @@ public interface MemberRepository extends JpaRepository<Member, String>, MemberR
             where m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
             """)
     List<String> findAllMemberIds();
+
+    long countByStatus(MemberStatus status);
+
+    @Query("""
+            select m.id
+            from Member m
+            where m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+              and not exists (
+                  select p.memberId
+                  from FriendProfile p
+                  where p.memberId = m.id
+              )
+            order by m.id asc
+            """)
+    List<String> findActiveMemberIdsWithoutFriendProfile(Pageable pageable);
 
     @Query("""
             select m.id

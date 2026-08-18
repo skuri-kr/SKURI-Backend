@@ -3,6 +3,7 @@ package com.skuri.skuri_backend.domain.member.service;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.chat.service.ChatService;
+import com.skuri.skuri_backend.domain.friend.service.FriendProfileProvisioningService;
 import com.skuri.skuri_backend.domain.image.service.ProfileImageStorageService;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberBankAccountRequest;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberNotificationSettingsRequest;
@@ -65,6 +66,9 @@ class MemberServiceTest {
     @Mock
     private DepartmentService departmentService;
 
+    @Mock
+    private FriendProfileProvisioningService friendProfileProvisioningService;
+
     @InjectMocks
     private MemberService memberService;
 
@@ -77,6 +81,7 @@ class MemberServiceTest {
 
         assertTrue(result.created());
         assertEquals(authenticatedMember.uid(), result.member().id());
+        verify(friendProfileProvisioningService).ensureForActiveMember(authenticatedMember.uid());
     }
 
     @Test
