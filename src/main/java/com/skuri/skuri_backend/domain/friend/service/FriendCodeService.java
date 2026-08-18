@@ -74,7 +74,6 @@ public class FriendCodeService {
         throw new BusinessException(ErrorCode.CONFLICT, "친구 코드 재발급 처리 중 충돌이 반복되었습니다.");
     }
 
-    @Transactional(readOnly = true)
     public FriendCodePreviewResponse preview(String requesterMemberId, String rawFriendCode) {
         provisioningService.ensureForActiveMember(requesterMemberId);
         String normalizedCode = friendCodeGenerator.normalizeForLookup(rawFriendCode);

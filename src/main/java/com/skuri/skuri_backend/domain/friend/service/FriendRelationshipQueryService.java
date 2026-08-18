@@ -123,7 +123,6 @@ public class FriendRelationshipQueryService {
         return friend.toSummary(favorite);
     }
 
-    @Transactional
     public FriendSearchPageResponse search(String requesterMemberId, String query, String cursor, Integer size) {
         provisioningService.ensureForActiveMember(requesterMemberId);
         int pageSize = resolveSize(size);
@@ -173,7 +172,6 @@ public class FriendRelationshipQueryService {
         return new FriendSearchPageResponse(items, hasNext, nextCursor);
     }
 
-    @Transactional
     public FriendRequestPageResponse getRequests(
             String memberId,
             FriendRequestDirection direction,
@@ -220,7 +218,6 @@ public class FriendRelationshipQueryService {
                 .toList();
     }
 
-    @Transactional
     public FriendInboxCountsResponse getInboxCounts(String memberId) {
         provisioningService.ensureForActiveMember(memberId);
         LocalDateTime now = LocalDateTime.now();
@@ -241,7 +238,6 @@ public class FriendRelationshipQueryService {
                 || memberBlockRepository.existsByBlockerIdAndBlockedId(secondMemberId, firstMemberId);
     }
 
-    @Transactional
     public boolean canSendFriendRequest(String requesterMemberId, String targetMemberId) {
         if (requesterMemberId.equals(targetMemberId) || isBlockedPair(requesterMemberId, targetMemberId)) {
             return false;
