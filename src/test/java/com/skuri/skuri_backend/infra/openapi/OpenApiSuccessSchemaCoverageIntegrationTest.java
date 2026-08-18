@@ -111,6 +111,12 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         assertTrue(paths.has("/v1/friends/me/code/regenerate"));
         assertTrue(paths.has("/v1/friend-codes/preview"));
         assertTrue(paths.has("/v1/friends/me/privacy"));
+        assertTrue(paths.has("/v1/friends"));
+        assertTrue(paths.has("/v1/friends/{friendPublicId}"));
+        assertTrue(paths.has("/v1/friends/search"));
+        assertTrue(paths.has("/v1/friend-requests"));
+        assertTrue(paths.has("/v1/friends/blocks"));
+        assertTrue(paths.has("/v1/friends/inbox-counts"));
 
         JsonNode regenerate429 = paths.path("/v1/friends/me/code/regenerate")
                 .path("post")
@@ -128,6 +134,69 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
                 .path("examples");
         assertTrue(preview404Examples.has("FRIEND_CODE_NOT_FOUND"));
         assertTrue(preview404Examples.has("MEMBER_NOT_FOUND"));
+
+        JsonNode requestMutationExamples = paths.path("/v1/friend-requests")
+                .path("post")
+                .path("responses")
+                .path("200")
+                .path("content")
+                .path("application/json")
+                .path("examples");
+        assertTrue(requestMutationExamples.has("PENDING"));
+        assertTrue(requestMutationExamples.has("ACCEPTED"));
+
+        JsonNode accept404Examples = paths.path("/v1/friend-requests/{requestId}/accept")
+                .path("post")
+                .path("responses")
+                .path("404")
+                .path("content")
+                .path("application/json")
+                .path("examples");
+        assertTrue(accept404Examples.has("FRIEND_REQUEST_NOT_FOUND"));
+        assertTrue(accept404Examples.has("FRIEND_TARGET_NOT_FOUND"));
+
+        JsonNode friendDetailExample = paths.path("/v1/friends/{friendPublicId}")
+                .path("get")
+                .path("responses")
+                .path("200")
+                .path("content")
+                .path("application/json")
+                .path("example");
+        assertTrue(friendDetailExample.path("data").isObject());
+    }
+
+    @Test
+    void 친구관계Core_응답필드는_자체설명가능한스키마를제공한다() throws Exception {
+        JsonNode schemas = apiDocs("/v3/api-docs/friend").path("components").path("schemas");
+
+        assertPropertiesHaveDescription(
+                schemas.path("FriendInboxCountsResponse"),
+                "incomingRequestCount", "partyInvitationCount", "chatRoomInvitationCount", "totalActionCount"
+        );
+        assertPropertiesHaveExample(
+                schemas.path("FriendInboxCountsResponse"),
+                "incomingRequestCount", "partyInvitationCount", "chatRoomInvitationCount", "totalActionCount"
+        );
+        assertPropertiesHaveDescription(
+                schemas.path("FriendBlockResponse"),
+                "friendPublicId", "nickname", "department", "photoUrl", "blockedAt"
+        );
+        assertPropertiesHaveExample(
+                schemas.path("FriendBlockResponse"),
+                "friendPublicId", "nickname", "department", "photoUrl", "blockedAt"
+        );
+
+        assertPropertiesHaveDescription(
+                schemas.path("FriendRequestItemResponse"),
+                "requestId", "friendPublicId", "nickname", "department", "photoUrl", "createdAt", "expiresAt"
+        );
+        assertPropertiesHaveExample(
+                schemas.path("FriendRequestItemResponse"),
+                "requestId", "friendPublicId", "nickname", "department", "photoUrl", "createdAt", "expiresAt"
+        );
+
+        assertPageSchemaMetadata(schemas.path("FriendRequestPageResponse"));
+        assertPageSchemaMetadata(schemas.path("FriendSearchPageResponse"));
     }
 
     private JsonNode apiDocs() throws Exception {
@@ -151,6 +220,27 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
             current = root.path("components").path("schemas").path(schemaName);
         }
         return current;
+    }
+
+    private void assertPageSchemaMetadata(JsonNode pageSchema) {
+        assertPropertiesHaveDescription(pageSchema, "items", "hasNext", "nextCursor");
+        assertPropertiesHaveExample(pageSchema, "hasNext", "nextCursor");
+    }
+
+    private void assertPropertiesHaveDescription(JsonNode schema, String... propertyNames) {
+        for (String propertyName : propertyNames) {
+            String description = schema.path("properties").path(propertyName).path("description").asText();
+            assertTrue(!description.isBlank(), () -> schema + "의 " + propertyName + " 설명이 없습니다.");
+        }
+    }
+
+    private void assertPropertiesHaveExample(JsonNode schema, String... propertyNames) {
+        for (String propertyName : propertyNames) {
+            assertTrue(
+                    schema.path("properties").path(propertyName).has("example"),
+                    () -> schema + "의 " + propertyName + " 예시가 없습니다."
+            );
+        }
     }
 
     private boolean hasConcreteShape(JsonNode schemaNode) {

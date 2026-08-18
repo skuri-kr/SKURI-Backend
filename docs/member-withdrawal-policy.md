@@ -84,7 +84,7 @@ ALTER TABLE members
 | Support | 문의/신고 이력은 보존, inquiry의 구조화 개인정보만 마스킹 |
 | Notification | `user_notifications`, `fcm_tokens` 전량 삭제, SSE 연결 종료 |
 | Academic | `user_timetables` 전량 삭제 |
-| Friend (Foundation 구현 + 후속 계획) | 공개 프로필 삭제, 활성 친구 코드 영구 폐기, 요청·관계·설정·차단 정리, 처리 중 초대 만료 |
+| Friend (Foundation·관계 Core 구현 + 탈퇴 협력 후속) | 공개 프로필 삭제, 활성 친구 코드 영구 폐기, 요청·관계·설정·차단 정리, 처리 중 초대 만료 |
 
 ### 3.1 TaxiParty
 
@@ -126,9 +126,9 @@ ALTER TABLE members
 - `user_notifications`, `fcm_tokens`는 hard delete 한다.
 - 회원 탈퇴 완료 후 notification SSE, party SSE, join-request SSE 연결을 종료한다.
 
-### 3.6 Friend (Foundation 구현 + Phase 14 후속 계획)
+### 3.6 Friend (Foundation·관계 Core 구현 + 탈퇴 협력 후속)
 
-> `FriendProfile` 삭제와 활성 `FriendCodeRegistry`의 `RETIRED` 전이·소유자 해제는 런타임에 구현되어 있다. 요청·관계·즐겨찾기·차단·시간표 공유·초대 정리는 후속 구현 계획이다.
+> `FriendProfile` 삭제와 활성 `FriendCodeRegistry`의 `RETIRED` 전이·소유자 해제는 런타임에 구현되어 있다. 친구 요청·관계·즐겨찾기·차단 엔티티와 일반 관계 Core API는 런타임에 구현되어 있지만, 회원 탈퇴 시 이들을 일괄 정리하는 orchestration과 시간표 공유·초대 정리는 후속 구현 계획이다.
 
 - 탈퇴 트랜잭션은 해당 Member row를 잠그고 `WITHDRAWN` 상태를 먼저 확정한 뒤 Friend cleanup을 수행한다.
 - `FriendProfile`과 `publicId`, `nicknameSearchable`은 삭제한다.

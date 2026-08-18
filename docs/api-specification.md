@@ -20,7 +20,7 @@
 11. [Image API](#11-image-api)
 12. [Admin API](#12-admin-api)
 13. [Minecraft API](#13-minecraft-api)
-14. [Friend Foundation API](#14-friend-foundation-api)
+14. [Friend API](#14-friend-api)
 
 ---
 
@@ -7399,11 +7399,11 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 ---
 
-## 14. Friend Foundation API
+## 14. Friend API
 
-> 친구 요청·관계·검색 결과·차단·초대는 아직 구현되지 않았다. 이 절은 현재 운영 중인 친구 공개 프로필, 코드, 닉네임 검색 공개 설정 계약만 다룬다.
+> Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록)는 현재 운영 API다. 시간표 공유·Minecraft projection·택시·공개방 초대·알림·신고 진입은 아직 구현되지 않았다.
 
-모든 Friend Foundation API는 인증된 ACTIVE 회원만 호출할 수 있다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
+모든 Friend 런타임 API(Foundation·관계 Core)는 인증된 ACTIVE 회원만 호출할 수 있다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
 
 ### 14.1 내 친구 코드
 
@@ -7443,7 +7443,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 }
 ```
 
-성공 응답은 `friendPublicId`, `nickname`, `photoUrl`, `department`, `canSendFriendRequest`만 포함한다. 현재 Foundation 단계의 `canSendFriendRequest`는 유효한 타인 코드인지 여부만 나타내며, 친구 관계·PENDING·차단 검증은 후속 요청 단위에서 추가한다.
+성공 응답은 `friendPublicId`, `nickname`, `photoUrl`, `department`, `canSendFriendRequest`만 포함한다. 기존 친구 또는 유효 PENDING 요청이면 `canSendFriendRequest`는 false다. 양방향 차단은 false로 구분해 노출하지 않고 잘못되거나 폐기된 코드와 동일한 `404 FRIEND_CODE_NOT_FOUND`로 마스킹한다.
 
 잘못되었거나 폐기된 코드는 `404 FRIEND_CODE_NOT_FOUND`로 처리한다. 인증된 UID에 가입한 ACTIVE 회원이 없으면 코드 확인 전 `404 MEMBER_NOT_FOUND`를 반환한다. 자신의 코드는 `400 FRIEND_SELF_NOT_ALLOWED`다.
 
@@ -7463,17 +7463,147 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 `nicknameSearchable`은 필수 Boolean이며, 응답은 서버에 저장된 최종 값을 반환한다.
 
-### 14.4 Foundation 전용 에러 코드
+### 14.4 친구 관계 Core
+
+모든 Core 경로는 인증된 ACTIVE 회원 전용이며, `members.id`, Firebase UID, 이메일, 실명, 학번은 응답·path·query에 노출하지 않는다. 친구 식별자는 `friendPublicId`를 사용한다.
+
+#### `GET /v1/friends` / `GET /v1/friends/{friendPublicId}`
+
+목록과 상세는 다음 공개 필드만 반환한다. 아직 시간표·Minecraft 필드는 포함하지 않는다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "friendPublicId": "2fdbf426-a778-4b6a-8261-9c0549a8b2b4",
+    "nickname": "스쿠리",
+    "department": "컴퓨터공학과",
+    "photoUrl": null,
+    "favorite": true
+  }
+}
+```
+
+목록은 즐겨찾기 내림차순, 닉네임 가나다순, 내부 member ID 오름차순으로 안정 정렬한다. 상세·목록은 상호 friendship이 있어야 하며, 차단 대상은 일반 대상 없음으로 숨긴다.
+
+#### `PATCH /v1/friends/{friendPublicId}/favorite`
+
+```json
+{ "favorite": true }
+```
+
+상호 friendship인 대상에 대해서만 내 방향 즐겨찾기를 변경한다. 성공은 `204 No Content`이며 상대에게 알리지 않는다.
+
+#### `DELETE /v1/friends/{friendPublicId}`
+
+한쪽이 호출하면 friendship과 양방향 즐겨찾기를 제거한다. 성공은 `204 No Content`이며 친구 끊기 알림은 없다.
+
+#### `GET /v1/friends/search`
+
+필수 query `query`는 2~50자의 닉네임 부분 일치다. `%`, `_`, `!`는 검색 문법이 아닌 일반 문자로 처리한다. `cursor`는 선택이고 `size`는 기본 20·최대 20이다. 결과는 검색 공개 허용 ACTIVE 회원만 대상으로 닉네임 가나다순·friendPublicId 오름차순으로 정렬한다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [{
+      "friendPublicId": "2fdbf426-a778-4b6a-8261-9c0549a8b2b4",
+      "nickname": "스쿠리",
+      "department": "컴퓨터공학과",
+      "photoUrl": null,
+      "canSendFriendRequest": true
+    }],
+    "hasNext": false,
+    "nextCursor": null
+  }
+}
+```
+
+cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형식이 잘못되면 `400 INVALID_REQUEST`다. 양방향 차단 대상은 검색 결과에서 제외한다.
+
+#### `GET /v1/friend-requests`
+
+필수 query `direction`은 `RECEIVED` 또는 `SENT`다. 선택 `cursor`, `size`(기본·최대 20)를 사용할 수 있다. 현재 PENDING 요청만 `createdAt DESC, requestId DESC`로 반환하며 terminal 이력은 제공하지 않는다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "items": [{
+      "requestId": "6b8dd965-5f04-45dd-bbab-8a043e64222e",
+      "friendPublicId": "2fdbf426-a778-4b6a-8261-9c0549a8b2b4",
+      "nickname": "스쿠리",
+      "department": "컴퓨터공학과",
+      "photoUrl": null,
+      "createdAt": "2026-08-18T12:00:00",
+      "expiresAt": "2026-09-17T12:00:00"
+    }],
+    "hasNext": false,
+    "nextCursor": null
+  }
+}
+```
+
+만료 시각을 지난 PENDING은 10분 주기의 최대 100건 batch와 목록·badge 조회의 lazy expiry로 terminal 처리한 뒤 제외한다. batch는 회원 전체를 순회·잠그지 않고 만료 후보 request ID만 대상으로 요청별 독립 전이를 수행한다. 만료 전이는 기존 회원 행이 있으면 ACTIVE 여부와 무관하게 잠그므로 탈퇴 뒤의 오래된 요청도 EXPIRED로 정리한다.
+
+#### `POST /v1/friend-requests`
+
+```json
+{ "friendPublicId": "2fdbf426-a778-4b6a-8261-9c0549a8b2b4" }
+```
+
+일반 생성은 `200`과 `status: PENDING`, `requestId`를 반환한다. 대상이 나에게 보낸 유효 PENDING 요청이면 새 행을 만들지 않고 기존 요청을 수락하여 `status: ACCEPTED`, 기존 `requestId`, 친구 공개 요약을 반환한다. 동일 방향 PENDING은 `409 FRIEND_REQUEST_ALREADY_PENDING`, 이미 친구면 `409 FRIEND_ALREADY_EXISTS`, 자신은 `400 FRIEND_SELF_REQUEST_NOT_ALLOWED`다. 차단 대상은 `404 FRIEND_TARGET_NOT_FOUND`로 마스킹한다.
+
+#### `POST /v1/friend-requests/{requestId}/accept`
+
+수신자만 수락할 수 있다. 성공은 `200`과 `status: ACCEPTED`, `requestId`, 친구 공개 요약이다. 이미 같은 friendship이 성립해 있으면 같은 형태로 멱등 성공한다. 응답 친구 요약은 수락 mutation이 커밋한 시점의 snapshot이다. PENDING이 아닌 terminal 요청은 `409 FRIEND_REQUEST_STATE_NOT_ALLOWED`다. 존재하지 않는 requestId는 `404 FRIEND_REQUEST_NOT_FOUND`이며, 대상 상태를 외부에 노출하지 않아야 하는 경우는 `404 FRIEND_TARGET_NOT_FOUND`다.
+
+#### `POST /v1/friend-requests/{requestId}/decline` / `DELETE /v1/friend-requests/{requestId}`
+
+각각 수신자의 거절과 요청자의 취소다. 현재 PENDING에서만 `204 No Content`로 전이하며 terminal 요청 재처리는 `409 FRIEND_REQUEST_STATE_NOT_ALLOWED`다. 존재하지 않는 requestId는 `404 FRIEND_REQUEST_NOT_FOUND`다.
+
+#### `GET|POST|DELETE /v1/friends/blocks`
+
+`GET /v1/friends/blocks`는 `friendPublicId`, `nickname`, `department`, `photoUrl`, `blockedAt`을 반환한다. `POST` body는 `{ "friendPublicId": "..." }`이고 성공·이미 차단됨은 `204 No Content`다. 차단은 friendship, 양방향 즐겨찾기, 처리 중 PENDING 친구 요청을 정리한다. `DELETE /v1/friends/blocks/{friendPublicId}`는 차단이 없어도 `204 No Content`로 멱등 처리한다. 자기 자신 차단은 `400 FRIEND_SELF_BLOCK_NOT_ALLOWED`다.
+
+#### `GET /v1/friends/inbox-counts`
+
+```json
+{
+  "success": true,
+  "data": {
+    "incomingRequestCount": 1,
+    "partyInvitationCount": 0,
+    "chatRoomInvitationCount": 0,
+    "totalActionCount": 1
+  }
+}
+```
+
+관계 Core 단계에서는 택시·공개방 초대 도메인이 구현되지 않았으므로 두 초대 count는 0이다. 후속 도메인 구현에서 additive하게 실제 PENDING 초대 수를 연결한다.
+
+### 14.5 Friend 에러 코드
 
 | 에러 코드 | HTTP | 설명 |
 | --- | --- | --- |
 | `FRIEND_CODE_NOT_FOUND` | 404 | 잘못되었거나 폐기된 친구 코드 |
 | `FRIEND_CODE_REGENERATION_COOLDOWN` | 429 | 24시간 재발급 제한. `Retry-After` 헤더 포함 |
 | `FRIEND_SELF_NOT_ALLOWED` | 400 | 자신의 친구 코드를 preview함 |
+| `FRIEND_SELF_REQUEST_NOT_ALLOWED` | 400 | 자기 자신에게 친구 요청 |
+| `FRIEND_TARGET_NOT_FOUND` | 404 | 대상 없음 또는 차단 관계를 숨긴 결과 |
+| `FRIEND_REQUEST_NOT_FOUND` | 404 | 친구 요청 없음 |
+| `FRIENDSHIP_NOT_FOUND` | 404 | 상호 친구 관계 없음 |
+| `FRIEND_REQUEST_ALREADY_PENDING` | 409 | 동일 방향 유효 PENDING 요청 존재 |
+| `FRIEND_ALREADY_EXISTS` | 409 | 이미 friendship 존재 |
+| `FRIEND_REQUEST_STATE_NOT_ALLOWED` | 409 | terminal 요청 재처리 |
+| `FRIEND_REQUEST_RECIPIENT_REQUIRED` | 403 | 수신자 이외의 수락·거절 |
+| `FRIEND_REQUEST_REQUESTER_REQUIRED` | 403 | 요청자 이외의 취소 |
+| `FRIEND_SELF_BLOCK_NOT_ALLOWED` | 400 | 자기 자신 차단 |
 
 ---
 
 > 변경 이력
+> - 2026-08-18: Friend 관계 Core 구현 반영 — 요청·friendship·즐겨찾기·친구 끊기·차단·검색·PENDING cursor 목록 및 차단 마스킹 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-18: Friend Foundation 구현 반영 — 친구 공개 프로필·영구 코드 registry, 코드 조회/재발급/preview, 닉네임 검색 공개 설정과 429 `Retry-After` 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-14: DB 기반 학과 master와 시간표 강의 필터 추가 — `GET /v1/departments`, `GET /v1/courses/filter-options`, 강의 `category` exact 필터, 직접 입력 강의 `department` 계약과 canonical 이수구분 정책을 반영
 > - 2026-03-30: Minecraft API 초안 추가 — `GET /v1/minecraft/overview`, `GET /v1/minecraft/players`, `GET/POST/DELETE /v1/members/me/minecraft-accounts*`, `GET /v1/sse/minecraft`, `/internal/minecraft/**` 및 shared secret 정책을 문서화

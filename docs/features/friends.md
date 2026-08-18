@@ -1,8 +1,8 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: 정책 및 구현 계획 승인 완료, Foundation(친구 공개 프로필·코드·검색 공개 설정) 런타임 구현 완료
+> 문서 상태: 정책 및 구현 계획 승인 완료, Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·검색·PENDING 목록) 런타임 구현 완료
 > 기준일: 2026-08-18
-> 다음 구현 단위: 친구 요청·관계·즐겨찾기·차단. 시간표·Minecraft·택시·공개방 초대와 알림은 이후 도메인 단위로 순차 구현한다.
+> 다음 구현 단위: 시간표 공유, Minecraft 안전 projection, 택시·공개방 초대, 알림·회원 탈퇴 cleanup을 도메인 단위로 순차 구현한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
 ---
@@ -13,7 +13,7 @@
 
 - 친구 관계와 차단, 초대, 시간표 공개 범위의 최종 판단자는 백엔드다.
 - 모바일은 이 문서의 계약을 소비하며 클라이언트 상태만으로 권한을 판단하지 않는다.
-- `GET /v1/friends/me/code`, `POST /v1/friends/me/code/regenerate`, `POST /v1/friend-codes/preview`, `GET/PATCH /v1/friends/me/privacy`는 Foundation 런타임 API다. 나머지 친구 API는 예정 계약이며 현재 운영 API로 해석하지 않는다.
+- `GET /v1/friends/me/code`, `POST /v1/friends/me/code/regenerate`, `POST /v1/friend-codes/preview`, `GET/PATCH /v1/friends/me/privacy`와 9.1~9.3의 관계 Core API는 런타임 API다. 시간표·Minecraft·초대·신고 API는 예정 계약이며 현재 운영 API로 해석하지 않는다.
 - 실제 구현 시 런타임 OpenAPI와 docs/api-specification.md를 같은 PR에서 동기화한다.
 - 구현 중 정책 변경이 필요하면 코드를 먼저 바꾸지 않고 이 문서의 결정 기록을 갱신한 뒤 승인을 받는다.
 
@@ -68,6 +68,7 @@
 - 검색 허용 기본값은 false다.
 - FriendSettings는 서버의 현재 nicknameSearchable 값을 먼저 조회하고 사용자가 변경한 최종 값을 PATCH 응답으로 다시 받는다.
 - 닉네임 2글자 이상 부분 일치로 검색하며 한 페이지는 최대 20건이다.
+- `%`, `_`, `!`는 검색 문법이 아니라 닉네임의 일반 문자로 해석한다. 서버는 SQL LIKE escape를 적용해 이 문자만으로 검색 공개 회원 전체를 열거할 수 없게 한다.
 - 결과는 닉네임 가나다순, friendPublicId 오름차순으로 안정 정렬한다.
 - opaque cursor 기반으로 hasNext와 nextCursor를 반환하며 cursor는 마지막 결과의 정렬 위치를 서버만 해석할 수 있게 표현한다.
 - 같은 검색어와 cursor를 사용해 다음 페이지를 조회하고 검색어가 바뀌면 cursor를 다시 사용할 수 없다.
@@ -264,7 +265,7 @@ Friend 도메인은 다른 도메인의 내부 엔티티를 직접 수정하지 
 
 ## 6. 데이터 모델
 
-`friend_profiles`, `friend_code_registry`는 Foundation 런타임 테이블이다. 그 밖의 표는 이후 구현 단위의 논리 모델이며 실제 컬럼명과 마이그레이션은 해당 구현 PR에서 ERD와 함께 확정한다.
+`friend_profiles`, `friend_code_registry`, `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`는 Foundation·관계 Core 런타임 테이블이다. 시간표 예외·택시파티 초대·공개방 초대·알림 설정 관련 표는 이후 구현 단위의 논리 모델이며 실제 컬럼명과 마이그레이션은 해당 구현 PR에서 ERD와 함께 확정한다.
 
 ### 6.1 friend_profiles
 
@@ -315,6 +316,8 @@ friend_code_registry:
 | expires_at | created_at + 30일 |
 | responded_at | 수락·거절·취소·만료 처리 시각 |
 | active_pair_key | PENDING 중복 방지를 위한 정규화 키 |
+
+`active_pair_key`와 friendship의 low/high pair는 Java 문자열 비교 기준으로 정규화한다. DB collation에 따른 정렬은 비관적 잠금 획득 순서에만 사용하며 저장·조회 key의 기준으로 사용하지 않는다.
 
 ### 6.3 friendships
 
@@ -428,8 +431,9 @@ Terminal 상태에서 다시 상태를 변경하지 않는다.
 
 - expires_at이 현재 시각 이하인 PENDING 요청은 EXPIRED로 저장하고 responded_at을 기록하며 active_pair_key를 해제한다.
 - 받은·보낸 요청 목록, inbox-counts, 코드 preview·닉네임 검색의 요청 가능 상태, 새 요청 생성, 수락·거절·취소, 역방향 요청 자동 수락은 PENDING을 판단하기 전에 만료를 lazy reconciliation한다.
-- 개별 변경 경로는 잠근 요청 행에서 만료를 먼저 반영하고, 목록·badge는 만료 batch를 먼저 반영한 뒤 유효 PENDING만 조회한다.
-- 주기적인 만료 batch는 정리 지연을 줄이는 보조 수단이며 정확성은 각 PENDING 의존 경로의 lazy reconciliation으로 보장한다.
+- 개별 변경 경로는 잠근 요청 행에서 만료를 먼저 `EXPIRED`로 커밋한 뒤 terminal `409`을 반환한다. 수락·역방향 자동 수락의 성공 응답은 같은 mutation 트랜잭션에서 만든 친구 공개 snapshot을 사용한다.
+- 목록·badge는 유효 PENDING만 반환한다. 요청 목록은 DB cursor와 제한된 batch 조회를 사용하며, 중간의 만료 후보만 lazy reconciliation한 뒤 다음 제한 batch를 조회한다.
+- 10분 주기의 만료 batch는 최대 100건씩 정리하는 보조 수단이며, 정확성은 각 PENDING 의존 경로의 lazy reconciliation으로 보장한다. 이 작업은 회원 전체를 순회하거나 잠그지 않고 만료 후보 request ID만 조회한 뒤 요청별 독립 트랜잭션에서 처리한다. 만료 전이는 기존 회원 행이 있으면 상태와 무관하게 잠그므로 탈퇴 회원의 오래된 요청도 terminal 정리할 수 있다.
 
 ### 7.2 친구 관계
 
@@ -489,7 +493,7 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 
 ## 9. API 계약
 
-`POST /v1/friend-codes/preview`, `GET/POST /v1/friends/me/code*`, `GET/PATCH /v1/friends/me/privacy`는 런타임 OpenAPI와 Contract 테스트로 고정했다. 그 밖의 경로는 구현 설계를 위한 예정 계약이며 현재 운영 API가 아니다.
+`POST /v1/friend-codes/preview`, `GET/POST /v1/friends/me/code*`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.3의 관계 Core API는 런타임 OpenAPI와 Contract·Service 테스트로 고정했다. 그 밖의 경로는 구현 설계를 위한 예정 계약이며 현재 운영 API가 아니다.
 
 ### 9.1 친구 핵심
 
@@ -514,9 +518,15 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 - department
 - photoUrl
 - favorite
-- effectiveTimetableScope
-- primaryMinecraftGameName
-- minecraftAccountCount
+
+친구 관계 Core 구현에서는 위 다섯 필드만 반환한다. `effectiveTimetableScope`, `primaryMinecraftGameName`, `minecraftAccountCount`는 각각 시간표 공유·Minecraft 안전 projection이 구현되는 후속 도메인 PR에서 additive field로 추가한다. 아직 구현되지 않은 도메인의 기본값이나 추측한 값을 친구 목록에 반환하지 않는다.
+
+관계 Core의 HTTP 응답은 다음처럼 고정한다.
+
+- `DELETE /v1/friends/{friendPublicId}`, `PATCH /v1/friends/{friendPublicId}/favorite`, 요청 거절·취소, 차단·차단 해제는 성공 시 `204 No Content`다.
+- 닉네임 검색 항목은 다섯 공개 프로필 필드와 별개로 `canSendFriendRequest`만 추가한다. 기존 친구·유효 PENDING 요청에는 false를 반환하며, 차단 대상은 결과에서 제외한다.
+- 차단 목록 항목은 `friendPublicId`, `nickname`, `department`, `photoUrl`, `blockedAt`을 반환한다.
+- 관계 Core 시점의 `inbox-counts`는 `incomingRequestCount`만 실제 요청 수를 계산한다. 택시·공개방 초대 도메인이 아직 없으므로 `partyInvitationCount`, `chatRoomInvitationCount`는 0이고 total은 세 값의 합이다.
 
 검색 query와 응답:
 
@@ -550,7 +560,16 @@ inbox-counts 응답:
 
 `POST /v1/friend-codes/preview`는 body의 friendCode를 정규화해 공개 프로필과 friendPublicId를 반환하는 부작용 없는 확인 API다. 양방향 차단은 잘못되거나 폐기된 코드와 같은 일반 대상 없음 응답으로 처리한다. 친구 코드는 query string이나 로그에 원문으로 남기지 않는다. `POST /v1/friend-requests`는 확인·검색 결과의 friendPublicId만 받으며 내부 members.id와 friendCode를 요청 생성 계약에 사용하지 않는다.
 
-Foundation 구현 범위에서 preview의 `canSendFriendRequest`는 유효한 타인 코드인지 여부만 반영한다. 기존 친구·PENDING 요청·차단 관계 판단은 친구 요청·관계 단위가 구현될 때 같은 필드에 연결한다. 재발급 제한 중 `POST /v1/friends/me/code/regenerate`는 `429 FRIEND_CODE_REGENERATION_COOLDOWN`과 초 단위 `Retry-After` 헤더를 반환한다. 전송 timeout 이후 앱은 새 재발급 요청을 자동 재시도하지 않고 `GET /v1/friends/me/code`로 현재 코드를 조회해 조정한다.
+친구 요청 생성·수락 mutation 응답:
+
+- 일반 요청 생성은 `PENDING`과 생성한 `requestId`를 반환한다.
+- 대상이 나에게 보낸 유효 PENDING 요청이 있으면 새 요청을 만들지 않고 기존 요청을 `ACCEPTED`로 전이해 friendship을 만든다. 이 역방향 요청 호출은 `ACCEPTED`와 친구 공개 프로필을 반환한다.
+- 수락 API의 재호출은 이미 같은 friendship이 성립한 경우 같은 친구 공개 프로필을 반환하는 멱등 성공이다.
+- 거절·취소는 현재 PENDING인 요청만 전이할 수 있으며, 이미 terminal 상태이면 `409`로 처리한다.
+- accept·decline·cancel에서 존재하지 않는 requestId는 `404 FRIEND_REQUEST_NOT_FOUND`다. ACTIVE 대상 확인이 불가능하거나 차단 마스킹이 필요한 경우는 `404 FRIEND_TARGET_NOT_FOUND`를 사용한다.
+- 차단 관계의 대상은 차단 사실을 노출하지 않는다. 친구 요청 생성은 `404 FRIEND_TARGET_NOT_FOUND`로 처리하고, 친구 코드 preview·닉네임 검색에서도 동일하게 일반 대상 없음으로 숨긴다.
+
+현재 preview의 `canSendFriendRequest`는 기존 친구와 유효 PENDING 요청에도 false를 반환한다. 양방향 차단은 preview 자체를 `404 FRIEND_CODE_NOT_FOUND`로 마스킹하며 false로 구분해 노출하지 않는다. 재발급 제한 중 `POST /v1/friends/me/code/regenerate`는 `429 FRIEND_CODE_REGENERATION_COOLDOWN`과 초 단위 `Retry-After` 헤더를 반환한다. 전송 timeout 이후 앱은 새 재발급 요청을 자동 재시도하지 않고 `GET /v1/friends/me/code`로 현재 코드를 조회해 조정한다.
 
 요청 목록 계약:
 
@@ -816,9 +835,9 @@ batch 요청과 응답:
 - [x] nicknameSearchable 조회 API와 PENDING 요청 cursor 목록 범위를 명시했다.
 - [x] canonical Member 탈퇴 정책과 Phase 14 cleanup이 동기화 대상임을 명시했다.
 - [x] 예정 API가 현재 운영 API와 구분되어 있다.
-- [x] 실제 코드 구현 승인 gate가 명시되어 있다.
+- [x] Foundation과 관계 Core의 실제 코드 구현 범위가 현재 런타임 상태로 전환되어 있다.
 
-docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 유형의 승인된 계획 도메인으로 표시하고 Phase 14 책임 경계를 동기화했다. Foundation 런타임 엔티티와 API는 docs/api-specification.md·docs/erd.md에 동기화했으며, 아직 구현하지 않은 친구 기능은 각 런타임 PR에서 실제 구현과 함께 현재형으로 전환한다.
+docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 런타임 도메인으로 표시하고 Foundation·관계 Core와 후속 Phase 14 협력 책임을 구분한다. Foundation·관계 Core의 런타임 엔티티와 API는 docs/api-specification.md·docs/erd.md에 동기화했으며, 아직 구현하지 않은 친구 기능은 각 런타임 PR에서 실제 구현과 함께 현재형으로 전환한다.
 
 ---
 
@@ -842,7 +861,7 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-18 | 친구·초대 알림은 friendAndInvitationNotifications 단일 설정, 기본 true, allNotifications 우선 |
 | 2026-08-18 | badge는 받은 PENDING 요청·초대만 합산하고 보낸 요청은 제외 |
 | 2026-08-18 | 정원이 찬 공개방 초대는 EXPIRED이며 자리 발생 후에도 복원하지 않음 |
-| 2026-08-18 | Friend는 Supporting 유형의 승인된 계획 도메인으로 기존 기준 문서에 표시 |
+| 2026-08-18 | Friend는 Supporting 유형의 런타임 도메인으로 Foundation·관계 Core를 구현하고, 기존 도메인 협력은 후속 범위로 분리 |
 | 2026-08-18 | 기존 ACTIVE 회원은 batch backfill 후 누락 0건을 확인하고 멱등 lazy provisioning을 안전망으로 사용 |
 | 2026-08-18 | 친구 요청·초대의 모든 terminal 전이는 상태 행 잠금과 고정된 상위 잠금 순서를 사용 |
 | 2026-08-18 | 친구 요청 만료는 모든 PENDING 의존 경로에서 lazy reconciliation하고 만료 batch는 보조 수단으로 사용 |

@@ -31,6 +31,7 @@ public class FriendCodeService {
     private final FriendProfileRepository friendProfileRepository;
     private final FriendCodeRegistryRepository friendCodeRegistryRepository;
     private final MemberRepository memberRepository;
+    private final FriendRelationshipQueryService friendRelationshipQueryService;
 
     @Transactional(readOnly = true)
     public FriendCodeResponse getMyCode(String memberId) {
@@ -73,7 +74,6 @@ public class FriendCodeService {
         throw new BusinessException(ErrorCode.CONFLICT, "친구 코드 재발급 처리 중 충돌이 반복되었습니다.");
     }
 
-    @Transactional(readOnly = true)
     public FriendCodePreviewResponse preview(String requesterMemberId, String rawFriendCode) {
         provisioningService.ensureForActiveMember(requesterMemberId);
         String normalizedCode = friendCodeGenerator.normalizeForLookup(rawFriendCode);
@@ -93,12 +93,15 @@ public class FriendCodeService {
                 .orElseThrow(FriendCodeNotFoundException::new);
         Member member = memberRepository.findActiveById(code.getOwnerMemberId())
                 .orElseThrow(FriendCodeNotFoundException::new);
+        if (friendRelationshipQueryService.isBlockedPair(requesterMemberId, member.getId())) {
+            throw new FriendCodeNotFoundException();
+        }
         return new FriendCodePreviewResponse(
                 profile.getPublicId(),
                 member.getNickname(),
                 member.getPhotoUrl(),
                 member.getDepartment(),
-                true
+                friendRelationshipQueryService.canSendFriendRequest(requesterMemberId, member.getId())
         );
     }
 }

@@ -35,6 +35,16 @@ public enum ErrorCode {
     FRIEND_CODE_NOT_FOUND(HttpStatus.NOT_FOUND, "FRIEND_CODE_NOT_FOUND", "친구 코드를 찾을 수 없습니다."),
     FRIEND_CODE_REGENERATION_COOLDOWN(HttpStatus.TOO_MANY_REQUESTS, "FRIEND_CODE_REGENERATION_COOLDOWN", "친구 코드는 24시간에 한 번만 재발급할 수 있습니다."),
     FRIEND_SELF_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "FRIEND_SELF_NOT_ALLOWED", "자기 자신의 친구 코드는 확인할 수 없습니다."),
+    FRIEND_SELF_REQUEST_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "FRIEND_SELF_REQUEST_NOT_ALLOWED", "자기 자신에게 친구 요청을 보낼 수 없습니다."),
+    FRIEND_TARGET_NOT_FOUND(HttpStatus.NOT_FOUND, "FRIEND_TARGET_NOT_FOUND", "친구 대상을 찾을 수 없습니다."),
+    FRIEND_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "FRIEND_REQUEST_NOT_FOUND", "친구 요청을 찾을 수 없습니다."),
+    FRIENDSHIP_NOT_FOUND(HttpStatus.NOT_FOUND, "FRIENDSHIP_NOT_FOUND", "친구 관계를 찾을 수 없습니다."),
+    FRIEND_REQUEST_ALREADY_PENDING(HttpStatus.CONFLICT, "FRIEND_REQUEST_ALREADY_PENDING", "이미 친구 요청을 보냈습니다."),
+    FRIEND_ALREADY_EXISTS(HttpStatus.CONFLICT, "FRIEND_ALREADY_EXISTS", "이미 친구입니다."),
+    FRIEND_REQUEST_STATE_NOT_ALLOWED(HttpStatus.CONFLICT, "FRIEND_REQUEST_STATE_NOT_ALLOWED", "현재 상태에서는 친구 요청을 처리할 수 없습니다."),
+    FRIEND_REQUEST_RECIPIENT_REQUIRED(HttpStatus.FORBIDDEN, "FRIEND_REQUEST_RECIPIENT_REQUIRED", "친구 요청 수신자만 처리할 수 있습니다."),
+    FRIEND_REQUEST_REQUESTER_REQUIRED(HttpStatus.FORBIDDEN, "FRIEND_REQUEST_REQUESTER_REQUIRED", "친구 요청자만 취소할 수 있습니다."),
+    FRIEND_SELF_BLOCK_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "FRIEND_SELF_BLOCK_NOT_ALLOWED", "자기 자신은 차단할 수 없습니다."),
 
     // 이미지(Image) 업로드/미디어 도메인 에러.
     // 파일 크기, 해상도, 포맷, 저장 실패처럼 공통 업로드 인프라에서 발생하는 예외를 담당한다.

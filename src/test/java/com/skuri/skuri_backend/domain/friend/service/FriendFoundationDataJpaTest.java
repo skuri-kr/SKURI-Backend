@@ -2,11 +2,16 @@ package com.skuri.skuri_backend.domain.friend.service;
 
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendCodePreviewResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendCodeResponse;
+import com.skuri.skuri_backend.common.config.JpaAuditingConfig;
 import com.skuri.skuri_backend.domain.friend.entity.FriendCodeStatus;
 import com.skuri.skuri_backend.domain.friend.exception.FriendCodeNotFoundException;
 import com.skuri.skuri_backend.domain.friend.exception.FriendCodeRegenerationCooldownException;
 import com.skuri.skuri_backend.domain.friend.repository.FriendCodeRegistryRepository;
+import com.skuri.skuri_backend.domain.friend.repository.FriendPreferenceRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
+import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
+import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
+import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -14,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,10 +31,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DataJpaTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Import({
+        JpaAuditingConfig.class,
         FriendCodeGenerator.class,
         FriendProfileProvisioningAttemptService.class,
         FriendProfileProvisioningService.class,
         FriendCodeRegenerationAttemptService.class,
+        FriendMemberPairLockService.class,
+        FriendSummarySnapshotFactory.class,
+        FriendRequestTransitionPreflightService.class,
+        FriendRequestTransitionMutationService.class,
+        FriendRequestTransitionService.class,
+        FriendRequestExpiryService.class,
+        FriendRelationshipService.class,
+        FriendRelationshipQueryService.class,
         FriendCodeService.class,
         FriendPrivacyService.class
 })
@@ -44,6 +59,18 @@ class FriendFoundationDataJpaTest {
     private FriendCodeRegistryRepository friendCodeRegistryRepository;
 
     @Autowired
+    private FriendRequestRepository friendRequestRepository;
+
+    @Autowired
+    private FriendshipRepository friendshipRepository;
+
+    @Autowired
+    private FriendPreferenceRepository friendPreferenceRepository;
+
+    @Autowired
+    private MemberBlockRepository memberBlockRepository;
+
+    @Autowired
     private FriendProfileProvisioningService provisioningService;
 
     @Autowired
@@ -52,8 +79,15 @@ class FriendFoundationDataJpaTest {
     @Autowired
     private FriendPrivacyService friendPrivacyService;
 
+    @Autowired
+    private FriendRelationshipService friendRelationshipService;
+
     @AfterEach
     void tearDown() {
+        memberBlockRepository.deleteAll();
+        friendPreferenceRepository.deleteAll();
+        friendshipRepository.deleteAll();
+        friendRequestRepository.deleteAll();
         friendProfileRepository.deleteAll();
         friendCodeRegistryRepository.deleteAll();
         memberRepository.deleteAll();
@@ -117,6 +151,41 @@ class FriendFoundationDataJpaTest {
         assertThat(friendPrivacyService.getMyPrivacy("member-1").nicknameSearchable()).isFalse();
         assertThat(friendPrivacyService.updateMyPrivacy("member-1", true).nicknameSearchable()).isTrue();
         assertThat(friendPrivacyService.getMyPrivacy("member-1").nicknameSearchable()).isTrue();
+    }
+
+    @Test
+    void preview는_기존친구와_PENDING에는_요청불가를_반영하고_차단은_대상없음으로_숨긴다() {
+        saveMember("member-1", "one@sungkyul.ac.kr", "회원1");
+        saveMember("member-2", "two@sungkyul.ac.kr", "회원2");
+        String targetCode = friendCodeService.getMyCode("member-1").friendCode();
+        String targetPublicId = provisioningService.ensureForActiveMember("member-1").getPublicId();
+
+        assertThat(friendCodeService.preview("member-2", targetCode).canSendFriendRequest()).isTrue();
+        String requestId = friendRelationshipService.createRequest("member-2", targetPublicId).requestId();
+        assertThat(friendCodeService.preview("member-2", targetCode).canSendFriendRequest()).isFalse();
+        friendRelationshipService.acceptRequest("member-1", requestId);
+        assertThat(friendCodeService.preview("member-2", targetCode).canSendFriendRequest()).isFalse();
+
+        friendRelationshipService.blockMember("member-1", provisioningService.ensureForActiveMember("member-2").getPublicId());
+        assertThatThrownBy(() -> friendCodeService.preview("member-2", targetCode))
+                .isInstanceOf(FriendCodeNotFoundException.class);
+    }
+
+    @Test
+    void preview는_만료된_PENDING을_EXPIRED로_정리하고_다시요청가능으로_반환한다() {
+        saveMember("member-1", "one@sungkyul.ac.kr", "회원1");
+        saveMember("member-2", "two@sungkyul.ac.kr", "회원2");
+        String targetCode = friendCodeService.getMyCode("member-1").friendCode();
+        String targetPublicId = provisioningService.ensureForActiveMember("member-1").getPublicId();
+        String requestId = friendRelationshipService.createRequest("member-2", targetPublicId).requestId();
+        var request = friendRequestRepository.findById(requestId).orElseThrow();
+        ReflectionTestUtils.setField(request, "expiresAt", LocalDateTime.now().minusSeconds(1));
+        friendRequestRepository.saveAndFlush(request);
+
+        assertThat(friendCodeService.preview("member-2", targetCode).canSendFriendRequest()).isTrue();
+        assertThat(friendRequestRepository.findById(requestId)).get()
+                .extracting(value -> value.getStatus(), value -> value.getActivePairKey())
+                .containsExactly(com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus.EXPIRED, null);
     }
 
     @Test
