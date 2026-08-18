@@ -24,6 +24,7 @@ import java.util.List;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -92,7 +93,8 @@ class FriendRelationshipControllerContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
                 .andExpect(jsonPath("$.data.requestId").value("request-id"))
-                .andExpect(jsonPath("$.data.friend").doesNotExist());
+                .andExpect(jsonPath("$.data.friend").doesNotExist())
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString()).doesNotContain("\"friend\""));
     }
 
     @Test

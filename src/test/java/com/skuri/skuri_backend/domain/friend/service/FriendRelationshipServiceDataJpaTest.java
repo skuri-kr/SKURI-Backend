@@ -179,6 +179,48 @@ class FriendRelationshipServiceDataJpaTest {
     }
 
     @Test
+    void 탈퇴한요청자의_만료요청수락은_409후_EXPIRED로_정리한다() {
+        FriendPair pair = createPair();
+        String requestId = createExpiredRequestWithWithdrawnRequester(pair);
+
+        assertThatThrownBy(() -> friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_REQUEST_STATE_NOT_ALLOWED);
+
+        assertExpired(requestId);
+    }
+
+    @Test
+    void 탈퇴한요청자의_만료요청거절은_409후_EXPIRED로_정리한다() {
+        FriendPair pair = createPair();
+        String requestId = createExpiredRequestWithWithdrawnRequester(pair);
+
+        assertThatThrownBy(() -> friendRelationshipService.declineRequest(pair.secondMemberId(), requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_REQUEST_STATE_NOT_ALLOWED);
+
+        assertExpired(requestId);
+    }
+
+    @Test
+    void 탈퇴한수신자의_만료요청취소는_409후_EXPIRED로_정리한다() {
+        FriendPair pair = createPair();
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        expireRequest(requestId);
+        memberRepository.findById(pair.secondMemberId()).orElseThrow().withdraw(LocalDateTime.now());
+        memberRepository.flush();
+
+        assertThatThrownBy(() -> friendRelationshipService.cancelRequest(pair.firstMemberId(), requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_REQUEST_STATE_NOT_ALLOWED);
+
+        assertExpired(requestId);
+    }
+
+    @Test
     void 탈퇴회원의_만료요청이_있어도_뒤의_만료요청까지_배치처리한다() {
         FriendPair withdrawnPair = createPair();
         String withdrawnRequestId = friendRelationshipService.createRequest(
@@ -461,6 +503,20 @@ class FriendRelationshipServiceDataJpaTest {
         var request = friendRequestRepository.findById(requestId).orElseThrow();
         ReflectionTestUtils.setField(request, "expiresAt", LocalDateTime.now().minusSeconds(1));
         friendRequestRepository.saveAndFlush(request);
+    }
+
+    private String createExpiredRequestWithWithdrawnRequester(FriendPair pair) {
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        expireRequest(requestId);
+        memberRepository.findById(pair.firstMemberId()).orElseThrow().withdraw(LocalDateTime.now());
+        memberRepository.flush();
+        return requestId;
+    }
+
+    private void assertExpired(String requestId) {
+        assertThat(friendRequestRepository.findById(requestId)).get()
+                .extracting(request -> request.getStatus(), request -> request.getActivePairKey())
+                .containsExactly(FriendRequestStatus.EXPIRED, null);
     }
 
     private record FriendPair(String firstMemberId, String secondMemberId, String firstPublicId, String secondPublicId) {
