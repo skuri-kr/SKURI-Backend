@@ -431,6 +431,28 @@ class FriendRelationshipServiceDataJpaTest {
     }
 
     @Test
+    void 닉네임검색_cursor는_제어문자가포함돼도_다음페이지를_반환한다() {
+        FriendPair pair = createPair();
+        saveMember("member-3", "three@sungkyul.ac.kr", "회원3");
+        String thirdPublicId = provisioningService.ensureForActiveMember("member-3").getPublicId();
+        String query = "가나\u001F";
+        makeSearchable(pair.secondMemberId(), query + "1");
+        makeSearchable("member-3", query + "2");
+
+        var firstPage = friendRelationshipQueryService.search(pair.firstMemberId(), query, null, 1);
+        assertThat(firstPage.items()).hasSize(1);
+        assertThat(firstPage.hasNext()).isTrue();
+
+        var secondPage = friendRelationshipQueryService.search(
+                pair.firstMemberId(), query, firstPage.nextCursor(), 1
+        );
+
+        assertThat(secondPage.items()).singleElement()
+                .extracting(item -> item.friendPublicId())
+                .isEqualTo(thirdPublicId);
+    }
+
+    @Test
     void 닉네임검색의_LIKE와일드카드는_일반문자로_취급한다() {
         FriendPair pair = createPair();
         saveMember("member-3", "three@sungkyul.ac.kr", "회원3");

@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.text.Collator;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Comparator;
@@ -312,7 +313,7 @@ public class FriendRelationshipQueryService {
     }
 
     private String encodeSearchCursor(String query, String nickname, String friendPublicId) {
-        return encode(String.join("\u001F", "SEARCH", query, nickname, friendPublicId));
+        return encode("SEARCH", query, nickname, friendPublicId);
     }
 
     private SearchCursor decodeSearchCursor(String cursor, String query) {
@@ -327,7 +328,7 @@ public class FriendRelationshipQueryService {
     }
 
     private String encodeRequestCursor(FriendRequestDirection direction, LocalDateTime createdAt, String requestId) {
-        return encode(String.join("\u001F", "REQUEST", direction.name(), createdAt.toString(), requestId));
+        return encode("REQUEST", direction.name(), createdAt.toString(), requestId);
     }
 
     private RequestCursor decodeRequestCursor(String cursor, FriendRequestDirection direction) {
@@ -345,20 +346,36 @@ public class FriendRelationshipQueryService {
         }
     }
 
-    private String encode(String value) {
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    private String encode(String... values) {
+        return Arrays.stream(values)
+                .map(this::encodeCursorPart)
+                .collect(Collectors.joining("."));
     }
 
     private String[] decode(String cursor, int expectedSize) {
         try {
-            String[] parts = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8).split("\u001F", -1);
-            if (parts.length != expectedSize || List.of(parts).contains("")) {
+            String[] encodedParts = cursor.split("\\.", -1);
+            if (encodedParts.length != expectedSize) {
                 throw new IllegalArgumentException();
             }
-            return parts;
+            return Arrays.stream(encodedParts)
+                    .map(this::decodeCursorPart)
+                    .toArray(String[]::new);
         } catch (IllegalArgumentException exception) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
+    }
+
+    private String encodeCursorPart(String value) {
+        String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+        return encoded.isEmpty() ? "~" : encoded;
+    }
+
+    private String decodeCursorPart(String encodedValue) {
+        if ("~".equals(encodedValue)) {
+            return "";
+        }
+        return new String(Base64.getUrlDecoder().decode(encodedValue), StandardCharsets.UTF_8);
     }
 
     private List<FriendRequest> findPendingRequests(
