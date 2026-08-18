@@ -30,6 +30,7 @@ public class FriendRelationshipService {
     private final MemberBlockRepository memberBlockRepository;
     private final FriendMemberPairLockService pairLockService;
     private final FriendRequestTransitionService friendRequestTransitionService;
+    private final FriendRequestExpiryService friendRequestExpiryService;
     private final FriendSummarySnapshotFactory friendSummarySnapshotFactory;
 
     @Transactional
@@ -93,7 +94,7 @@ public class FriendRelationshipService {
     }
 
     public boolean expireRequestIfNeeded(String requestId) {
-        return friendRequestTransitionService.expireRequestIfNeeded(requestId);
+        return friendRequestExpiryService.expireRequestIfNeeded(requestId);
     }
 
     @Transactional

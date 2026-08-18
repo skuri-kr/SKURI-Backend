@@ -1,7 +1,6 @@
 package com.skuri.skuri_backend.domain.friend.repository;
 
 import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
-import com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -66,10 +65,33 @@ public interface FriendRequestRepository extends JpaRepository<FriendRequest, St
 
     List<FriendRequest> findAllByActivePairKeyIn(Collection<String> activePairKeys);
 
-    long countByRecipientIdAndStatusAndExpiresAtAfter(
-            String recipientId,
-            FriendRequestStatus status,
-            LocalDateTime expiresAt
+    @Query("""
+            select count(r)
+            from FriendRequest r
+            join Member requester on requester.id = r.requesterId
+            join FriendProfile requesterProfile on requesterProfile.memberId = r.requesterId
+            where r.recipientId = :recipientId
+              and r.status = com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus.PENDING
+              and r.expiresAt > :now
+              and requester.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+            """)
+    long countActionablePendingReceivedByRecipientId(
+            @Param("recipientId") String recipientId,
+            @Param("now") LocalDateTime now
+    );
+
+    @Query("""
+            select r.id
+            from FriendRequest r
+            where r.recipientId = :recipientId
+              and r.status = com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus.PENDING
+              and r.expiresAt <= :now
+            order by r.expiresAt asc, r.id asc
+            """)
+    List<String> findExpiredPendingReceivedIds(
+            @Param("recipientId") String recipientId,
+            @Param("now") LocalDateTime now,
+            Pageable pageable
     );
 
     @Query("""

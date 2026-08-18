@@ -11,7 +11,6 @@ import com.skuri.skuri_backend.domain.friend.dto.response.FriendSearchResultResp
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendSummaryResponse;
 import com.skuri.skuri_backend.domain.friend.entity.FriendPreference;
 import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
-import com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus;
 import com.skuri.skuri_backend.domain.friend.entity.Friendship;
 import com.skuri.skuri_backend.domain.friend.entity.MemberBlock;
 import com.skuri.skuri_backend.domain.friend.repository.FriendPreferenceRepository;
@@ -47,6 +46,7 @@ public class FriendRelationshipQueryService {
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 20;
     private static final int REQUEST_SCAN_BATCH_SIZE = 50;
+    private static final int INBOX_EXPIRY_RECONCILIATION_BATCH_SIZE = 100;
 
     private final FriendProfileProvisioningService provisioningService;
     private final FriendProfileRepository friendProfileRepository;
@@ -55,7 +55,7 @@ public class FriendRelationshipQueryService {
     private final FriendPreferenceRepository friendPreferenceRepository;
     private final MemberBlockRepository memberBlockRepository;
     private final MemberRepository memberRepository;
-    private final FriendRequestTransitionService friendRequestTransitionService;
+    private final FriendRequestExpiryService friendRequestExpiryService;
 
     @Transactional
     public List<FriendSummaryResponse> getFriends(String ownerMemberId) {
@@ -145,7 +145,7 @@ public class FriendRelationshipQueryService {
         Set<String> pendingPairKeys = activePairKeys.isEmpty()
                 ? Set.of()
                 : friendRequestRepository.findAllByActivePairKeyIn(activePairKeys).stream()
-                .filter(request -> !request.isExpiredAt(now))
+                .filter(request -> reconcileExpiration(request))
                 .map(FriendRequest::getActivePairKey)
                 .collect(Collectors.toSet());
         List<FriendSearchResultResponse> items = page.stream()
@@ -216,11 +216,15 @@ public class FriendRelationshipQueryService {
     @Transactional
     public FriendInboxCountsResponse getInboxCounts(String memberId) {
         provisioningService.ensureForActiveMember(memberId);
-        int incomingRequestCount = Math.toIntExact(friendRequestRepository.countByRecipientIdAndStatusAndExpiresAtAfter(
-                memberId,
-                FriendRequestStatus.PENDING,
-                LocalDateTime.now()
-        ));
+        LocalDateTime now = LocalDateTime.now();
+        friendRequestRepository.findExpiredPendingReceivedIds(
+                        memberId,
+                        now,
+                        PageRequest.of(0, INBOX_EXPIRY_RECONCILIATION_BATCH_SIZE)
+                )
+                .forEach(friendRequestExpiryService::expireRequestIfNeeded);
+        int incomingRequestCount = Math.toIntExact(friendRequestRepository
+                .countActionablePendingReceivedByRecipientId(memberId, now));
         return new FriendInboxCountsResponse(incomingRequestCount, 0, 0, incomingRequestCount);
     }
 
@@ -230,7 +234,7 @@ public class FriendRelationshipQueryService {
                 || memberBlockRepository.existsByBlockerIdAndBlockedId(secondMemberId, firstMemberId);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public boolean canSendFriendRequest(String requesterMemberId, String targetMemberId) {
         if (requesterMemberId.equals(targetMemberId) || isBlockedPair(requesterMemberId, targetMemberId)) {
             return false;
@@ -239,16 +243,18 @@ public class FriendRelationshipQueryService {
         if (friendshipRepository.findByMemberPair(pair.lowMemberId(), pair.highMemberId()).isPresent()) {
             return false;
         }
-        return friendRequestRepository.findByActivePairKey(pair.activePairKey())
-                .map(request -> request.isExpiredAt(LocalDateTime.now()))
-                .orElse(true);
+        FriendRequest request = friendRequestRepository.findByActivePairKey(pair.activePairKey()).orElse(null);
+        if (request == null) {
+            return true;
+        }
+        return !reconcileExpiration(request);
     }
 
     private boolean reconcileExpiration(FriendRequest snapshot) {
         if (!snapshot.isExpiredAt(LocalDateTime.now())) {
             return true;
         }
-        friendRequestTransitionService.expireRequestIfNeeded(snapshot.getId());
+        friendRequestExpiryService.expireRequestIfNeeded(snapshot.getId());
         return false;
     }
 
@@ -379,8 +385,13 @@ public class FriendRelationshipQueryService {
                 break;
             }
 
+            Set<String> counterpartIds = batch.stream()
+                    .map(request -> otherPartyId(request, memberId))
+                    .collect(Collectors.toSet());
+            Set<String> visibleCounterpartIds = getPublicMembers(counterpartIds).keySet();
+
             for (FriendRequest request : batch) {
-                if (reconcileExpiration(request)) {
+                if (reconcileExpiration(request) && visibleCounterpartIds.contains(otherPartyId(request, memberId))) {
                     pending.add(request);
                     if (pending.size() > pageSize) {
                         break;

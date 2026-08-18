@@ -104,25 +104,6 @@ public class FriendRequestTransitionService {
         return FriendRequestTerminalAttempt.success();
     }
 
-    @Transactional
-    public boolean expireRequestIfNeeded(String requestId) {
-        FriendRequest snapshot = friendRequestRepository.findById(requestId).orElse(null);
-        if (snapshot == null) {
-            return false;
-        }
-        pairLockService.lockExistingPairForExpiry(snapshot.getRequesterId(), snapshot.getRecipientId());
-        FriendRequest request = friendRequestRepository.findByIdForUpdate(requestId).orElse(null);
-        if (request == null || !request.isPending()) {
-            return false;
-        }
-        LocalDateTime now = LocalDateTime.now();
-        if (!request.isExpiredAt(now)) {
-            return false;
-        }
-        request.expire(now);
-        return true;
-    }
-
     private FriendRequest findRequest(String requestId) {
         return friendRequestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_REQUEST_NOT_FOUND));
