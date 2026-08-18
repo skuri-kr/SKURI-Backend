@@ -1,7 +1,7 @@
 # SKURI 백엔드 구현 로드맵
 
-> 최종 수정일: 2026-04-02
-> 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [API 명세](./api-specification.md) | [기술 전략](./tech-strategy.md) | [역할 정의](./role-definition.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
+> 최종 수정일: 2026-08-18
+> 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [API 명세](./api-specification.md) | [기술 전략](./tech-strategy.md) | [역할 정의](./role-definition.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md) | [친구 기능 기준 명세](./features/friends.md)
 > 보조 참고: 채팅 Firestore → MySQL 이관 참고는 백엔드 레포 `docs/chat-firestore-to-mysql-migration-reference.md`, 마인크래프트 상세 설계/이력은 백엔드 레포 `docs/minecraft-spring-migration-plan.md`
 
 ---
@@ -14,7 +14,7 @@
 | Java | 21 |
 | 빌드 도구 | Gradle |
 | 현재 의존성 | JPA, Web MVC, Validation, Security, Firebase Admin, Springdoc OpenAPI(Swagger UI/Scalar), Thumbnailator, TwelveMonkeys WebP, Lombok, MySQL Connector |
-| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영) |
+| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 계획 승인·런타임 미구현 (친구·공유·초대) |
 
 ---
 
@@ -82,6 +82,8 @@ Phase 11: 운영 공통 인프라 (Admin 공통)
 Phase 12: 이미지/미디어 업로드 인프라
     ↓
 Phase 13: 마인크래프트 Spring 전환
+    ↓
+Phase 14: 친구·시간표 공유·친구 초대
 ```
 
 ---
@@ -1037,6 +1039,69 @@ SSE 운영 제약:
 
 ---
 
+### Phase 14: 친구·시간표 공유·친구 초대
+
+> 상태: 정책 및 구현 계획 승인 완료, 런타임 미구현
+> 상세 기준: docs/features/friends.md
+> 구현 시작 조건: 기준 문서 검토 후 사용자의 별도 코드 구현 승인
+
+#### 14-1. 목표
+
+- 친구 코드, QR, 닉네임 검색을 통한 상호 친구 관계 구축
+- 즐겨찾기, 친구 끊기, 차단과 요청·초대 badge 제공
+- PRIVATE, BUSY_ONLY, DETAILS 기반 시간표 공유와 친구별 예외
+- 공통 공강과 같이 듣는 공식 수업 제공
+- 모든 택시파티 참가자의 친구 초대와 수락 시 정원 동시성 검증
+- 공개 non-PARTY 채팅방의 친구 초대
+- 친구의 Minecraft SELF와 모든 FRIEND 계정 안전 projection
+- 기존 Notification 인프라를 이용한 친구·초대 인박스, FCM, SSE
+
+#### 14-2. 도메인 분리
+
+| 영역 | 최종 책임 |
+| --- | --- |
+| friend 신규 도메인 | 코드, 검색 허용, 요청, 관계, 즐겨찾기, 친구 끊기, 차단 |
+| Academic | 시간표 공유 설정과 허용 범위별 projection |
+| TaxiParty | OPEN 파티 초대, 수락 정원·참여 동시성 |
+| Chat | 공개 non-PARTY 방 초대와 입장 자격 |
+| Minecraft | 친구용 계정 안전 projection |
+| Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, PARTY_INVITATION, CHAT_ROOM_INVITATION |
+
+#### 14-3. 구현 단위
+
+1. Friend 핵심 데이터 모델과 API
+2. 시간표 공유 설정과 친구 시간표 조회
+3. Minecraft 친구 계정 projection
+4. TaxiParty 친구 초대
+5. 공개 Chat 친구 초대
+6. Notification·badge·회원 탈퇴 cleanup
+7. OpenAPI, ERD, 도메인 문서, Contract·Service 테스트 동기화
+
+#### 14-4. 제외 범위
+
+- URL 딥링크 친구 추가
+- 1:1·비공개 친구 채팅
+- 여러 친구 공통 공강과 공강 기반 제안
+- Minecraft FRIEND 계정 소유권 이전
+- 친구 그룹, 연락처·수업·학과·상호 친구 기반 추천
+- 온라인·최근 활동 상태
+- 공개 콘텐츠 전역 차단 필터
+- 관리자 친구 관계망 운영 UI
+
+#### 14-5. 완료 기준
+
+- [ ] 친구 요청 30일 만료, 즉시 재요청, 중복·차단·동시 요청 규칙 검증
+- [ ] 친구 즐겨찾기와 한글 정렬 검증
+- [ ] 시간표 PRIVATE, BUSY_ONLY, DETAILS 필드 미노출 Contract 검증
+- [ ] TaxiParty 마지막 좌석 동시 수락 검증
+- [ ] 공개 non-PARTY 채팅방 초대와 7일 만료 검증
+- [ ] Minecraft 최근 접속·온라인·내부 식별자 미노출 검증
+- [ ] 신규 알림 타입, 알림 설정, 인박스·FCM·SSE 검증
+- [ ] 회원 탈퇴와 친구 끊기·차단 파생 데이터 cleanup 검증
+- [ ] 런타임 OpenAPI와 공유 문서 동기화
+
+---
+
 ## 4. Phase 간 의존 관계
 
 ```
@@ -1053,6 +1118,7 @@ Phase 1~9 ─────────────→ Phase 10 (Member 탈퇴)
 Phase 3/5/6/7 ── 연동 ──→ Phase 11 (운영 공통 Admin 인프라)
 Phase 1/3/4/5 ── 연동 ──→ Phase 12 (이미지/미디어 업로드 인프라)
 Phase 1/3/8 ── 연동 ──→ Phase 13 (마인크래프트 Spring 전환)
+Phase 1/2/3/6/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 ```
 
 **참고:** Phase 4~7 (Board, Notice, Academic, Support)은 서로 독립적이므로 **병렬 구현 가능**합니다.
@@ -1098,11 +1164,13 @@ Phase 1/3/8 ── 연동 ──→ Phase 13 (마인크래프트 Spring 전환)
 - [API 명세](./api-specification.md) — 전체 API 상세 스펙
 - [기술 전략](./tech-strategy.md) — 기술 선택 근거 및 포트폴리오 전략
 - [역할 정의](./role-definition.md) — Spring 백엔드의 책임 범위
+- [친구 기능 기준 명세](./features/friends.md) — Phase 14 정책, 권한, 상태 전이, 예정 API
 - 백엔드 레포 `docs/minecraft-spring-migration-plan.md` — 앱/플러그인/백엔드 통합 전환 상세 설계
 
 ---
 
 > **문서 이력**
+> - 2026-08-18: Phase 14 친구·시간표 공유·친구 초대 계획 추가 — 정책 기준 문서, 도메인 분리, 구현 중지선과 완료 기준을 문서화
 > - 2026-04-06: Admin Chat read API 구현 반영 — 공개 채팅방 관리자 목록/상세/메시지 조회와 관리자 파티 메시지 조회를 Phase 3/Phase 2 운영 API 및 완료 기준에 추가
 > - 2026-04-01: Phase 13 구현 반영 완료 상태로 갱신 — 마인크래프트 public/internal API, public SSE, bridge outbox, IMAGE placeholder, notification policy, 테스트/문서 완료 기준을 체크 상태로 동기화
 > - 2026-03-30: Phase 13 마인크래프트 Spring 전환 계획 추가 — public/internal API, SSE bridge, whitelist/검증 이관 범위, PR 분리 기준, 완료 기준을 문서화
