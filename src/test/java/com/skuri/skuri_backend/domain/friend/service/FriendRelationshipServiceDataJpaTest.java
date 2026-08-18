@@ -179,6 +179,32 @@ class FriendRelationshipServiceDataJpaTest {
     }
 
     @Test
+    void 제3자는_만료친구요청을_종료처리할수없고_요청은_PENDING으로_유지된다() {
+        FriendPair pair = createPair();
+        saveMember("member-3", "three@sungkyul.ac.kr", "회원3");
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        expireRequest(requestId);
+
+        assertThatThrownBy(() -> friendRelationshipService.acceptRequest("member-3", requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_REQUEST_RECIPIENT_REQUIRED);
+        assertPending(requestId);
+
+        assertThatThrownBy(() -> friendRelationshipService.declineRequest("member-3", requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_REQUEST_RECIPIENT_REQUIRED);
+        assertPending(requestId);
+
+        assertThatThrownBy(() -> friendRelationshipService.cancelRequest("member-3", requestId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_REQUEST_REQUESTER_REQUIRED);
+        assertPending(requestId);
+    }
+
+    @Test
     void 탈퇴한요청자의_만료요청수락은_409후_EXPIRED로_정리한다() {
         FriendPair pair = createPair();
         String requestId = createExpiredRequestWithWithdrawnRequester(pair);
@@ -517,6 +543,12 @@ class FriendRelationshipServiceDataJpaTest {
         assertThat(friendRequestRepository.findById(requestId)).get()
                 .extracting(request -> request.getStatus(), request -> request.getActivePairKey())
                 .containsExactly(FriendRequestStatus.EXPIRED, null);
+    }
+
+    private void assertPending(String requestId) {
+        assertThat(friendRequestRepository.findById(requestId)).get()
+                .extracting(request -> request.getStatus(), request -> request.getActivePairKey())
+                .containsExactly(FriendRequestStatus.PENDING, "member-1:member-2");
     }
 
     private record FriendPair(String firstMemberId, String secondMemberId, String firstPublicId, String secondPublicId) {

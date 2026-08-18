@@ -29,14 +29,13 @@ public class FriendRequestTransitionService {
     @Transactional
     public FriendRequestAcceptAttempt acceptRequest(String recipientMemberId, String requestId) {
         FriendRequest snapshot = findRequest(requestId);
+        requireRecipient(snapshot, recipientMemberId);
         if (expireIfNeededBeforeActiveMemberLock(snapshot)) {
             return FriendRequestAcceptAttempt.stateNotAllowed();
         }
         FriendMemberPair pair = pairLockService.lockActivePair(snapshot.getRequesterId(), snapshot.getRecipientId());
         FriendRequest request = findRequestForUpdate(requestId);
-        if (!request.getRecipientId().equals(recipientMemberId)) {
-            throw new BusinessException(ErrorCode.FRIEND_REQUEST_RECIPIENT_REQUIRED);
-        }
+        requireRecipient(request, recipientMemberId);
 
         if (request.getStatus() == FriendRequestStatus.ACCEPTED) {
             if (friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId()).isPresent()) {
@@ -69,14 +68,13 @@ public class FriendRequestTransitionService {
     @Transactional
     public FriendRequestTerminalAttempt declineRequest(String recipientMemberId, String requestId) {
         FriendRequest snapshot = findRequest(requestId);
+        requireRecipient(snapshot, recipientMemberId);
         if (expireIfNeededBeforeActiveMemberLock(snapshot)) {
             return FriendRequestTerminalAttempt.stateNotAllowed();
         }
         pairLockService.lockActivePair(snapshot.getRequesterId(), snapshot.getRecipientId());
         FriendRequest request = findRequestForUpdate(requestId);
-        if (!request.getRecipientId().equals(recipientMemberId)) {
-            throw new BusinessException(ErrorCode.FRIEND_REQUEST_RECIPIENT_REQUIRED);
-        }
+        requireRecipient(request, recipientMemberId);
 
         LocalDateTime now = LocalDateTime.now();
         if (request.isExpiredAt(now)) {
@@ -93,14 +91,13 @@ public class FriendRequestTransitionService {
     @Transactional
     public FriendRequestTerminalAttempt cancelRequest(String requesterMemberId, String requestId) {
         FriendRequest snapshot = findRequest(requestId);
+        requireRequester(snapshot, requesterMemberId);
         if (expireIfNeededBeforeActiveMemberLock(snapshot)) {
             return FriendRequestTerminalAttempt.stateNotAllowed();
         }
         pairLockService.lockActivePair(snapshot.getRequesterId(), snapshot.getRecipientId());
         FriendRequest request = findRequestForUpdate(requestId);
-        if (!request.getRequesterId().equals(requesterMemberId)) {
-            throw new BusinessException(ErrorCode.FRIEND_REQUEST_REQUESTER_REQUIRED);
-        }
+        requireRequester(request, requesterMemberId);
 
         LocalDateTime now = LocalDateTime.now();
         if (request.isExpiredAt(now)) {
@@ -130,6 +127,18 @@ public class FriendRequestTransitionService {
         }
         friendRequestExpiryService.expireRequestIfNeeded(snapshot.getId());
         return true;
+    }
+
+    private void requireRecipient(FriendRequest request, String recipientMemberId) {
+        if (!request.getRecipientId().equals(recipientMemberId)) {
+            throw new BusinessException(ErrorCode.FRIEND_REQUEST_RECIPIENT_REQUIRED);
+        }
+    }
+
+    private void requireRequester(FriendRequest request, String requesterMemberId) {
+        if (!request.getRequesterId().equals(requesterMemberId)) {
+            throw new BusinessException(ErrorCode.FRIEND_REQUEST_REQUESTER_REQUIRED);
+        }
     }
 
     private void rejectBlockedPair(FriendMemberPair pair) {
