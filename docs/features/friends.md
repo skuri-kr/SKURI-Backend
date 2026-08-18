@@ -68,6 +68,7 @@
 - 검색 허용 기본값은 false다.
 - FriendSettings는 서버의 현재 nicknameSearchable 값을 먼저 조회하고 사용자가 변경한 최종 값을 PATCH 응답으로 다시 받는다.
 - 닉네임 2글자 이상 부분 일치로 검색하며 한 페이지는 최대 20건이다.
+- `%`, `_`, `!`는 검색 문법이 아니라 닉네임의 일반 문자로 해석한다. 서버는 SQL LIKE escape를 적용해 이 문자만으로 검색 공개 회원 전체를 열거할 수 없게 한다.
 - 결과는 닉네임 가나다순, friendPublicId 오름차순으로 안정 정렬한다.
 - opaque cursor 기반으로 hasNext와 nextCursor를 반환하며 cursor는 마지막 결과의 정렬 위치를 서버만 해석할 수 있게 표현한다.
 - 같은 검색어와 cursor를 사용해 다음 페이지를 조회하고 검색어가 바뀌면 cursor를 다시 사용할 수 없다.
@@ -316,6 +317,8 @@ friend_code_registry:
 | responded_at | 수락·거절·취소·만료 처리 시각 |
 | active_pair_key | PENDING 중복 방지를 위한 정규화 키 |
 
+`active_pair_key`와 friendship의 low/high pair는 Java 문자열 비교 기준으로 정규화한다. DB collation에 따른 정렬은 비관적 잠금 획득 순서에만 사용하며 저장·조회 key의 기준으로 사용하지 않는다.
+
 ### 6.3 friendships
 
 | 필드 | 설명 |
@@ -428,8 +431,9 @@ Terminal 상태에서 다시 상태를 변경하지 않는다.
 
 - expires_at이 현재 시각 이하인 PENDING 요청은 EXPIRED로 저장하고 responded_at을 기록하며 active_pair_key를 해제한다.
 - 받은·보낸 요청 목록, inbox-counts, 코드 preview·닉네임 검색의 요청 가능 상태, 새 요청 생성, 수락·거절·취소, 역방향 요청 자동 수락은 PENDING을 판단하기 전에 만료를 lazy reconciliation한다.
-- 개별 변경 경로는 잠근 요청 행에서 만료를 먼저 반영하고, 목록·badge는 만료 batch를 먼저 반영한 뒤 유효 PENDING만 조회한다.
-- 10분 주기의 만료 batch는 최대 100건씩 정리하는 보조 수단이며, 정확성은 각 PENDING 의존 경로의 lazy reconciliation으로 보장한다. 이 작업은 회원 전체를 순회하거나 잠그지 않고 만료 후보 request ID만 조회한 뒤 각 pair lock 경로를 재사용한다.
+- 개별 변경 경로는 잠근 요청 행에서 만료를 먼저 `EXPIRED`로 커밋한 뒤 terminal `409`을 반환한다. 수락·역방향 자동 수락의 성공 응답은 같은 mutation 트랜잭션에서 만든 친구 공개 snapshot을 사용한다.
+- 목록·badge는 유효 PENDING만 반환한다. 요청 목록은 DB cursor와 제한된 batch 조회를 사용하며, 중간의 만료 후보만 lazy reconciliation한 뒤 다음 제한 batch를 조회한다.
+- 10분 주기의 만료 batch는 최대 100건씩 정리하는 보조 수단이며, 정확성은 각 PENDING 의존 경로의 lazy reconciliation으로 보장한다. 이 작업은 회원 전체를 순회하거나 잠그지 않고 만료 후보 request ID만 조회한 뒤 요청별 독립 트랜잭션에서 처리한다. 만료 전이는 기존 회원 행이 있으면 상태와 무관하게 잠그므로 탈퇴 회원의 오래된 요청도 terminal 정리할 수 있다.
 
 ### 7.2 친구 관계
 
@@ -562,6 +566,7 @@ inbox-counts 응답:
 - 대상이 나에게 보낸 유효 PENDING 요청이 있으면 새 요청을 만들지 않고 기존 요청을 `ACCEPTED`로 전이해 friendship을 만든다. 이 역방향 요청 호출은 `ACCEPTED`와 친구 공개 프로필을 반환한다.
 - 수락 API의 재호출은 이미 같은 friendship이 성립한 경우 같은 친구 공개 프로필을 반환하는 멱등 성공이다.
 - 거절·취소는 현재 PENDING인 요청만 전이할 수 있으며, 이미 terminal 상태이면 `409`로 처리한다.
+- accept·decline·cancel에서 존재하지 않는 requestId는 `404 FRIEND_REQUEST_NOT_FOUND`다. ACTIVE 대상 확인이 불가능하거나 차단 마스킹이 필요한 경우는 `404 FRIEND_TARGET_NOT_FOUND`를 사용한다.
 - 차단 관계의 대상은 차단 사실을 노출하지 않는다. 친구 요청 생성은 `404 FRIEND_TARGET_NOT_FOUND`로 처리하고, 친구 코드 preview·닉네임 검색에서도 동일하게 일반 대상 없음으로 숨긴다.
 
 현재 preview의 `canSendFriendRequest`는 기존 친구와 유효 PENDING 요청에도 false를 반환한다. 양방향 차단은 preview 자체를 `404 FRIEND_CODE_NOT_FOUND`로 마스킹하며 false로 구분해 노출하지 않는다. 재발급 제한 중 `POST /v1/friends/me/code/regenerate`는 `429 FRIEND_CODE_REGENERATION_COOLDOWN`과 초 단위 `Retry-After` 헤더를 반환한다. 전송 timeout 이후 앱은 새 재발급 요청을 자동 재시도하지 않고 `GET /v1/friends/me/code`로 현재 코드를 조회해 조정한다.

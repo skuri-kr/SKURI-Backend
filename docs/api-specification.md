@@ -7500,7 +7500,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 #### `GET /v1/friends/search`
 
-필수 query `query`는 2~50자의 닉네임 부분 일치다. `cursor`는 선택이고 `size`는 기본 20·최대 20이다. 결과는 검색 공개 허용 ACTIVE 회원만 대상으로 닉네임 가나다순·friendPublicId 오름차순으로 정렬한다.
+필수 query `query`는 2~50자의 닉네임 부분 일치다. `%`, `_`, `!`는 검색 문법이 아닌 일반 문자로 처리한다. `cursor`는 선택이고 `size`는 기본 20·최대 20이다. 결과는 검색 공개 허용 ACTIVE 회원만 대상으로 닉네임 가나다순·friendPublicId 오름차순으로 정렬한다.
 
 ```json
 {
@@ -7544,7 +7544,7 @@ cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형�
 }
 ```
 
-만료 시각을 지난 PENDING은 10분 주기의 최대 100건 batch와 목록·badge 조회의 lazy expiry로 terminal 처리한 뒤 제외한다. batch는 회원 전체를 순회·잠그지 않고 만료 후보 request ID만 대상으로 같은 pair lock 전이를 재사용한다.
+만료 시각을 지난 PENDING은 10분 주기의 최대 100건 batch와 목록·badge 조회의 lazy expiry로 terminal 처리한 뒤 제외한다. batch는 회원 전체를 순회·잠그지 않고 만료 후보 request ID만 대상으로 요청별 독립 전이를 수행한다. 만료 전이는 기존 회원 행이 있으면 ACTIVE 여부와 무관하게 잠그므로 탈퇴 뒤의 오래된 요청도 EXPIRED로 정리한다.
 
 #### `POST /v1/friend-requests`
 
@@ -7556,11 +7556,11 @@ cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형�
 
 #### `POST /v1/friend-requests/{requestId}/accept`
 
-수신자만 수락할 수 있다. 성공은 `200`과 `status: ACCEPTED`, `requestId`, 친구 공개 요약이다. 이미 같은 friendship이 성립해 있으면 같은 형태로 멱등 성공한다. PENDING이 아닌 terminal 요청은 `409 FRIEND_REQUEST_STATE_NOT_ALLOWED`다.
+수신자만 수락할 수 있다. 성공은 `200`과 `status: ACCEPTED`, `requestId`, 친구 공개 요약이다. 이미 같은 friendship이 성립해 있으면 같은 형태로 멱등 성공한다. 응답 친구 요약은 수락 mutation이 커밋한 시점의 snapshot이다. PENDING이 아닌 terminal 요청은 `409 FRIEND_REQUEST_STATE_NOT_ALLOWED`다. 존재하지 않는 requestId는 `404 FRIEND_REQUEST_NOT_FOUND`이며, 대상 상태를 외부에 노출하지 않아야 하는 경우는 `404 FRIEND_TARGET_NOT_FOUND`다.
 
 #### `POST /v1/friend-requests/{requestId}/decline` / `DELETE /v1/friend-requests/{requestId}`
 
-각각 수신자의 거절과 요청자의 취소다. 현재 PENDING에서만 `204 No Content`로 전이하며 terminal 요청 재처리는 `409 FRIEND_REQUEST_STATE_NOT_ALLOWED`다.
+각각 수신자의 거절과 요청자의 취소다. 현재 PENDING에서만 `204 No Content`로 전이하며 terminal 요청 재처리는 `409 FRIEND_REQUEST_STATE_NOT_ALLOWED`다. 존재하지 않는 requestId는 `404 FRIEND_REQUEST_NOT_FOUND`다.
 
 #### `GET|POST|DELETE /v1/friends/blocks`
 
