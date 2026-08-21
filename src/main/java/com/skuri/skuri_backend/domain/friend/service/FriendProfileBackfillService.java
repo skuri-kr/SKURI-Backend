@@ -26,11 +26,11 @@ public class FriendProfileBackfillService {
     private final FriendProfileProvisioningService provisioningService;
 
     @EventListener(ApplicationReadyEvent.class)
-    public void backfillActiveMemberProfiles() {
+    public void backfillProfileCompleteActiveMemberProfiles() {
         long processedCount = 0;
         long withdrawnDuringBackfillCount = 0;
         while (true) {
-            List<String> missingMemberIds = memberRepository.findActiveMemberIdsWithoutFriendProfile(
+            List<String> missingMemberIds = memberRepository.findProfileCompleteActiveMemberIdsWithoutFriendProfile(
                     PageRequest.of(0, BATCH_SIZE)
             );
             if (missingMemberIds.isEmpty()) {
@@ -47,12 +47,10 @@ public class FriendProfileBackfillService {
             }
         }
 
-        long activeMemberCount = memberRepository.countByStatus(
-                com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
-        );
-        long provisionedCount = friendProfileRepository.countForActiveMembers();
-        if (provisionedCount != activeMemberCount) {
-            log.error("친구 공개 프로필 backfill 누락: activeMembers={}, profiles={}", activeMemberCount, provisionedCount);
+        long eligibleMemberCount = memberRepository.countProfileCompleteActiveMembers();
+        long provisionedCount = friendProfileRepository.countForProfileCompleteActiveMembers();
+        if (provisionedCount != eligibleMemberCount) {
+            log.error("친구 공개 프로필 backfill 누락: eligibleMembers={}, profiles={}", eligibleMemberCount, provisionedCount);
             return;
         }
         log.info(

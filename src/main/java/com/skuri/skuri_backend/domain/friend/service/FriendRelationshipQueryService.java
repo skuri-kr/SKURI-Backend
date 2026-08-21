@@ -6,6 +6,7 @@ import com.skuri.skuri_backend.domain.friend.dto.response.FriendBlockResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendInboxCountsResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRequestItemResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRequestPageResponse;
+import com.skuri.skuri_backend.domain.friend.dto.response.FriendRelationshipState;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendSearchPageResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendSearchResultResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendSummaryResponse;
@@ -148,21 +149,23 @@ public class FriendRelationshipQueryService {
         Set<String> activePairKeys = candidateMemberIds.stream()
                 .map(candidateMemberId -> FriendMemberPair.of(requesterMemberId, candidateMemberId).activePairKey())
                 .collect(Collectors.toSet());
-        LocalDateTime now = LocalDateTime.now();
-        Set<String> pendingPairKeys = activePairKeys.isEmpty()
-                ? Set.of()
+        Map<String, FriendRequest> pendingRequestsByPairKey = activePairKeys.isEmpty()
+                ? Map.of()
                 : friendRequestRepository.findAllByActivePairKeyIn(activePairKeys).stream()
                 .filter(request -> reconcileExpiration(request))
-                .map(FriendRequest::getActivePairKey)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toMap(FriendRequest::getActivePairKey, request -> request));
         List<FriendSearchResultResponse> items = page.stream()
                 .map(result -> new FriendSearchResultResponse(
                         result.getFriendPublicId(),
                         result.getNickname(),
                         result.getDepartment(),
                         result.getPhotoUrl(),
-                        !existingFriendMemberIds.contains(result.getMemberId())
-                                && !pendingPairKeys.contains(FriendMemberPair.of(requesterMemberId, result.getMemberId()).activePairKey())
+                        relationshipState(
+                                requesterMemberId,
+                                result.getMemberId(),
+                                existingFriendMemberIds,
+                                pendingRequestsByPairKey
+                        )
                 ))
                 .toList();
         String nextCursor = null;
@@ -239,19 +242,44 @@ public class FriendRelationshipQueryService {
                 || memberBlockRepository.existsByBlockerIdAndBlockedId(secondMemberId, firstMemberId);
     }
 
-    public boolean canSendFriendRequest(String requesterMemberId, String targetMemberId) {
+    public FriendRelationshipState getRelationshipState(String requesterMemberId, String targetMemberId) {
         if (requesterMemberId.equals(targetMemberId) || isBlockedPair(requesterMemberId, targetMemberId)) {
-            return false;
+            throw new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND);
         }
         FriendMemberPair pair = FriendMemberPair.of(requesterMemberId, targetMemberId);
         if (friendshipRepository.findByMemberPair(pair.lowMemberId(), pair.highMemberId()).isPresent()) {
-            return false;
+            return FriendRelationshipState.ALREADY_FRIEND;
         }
         FriendRequest request = friendRequestRepository.findByActivePairKey(pair.activePairKey()).orElse(null);
         if (request == null) {
-            return true;
+            return FriendRelationshipState.REQUESTABLE;
         }
-        return !reconcileExpiration(request);
+        if (!reconcileExpiration(request)) {
+            return FriendRelationshipState.REQUESTABLE;
+        }
+        return request.getRequesterId().equals(requesterMemberId)
+                ? FriendRelationshipState.OUTGOING_PENDING
+                : FriendRelationshipState.INCOMING_PENDING;
+    }
+
+    private FriendRelationshipState relationshipState(
+            String requesterMemberId,
+            String targetMemberId,
+            Set<String> existingFriendMemberIds,
+            Map<String, FriendRequest> pendingRequestsByPairKey
+    ) {
+        if (existingFriendMemberIds.contains(targetMemberId)) {
+            return FriendRelationshipState.ALREADY_FRIEND;
+        }
+        FriendRequest pendingRequest = pendingRequestsByPairKey.get(
+                FriendMemberPair.of(requesterMemberId, targetMemberId).activePairKey()
+        );
+        if (pendingRequest == null) {
+            return FriendRelationshipState.REQUESTABLE;
+        }
+        return pendingRequest.getRequesterId().equals(requesterMemberId)
+                ? FriendRelationshipState.OUTGOING_PENDING
+                : FriendRelationshipState.INCOMING_PENDING;
     }
 
     private boolean reconcileExpiration(FriendRequest snapshot) {
@@ -277,6 +305,7 @@ public class FriendRelationshipQueryService {
             return Map.of();
         }
         Map<String, Member> members = memberRepository.findAllActiveByIdIn(memberIds).stream()
+                .filter(Member::isProfileComplete)
                 .collect(Collectors.toMap(Member::getId, member -> member));
         return friendProfileRepository.findAllByMemberIdIn(memberIds).stream()
                 .filter(profile -> members.containsKey(profile.getMemberId()))
@@ -298,6 +327,9 @@ public class FriendRelationshipQueryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND));
         Member member = memberRepository.findActiveById(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND));
+        if (!member.isProfileComplete()) {
+            throw new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND);
+        }
         return new PublicMember(member.getId(), friendPublicId, member.getNickname(), member.getDepartment(), member.getPhotoUrl());
     }
 

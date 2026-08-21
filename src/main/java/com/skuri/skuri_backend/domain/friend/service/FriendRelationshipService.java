@@ -12,6 +12,8 @@ import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
+import com.skuri.skuri_backend.domain.member.entity.Member;
+import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +34,7 @@ public class FriendRelationshipService {
     private final FriendRequestTransitionService friendRequestTransitionService;
     private final FriendRequestExpiryService friendRequestExpiryService;
     private final FriendSummarySnapshotFactory friendSummarySnapshotFactory;
+    private final MemberRepository memberRepository;
 
     @Transactional
     public FriendRequestCreationResult createRequest(String requesterMemberId, String targetFriendPublicId) {
@@ -151,8 +154,12 @@ public class FriendRelationshipService {
     }
 
     private String resolveTargetMemberId(String friendPublicId) {
-        return friendProfileRepository.findByPublicId(friendPublicId)
+        String memberId = friendProfileRepository.findByPublicId(friendPublicId)
                 .map(profile -> profile.getMemberId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND));
+        return memberRepository.findActiveById(memberId)
+                .filter(Member::isProfileComplete)
+                .map(Member::getId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND));
     }
 

@@ -28,6 +28,14 @@ public interface FriendProfileRepository extends JpaRepository<FriendProfile, St
             from FriendProfile p
             join Member m on m.id = p.memberId
             where m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+              and m.nickname is not null
+              and trim(m.nickname) <> ''
+              and replace(lower(trim(m.nickname)), ' ', '') not like '%스쿠리유저%'
+              and replace(lower(trim(m.nickname)), ' ', '') not like '%운영자%'
+              and m.studentId is not null
+              and trim(m.studentId) <> ''
+              and m.department is not null
+              and trim(m.department) <> ''
               and p.nicknameSearchable = true
               and p.memberId <> :requesterMemberId
               and lower(m.nickname) like lower(concat('%', :escapedQuery, '%')) escape '!'
@@ -66,7 +74,15 @@ public interface FriendProfileRepository extends JpaRepository<FriendProfile, St
                 from Member m
                 where m.id = p.memberId
                   and m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+                  and m.nickname is not null
+                  and trim(m.nickname) <> ''
+                  and replace(lower(trim(m.nickname)), ' ', '') not like '%스쿠리유저%'
+                  and replace(lower(trim(m.nickname)), ' ', '') not like '%운영자%'
+                  and m.studentId is not null
+                  and trim(m.studentId) <> ''
+                  and m.department is not null
+                  and trim(m.department) <> ''
             )
             """)
-    long countForActiveMembers();
+    long countForProfileCompleteActiveMembers();
 }

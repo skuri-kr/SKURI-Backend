@@ -18,7 +18,10 @@ public class FriendMemberPairLockService {
     private final MemberRepository memberRepository;
 
     public void lockActiveMember(String memberId) {
-        memberRepository.findActiveByIdForUpdate(memberId).orElseThrow(MemberNotFoundException::new);
+        Member member = memberRepository.findActiveByIdForUpdate(memberId).orElseThrow(MemberNotFoundException::new);
+        if (!member.isProfileComplete()) {
+            throw new BusinessException(ErrorCode.MEMBER_PROFILE_INCOMPLETE);
+        }
     }
 
     public FriendMemberPair lockActivePair(String firstMemberId, String secondMemberId) {
@@ -28,10 +31,21 @@ public class FriendMemberPairLockService {
         }
 
         List<Member> members = memberRepository.findAllActiveByIdInForUpdateOrdered(Set.of(firstMemberId, secondMemberId));
-        if (members.isEmpty() || members.stream().noneMatch(member -> member.getId().equals(firstMemberId))) {
+        Member firstMember = members.stream()
+                .filter(member -> member.getId().equals(firstMemberId))
+                .findFirst()
+                .orElse(null);
+        if (firstMember == null) {
             throw new MemberNotFoundException();
         }
-        if (members.size() != 2) {
+        if (!firstMember.isProfileComplete()) {
+            throw new BusinessException(ErrorCode.MEMBER_PROFILE_INCOMPLETE);
+        }
+        Member secondMember = members.stream()
+                .filter(member -> member.getId().equals(secondMemberId))
+                .findFirst()
+                .orElse(null);
+        if (secondMember == null || !secondMember.isProfileComplete()) {
             throw new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND);
         }
 

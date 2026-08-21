@@ -93,6 +93,9 @@ public class FriendCodeService {
                 .orElseThrow(FriendCodeNotFoundException::new);
         Member member = memberRepository.findActiveById(code.getOwnerMemberId())
                 .orElseThrow(FriendCodeNotFoundException::new);
+        if (!member.isProfileComplete()) {
+            throw new FriendCodeNotFoundException();
+        }
         if (friendRelationshipQueryService.isBlockedPair(requesterMemberId, member.getId())) {
             throw new FriendCodeNotFoundException();
         }
@@ -101,7 +104,7 @@ public class FriendCodeService {
                 member.getNickname(),
                 member.getPhotoUrl(),
                 member.getDepartment(),
-                friendRelationshipQueryService.canSendFriendRequest(requesterMemberId, member.getId())
+                friendRelationshipQueryService.getRelationshipState(requesterMemberId, member.getId())
         );
     }
 }

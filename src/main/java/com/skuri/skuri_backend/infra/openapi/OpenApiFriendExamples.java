@@ -59,7 +59,7 @@ public final class OpenApiFriendExamples {
                 "nickname": "스쿠리",
                 "photoUrl": null,
                 "department": "컴퓨터공학과",
-                "canSendFriendRequest": true
+                "relationshipState": "REQUESTABLE"
               }
             }
             """;
@@ -135,7 +135,7 @@ public final class OpenApiFriendExamples {
                   "nickname": "스쿠리",
                   "department": "컴퓨터공학과",
                   "photoUrl": null,
-                  "canSendFriendRequest": true
+                  "relationshipState": "REQUESTABLE"
                 }],
                 "hasNext": false,
                 "nextCursor": null

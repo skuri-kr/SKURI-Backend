@@ -12,7 +12,7 @@ public record FriendCodePreviewResponse(
         String photoUrl,
         @Schema(description = "학과", nullable = true, example = "컴퓨터공학과")
         String department,
-        @Schema(description = "현재 친구 요청 발송 가능 여부", example = "true")
-        boolean canSendFriendRequest
+        @Schema(description = "현재 사용자와 대상 사이의 관계 상태", example = "REQUESTABLE")
+        FriendRelationshipState relationshipState
 ) {
 }

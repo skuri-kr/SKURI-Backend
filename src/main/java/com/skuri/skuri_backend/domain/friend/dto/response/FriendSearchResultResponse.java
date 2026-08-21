@@ -12,7 +12,7 @@ public record FriendSearchResultResponse(
         String department,
         @Schema(description = "프로필 사진 URL", nullable = true)
         String photoUrl,
-        @Schema(description = "현재 친구 요청을 보낼 수 있는지 여부", example = "true")
-        boolean canSendFriendRequest
+        @Schema(description = "현재 사용자와 대상 사이의 관계 상태", example = "REQUESTABLE")
+        FriendRelationshipState relationshipState
 ) {
 }
