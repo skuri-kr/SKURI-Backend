@@ -345,6 +345,7 @@ Spring 서버 처리:
 - `nickname`은 앞뒤 공백 제거와 Unicode NFC 정규화 후 저장합니다.
 - 공백 차이로 우회한 경우까지 포함해 `스쿠리 유저`, `운영자`를 포함한 닉네임은 `422 NICKNAME_RESERVED`로 거부합니다.
 - 신규·변경 닉네임은 ACTIVE 회원 사이에서만 고유해야 합니다. 중복이면 `409 NICKNAME_ALREADY_EXISTS`이며, 탈퇴 회원의 닉네임은 재사용할 수 있습니다.
+- 닉네임 고유 비교는 운영 MySQL `utf8mb4_unicode_ci` 규칙을 사용하므로 대소문자와 악센트 차이도 중복입니다. 예를 들어 `Jose`와 `José`를 함께 저장할 수 없습니다.
 - 기존 ACTIVE 회원의 중복 닉네임은 임의 변경하지 않습니다. 해당 회원이 닉네임을 변경할 때부터 신규 정책을 적용합니다.
 - `department`는 서버가 지원하는 학과 카탈로그 기준으로만 허용합니다.
   - 학과 카탈로그의 runtime source of truth는 `departments` 테이블입니다.

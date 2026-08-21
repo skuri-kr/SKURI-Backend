@@ -773,7 +773,7 @@ erDiagram
 | id | VARCHAR(36) | PK | Firebase UID 또는 UUID |
 | email | VARCHAR(255) | UK, NOT NULL | 이메일 (로그인 식별자) |
 | nickname | VARCHAR(50) | | 앱 내 닉네임 |
-| nickname_key | VARCHAR(255) | UK, nullable | 신규·변경 ACTIVE 닉네임의 trim·NFC·소문자 고유 키. 소문자화로 길이가 늘어나는 Unicode 닉네임을 보존하며, 기존 중복 닉네임은 null로 유지 가능 |
+| nickname_key | VARCHAR(255) | UK, nullable | 신규·변경 ACTIVE 닉네임의 trim·NFC·소문자 고유 키. 소문자화로 길이가 늘어나는 Unicode 닉네임을 보존하며, 운영 MySQL `utf8mb4_unicode_ci` 비교로 대소문자·악센트 차이는 중복으로 취급한다. 기존 중복 닉네임은 null로 유지 가능 |
 | student_id | VARCHAR(20) | | 학번 |
 | department | VARCHAR(50) | FK, nullable | `departments.name` 학과 |
 | photo_url | VARCHAR(500) | | 프로필 이미지 URL (가입 시 기본 null) |

@@ -99,6 +99,7 @@ PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색�
 - opaque cursor 기반으로 hasNext와 nextCursor를 반환하며 cursor는 마지막 결과의 정렬 위치를 서버만 해석할 수 있게 표현한다.
 - 같은 검색어와 cursor를 사용해 다음 페이지를 조회하고 검색어가 바뀌면 cursor를 다시 사용할 수 없다.
 - 신규 가입이나 프로필 변경으로 확정하는 닉네임은 ACTIVE 회원 사이에서 중복될 수 없다. WITHDRAWN 회원의 닉네임은 재사용할 수 있다.
+- 닉네임 중복은 trim·Unicode NFC·소문자 `nickname_key`를 기준으로 하며, 운영 MySQL의 `utf8mb4_unicode_ci` 비교 규칙에 따라 대소문자와 악센트 차이도 같은 닉네임으로 취급한다. 예를 들어 `Jose`와 `José`는 함께 사용할 수 없다.
 - 기존 ACTIVE 회원에 이미 존재하는 중복 닉네임은 임의 변경하지 않는다. 해당 회원이 닉네임을 그대로 두고 다른 프로필 필드만 수정할 수는 있지만, 새 닉네임을 확정할 때는 ACTIVE 중복 검사를 통과해야 한다.
 - `스쿠리 유저`, `운영자`가 포함된 닉네임은 회원가입과 프로필 편집에서 사용할 수 없다. 비교 전 앞뒤 공백과 Unicode 표현 차이를 정규화하고, 예약어 판정에서는 중간 공백으로 우회할 수 없게 한다.
 - 닉네임 중복과 예약어 검사는 별도 중복 확인 버튼을 두지 않고 회원가입·프로필 저장 요청에서 서버가 최종 검증한다. 중복은 `409`, 예약어는 `422`로 거부하며 모바일은 현재 화면에 머물러 안내한다.
@@ -320,7 +321,7 @@ Friend 도메인은 다른 도메인의 내부 엔티티를 직접 수정하지 
 
 `friend_profiles`, `friend_code_registry`, `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`는 Foundation·관계 Core 런타임 테이블이다. 시간표 예외·택시파티 초대·공개방 초대·알림 설정 관련 표는 이후 구현 단위의 논리 모델이며 실제 컬럼명과 마이그레이션은 해당 구현 PR에서 ERD와 함께 확정한다.
 
-ACTIVE 닉네임 중복은 서비스 조회만으로 판단하지 않고 동시 저장도 막는 DB unique claim을 사용한다. `members.nickname_key`는 새로 가입하거나 닉네임을 변경해 정책을 통과한 ACTIVE 회원의 정규화 키이며 nullable unique다. 기존 중복 닉네임은 임의 변경하지 않고 grandfathering을 위해 claim을 강제로 채우지 않는다. 기존 닉네임과 동일한 값을 유지한 프로필 수정은 허용하고, 새 값으로 변경할 때는 claim이 없는 기존 ACTIVE 닉네임까지 조회해 중복을 거부한다. 탈퇴 시 claim을 해제해 닉네임 재사용을 허용한다. 실제 컬럼·인덱스는 Core 출시 준비 PR에서 `docs/erd.md`와 동기화한다.
+ACTIVE 닉네임 중복은 서비스 조회만으로 판단하지 않고 동시 저장도 막는 DB unique claim을 사용한다. `members.nickname_key`는 새로 가입하거나 닉네임을 변경해 정책을 통과한 ACTIVE 회원의 정규화 키이며 nullable unique다. 운영 MySQL `utf8mb4_unicode_ci` 비교로 대소문자·악센트 차이는 같은 claim으로 취급한다. 기존 중복 닉네임은 임의 변경하지 않고 grandfathering을 위해 claim을 강제로 채우지 않는다. 기존 닉네임과 동일한 값을 유지한 프로필 수정은 허용하고, 새 값으로 변경할 때는 claim이 없는 기존 ACTIVE 닉네임까지 조회해 중복을 거부한다. 탈퇴 시 claim을 해제해 닉네임 재사용을 허용한다. 실제 컬럼·인덱스는 Core 출시 준비 PR에서 `docs/erd.md`와 동기화한다.
 
 ### 6.1 friend_profiles
 
@@ -738,7 +739,8 @@ batch 요청과 응답:
 
 ## 10. 동시성, 멱등성, 보안
 
-- 모든 Friend write와 lazy provisioning은 작업에 관련된 Member row를 먼저 잠그고 상태를 다시 읽는다. 회원 쌍 작업은 양쪽 모두, 내 코드·privacy 같은 단일 회원 작업은 현재 회원이 ACTIVE여야만 계속한다.
+- friendPublicId를 받는 Friend write는 대상 해석 전에 호출자의 ACTIVE·프로필 완료 상태를 읽기 검증해 미완료 회원이 대상 존재 여부를 구분하지 못하게 한다. 이후 실제 write 전에 ordered Member pair 잠금을 획득하고 호출자 자격을 다시 검증한다.
+- 모든 Friend write와 lazy provisioning은 실제 상태 확정 전에 작업에 관련된 Member row를 잠그고 상태를 다시 읽는다. 회원 쌍 작업은 양쪽 모두, 내 코드·privacy 같은 단일 회원 작업은 현재 회원이 ACTIVE여야만 계속한다.
 - 동일 회원 쌍을 변경하는 친구 요청 생성·terminal 전이, 친구 관계 삭제, 차단·차단 해제, 즐겨찾기 변경, 친구별 시간표 override 생성·변경·삭제는 두 Member row를 내부 ID 오름차순으로 같은 PESSIMISTIC_WRITE 잠금 경계에서 획득한다.
 - friendPublicId 해석 결과만 신뢰하지 않고 잠금 획득 후 요청자와 대상 Member를 다시 읽어 둘 다 ACTIVE인지 확인한다. 하나라도 WITHDRAWN이면 어떤 Friend row나 파생 데이터도 만들거나 복원하지 않는다.
 - 친구 요청 accept·decline·cancel·expire·역방향 자동 수락은 ordered Member pair 다음 FriendRequest 행을 PESSIMISTIC_WRITE로 잠그고 상태·expires_at을 다시 읽는다. 최초로 PENDING을 terminal 상태로 바꾼 트랜잭션만 friendship 생성이나 active_pair_key 해제 같은 부수효과를 수행한다.
@@ -974,6 +976,7 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-21 | 친구 FE 첫 배포 전에는 실제 사용 이력이 없는 테스트 데이터라는 전제에서 미완료 회원 FriendProfile·소유 ACTIVE 코드와 당시 모든 RETIRED 코드를 일회성 cleanup으로 삭제하고, 이후 RETIRED 코드는 영구 미재사용 유지 |
 | 2026-08-21 | nicknameSearchable 기본값을 true로 변경하고 닉네임 검색은 1글자부터 허용 |
 | 2026-08-21 | 스쿠리 유저·운영자 포함 닉네임을 금지하고 신규·변경 닉네임은 ACTIVE 회원 사이에서만 고유하며 탈퇴 후 재사용 허용 |
+| 2026-08-21 | 닉네임 중복 비교는 운영 MySQL `utf8mb4_unicode_ci` 규칙을 따라 대소문자·악센트 차이를 같은 닉네임으로 취급 |
 | 2026-08-21 | 기존 중복 닉네임은 임의 변경하지 않고 새 닉네임 확정 시에만 unique claim을 요구 |
 | 2026-08-21 | canSendFriendRequest 호환 field 없이 REQUESTABLE·INCOMING_PENDING·OUTGOING_PENDING·ALREADY_FRIEND 관계 상태로 교체 |
 | 2026-08-21 | 친구 요청 거절 알림은 알림 단계에서 원 요청자에게 제공하고 FriendHub 요청 탭으로 이동 |
