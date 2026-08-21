@@ -1,6 +1,7 @@
 package com.skuri.skuri_backend.domain.member.repository;
 
 import com.skuri.skuri_backend.domain.member.constant.AdminMemberSortField;
+import com.skuri.skuri_backend.domain.member.constant.MemberNicknamePolicy;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.MemberStatus;
 import com.skuri.skuri_backend.domain.friend.entity.FriendProfile;
@@ -233,6 +234,23 @@ class MemberRepositoryDataJpaTest {
                 ).isEmpty()
         );
         assertEquals(0, friendProfileRepository.countForProfileCompleteActiveMembers());
+    }
+
+    @Test
+    void 소문자화시길이가늘어난_50자닉네임의고유키를저장한다() {
+        String nickname = "İ".repeat(50);
+        Member member = Member.create("expanding-key", "expanding-key@sungkyul.ac.kr", null, LocalDateTime.now());
+        member.updateProfile(
+                nickname,
+                MemberNicknamePolicy.toUniquenessKey(nickname),
+                "20260006",
+                "컴퓨터공학과",
+                null
+        );
+
+        memberRepository.saveAndFlush(member);
+
+        assertEquals(100, memberRepository.findById("expanding-key").orElseThrow().getNicknameKey().length());
     }
 
     private Member saveMember(

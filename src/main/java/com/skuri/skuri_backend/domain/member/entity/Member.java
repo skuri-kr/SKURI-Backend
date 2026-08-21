@@ -33,7 +33,7 @@ public class Member extends BaseTimeEntity {
     @Column(name = "nickname", length = 50)
     private String nickname;
 
-    @Column(name = "nickname_key", unique = true, length = 50)
+    @Column(name = "nickname_key", unique = true, length = 255)
     private String nicknameKey;
 
     @Column(name = "student_id", length = 20)

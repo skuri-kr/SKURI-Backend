@@ -17,6 +17,15 @@ class MemberNicknamePolicyTest {
     }
 
     @Test
+    void 소문자화로길이가늘어난닉네임의고유키를보존한다() {
+        String nickname = "İ".repeat(50);
+
+        assertThat(MemberNicknamePolicy.toUniquenessKey(nickname))
+                .hasSize(100)
+                .isEqualTo("i\u0307".repeat(50));
+    }
+
+    @Test
     void 예약어는_중간유니코드공백과상관없이차단한다() {
         assertThat(MemberNicknamePolicy.isReserved("우리 스쿠리\u00a0유저 모임")).isTrue();
         assertThat(MemberNicknamePolicy.isReserved("학교 운 영 자 계정")).isTrue();
