@@ -3,6 +3,9 @@ package com.skuri.skuri_backend.domain.friend.service;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.common.config.JpaAuditingConfig;
+import com.skuri.skuri_backend.domain.friend.dto.response.FriendRelationshipState;
+import com.skuri.skuri_backend.domain.friend.entity.FriendCodeRegistry;
+import com.skuri.skuri_backend.domain.friend.entity.FriendProfile;
 import com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus;
 import com.skuri.skuri_backend.domain.friend.entity.MemberBlock;
 import com.skuri.skuri_backend.domain.friend.repository.FriendCodeRegistryRepository;
@@ -231,6 +234,48 @@ class FriendRelationshipServiceDataJpaTest {
     }
 
     @Test
+    void 친구mutation잠금은_프로필미완료호출자를_409로거부한다() {
+        Member incomplete = Member.create(
+                "member-incomplete",
+                "incomplete@sungkyul.ac.kr",
+                "미완료회원",
+                LocalDateTime.now()
+        );
+        memberRepository.saveAndFlush(incomplete);
+        saveMember("member-complete", "complete@sungkyul.ac.kr", "완료회원");
+        String completePublicId = provisioningService.ensureForActiveMember("member-complete").getPublicId();
+
+        assertThatThrownBy(() -> friendRelationshipService.blockMember("member-incomplete", completePublicId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.MEMBER_PROFILE_INCOMPLETE);
+    }
+
+    @Test
+    void 친구mutation잠금은_프로필미완료대상을_일반대상없음으로숨긴다() {
+        saveMember("member-complete", "complete@sungkyul.ac.kr", "완료회원");
+        Member incomplete = Member.create(
+                "member-incomplete",
+                "incomplete@sungkyul.ac.kr",
+                "미완료회원",
+                LocalDateTime.now()
+        );
+        memberRepository.saveAndFlush(incomplete);
+        FriendCodeRegistry code = friendCodeRegistryRepository.saveAndFlush(
+                FriendCodeRegistry.issue("SKRINCOMPL01", "member-incomplete", LocalDateTime.now())
+        );
+        String incompletePublicId = "incomplete-public-id";
+        friendProfileRepository.saveAndFlush(
+                FriendProfile.create("member-incomplete", incompletePublicId, code.getId())
+        );
+
+        assertThatThrownBy(() -> friendRelationshipService.blockMember("member-complete", incompletePublicId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_TARGET_NOT_FOUND);
+    }
+
+    @Test
     void 탈퇴한요청자의_만료요청수락은_409후_EXPIRED로_정리한다() {
         FriendPair pair = createPair();
         String requestId = createExpiredRequestWithWithdrawnRequester(pair);
@@ -417,7 +462,7 @@ class FriendRelationshipServiceDataJpaTest {
         member.updateProfile("가나다", null, null, null);
         memberRepository.saveAndFlush(member);
 
-        assertThat(friendRelationshipQueryService.search(pair.firstMemberId(), "가나", null, 20).items())
+        assertThat(friendRelationshipQueryService.search(pair.firstMemberId(), "가", null, 20).items())
                 .extracting(item -> item.friendPublicId())
                 .containsExactly(pair.secondPublicId());
 
@@ -492,7 +537,7 @@ class FriendRelationshipServiceDataJpaTest {
     }
 
     @Test
-    void 닉네임검색은_친구와_유효요청을_일괄조회해_요청가능여부를_반환한다() {
+    void 닉네임검색은_친구와_유효요청을_일괄조회해_관계상태를_반환한다() {
         FriendPair pair = createPair();
         saveMember("member-3", "three@sungkyul.ac.kr", "회원3");
         String thirdPublicId = provisioningService.ensureForActiveMember("member-3").getPublicId();
@@ -504,11 +549,23 @@ class FriendRelationshipServiceDataJpaTest {
         friendRelationshipService.acceptRequest("member-3", friendshipRequestId);
 
         assertThat(friendRelationshipQueryService.search(pair.firstMemberId(), "가나", null, 20).items())
-                .extracting(item -> item.friendPublicId(), item -> item.canSendFriendRequest())
+                .extracting(item -> item.friendPublicId(), item -> item.relationshipState())
                 .containsExactlyInAnyOrder(
-                        org.assertj.core.groups.Tuple.tuple(pair.secondPublicId(), false),
-                        org.assertj.core.groups.Tuple.tuple(thirdPublicId, false)
+                        org.assertj.core.groups.Tuple.tuple(pair.secondPublicId(), FriendRelationshipState.OUTGOING_PENDING),
+                        org.assertj.core.groups.Tuple.tuple(thirdPublicId, FriendRelationshipState.ALREADY_FRIEND)
                 );
+    }
+
+    @Test
+    void 닉네임검색은_내가받은요청을_INCOMING_PENDING으로반환한다() {
+        FriendPair pair = createPair();
+        makeSearchable(pair.secondMemberId(), "가나다");
+        friendRelationshipService.createRequest(pair.secondMemberId(), pair.firstPublicId());
+
+        assertThat(friendRelationshipQueryService.search(pair.firstMemberId(), "가", null, 20).items())
+                .singleElement()
+                .extracting(item -> item.relationshipState())
+                .isEqualTo(FriendRelationshipState.INCOMING_PENDING);
     }
 
     @Test
@@ -520,8 +577,8 @@ class FriendRelationshipServiceDataJpaTest {
 
         assertThat(friendRelationshipQueryService.search(pair.firstMemberId(), "가나", null, 20).items())
                 .singleElement()
-                .extracting(item -> item.canSendFriendRequest())
-                .isEqualTo(true);
+                .extracting(item -> item.relationshipState())
+                .isEqualTo(FriendRelationshipState.REQUESTABLE);
         assertThat(friendRequestRepository.findById(requestId)).get()
                 .extracting(request -> request.getStatus(), request -> request.getActivePairKey())
                 .containsExactly(FriendRequestStatus.EXPIRED, null);
@@ -642,7 +699,9 @@ class FriendRelationshipServiceDataJpaTest {
     }
 
     private void saveMember(String id, String email, String realname) {
-        memberRepository.saveAndFlush(Member.create(id, email, realname, LocalDateTime.now()));
+        Member member = Member.create(id, email, realname, LocalDateTime.now());
+        member.updateProfile("닉네임-" + id, "20260001", "컴퓨터공학과", null);
+        memberRepository.saveAndFlush(member);
     }
 
     private void makeSearchable(String memberId, String nickname) {

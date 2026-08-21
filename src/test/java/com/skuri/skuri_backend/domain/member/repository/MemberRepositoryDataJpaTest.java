@@ -20,6 +20,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
 @ActiveProfiles("test")
@@ -176,6 +178,32 @@ class MemberRepositoryDataJpaTest {
 
         assertEquals(List.of("member-match"), result.getContent().stream().map(AdminMemberSummaryProjection::id).toList());
         assertEquals(1, result.getTotalElements());
+    }
+
+    @Test
+    void existsActiveNicknameConflict_레거시닉네임과닉네임키를모두검사한다() {
+        Member legacy = Member.create("legacy", "legacy@sungkyul.ac.kr", null, LocalDateTime.now());
+        legacy.updateProfile("LegacyName", "20260001", "컴퓨터공학과", null);
+        memberRepository.saveAndFlush(legacy);
+
+        Member keyed = Member.create("keyed", "keyed@sungkyul.ac.kr", null, LocalDateTime.now());
+        keyed.updateProfile("새닉네임", "새닉네임", "20260002", "컴퓨터공학과", null);
+        memberRepository.saveAndFlush(keyed);
+
+        assertTrue(memberRepository.existsActiveNicknameConflict("requester", "legacyname"));
+        assertTrue(memberRepository.existsActiveNicknameConflict("requester", "새닉네임"));
+        assertFalse(memberRepository.existsActiveNicknameConflict("requester", "사용가능"));
+        assertFalse(memberRepository.existsActiveNicknameConflict("legacy", "legacyname"));
+    }
+
+    @Test
+    void existsActiveNicknameConflict_탈퇴회원닉네임은재사용할수있다() {
+        Member withdrawn = Member.create("withdrawn", "withdrawn@sungkyul.ac.kr", null, LocalDateTime.now());
+        withdrawn.updateProfile("재사용닉네임", "재사용닉네임", "20260003", "컴퓨터공학과", null);
+        withdrawn.withdraw(LocalDateTime.now());
+        memberRepository.saveAndFlush(withdrawn);
+
+        assertFalse(memberRepository.existsActiveNicknameConflict("requester", "재사용닉네임"));
     }
 
     private Member saveMember(

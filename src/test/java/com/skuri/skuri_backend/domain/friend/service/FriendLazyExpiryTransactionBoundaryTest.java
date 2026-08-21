@@ -23,7 +23,7 @@ class FriendLazyExpiryTransactionBoundaryTest {
                 .getAnnotation(Transactional.class))
                 .isNull();
         assertThat(FriendRelationshipQueryService.class
-                .getMethod("canSendFriendRequest", String.class, String.class)
+                .getMethod("getRelationshipState", String.class, String.class)
                 .getAnnotation(Transactional.class))
                 .isNull();
         assertThat(FriendCodeService.class

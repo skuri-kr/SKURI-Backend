@@ -232,6 +232,38 @@ class MemberControllerContractTest {
     }
 
     @Test
+    void patchMembersMe_ACTIVE닉네임중복이면_409() throws Exception {
+        mockValidToken();
+        when(memberService.updateMyProfile(eq("firebase-uid"), any(UpdateMemberProfileRequest.class)))
+                .thenThrow(new BusinessException(ErrorCode.NICKNAME_ALREADY_EXISTS));
+
+        mockMvc.perform(
+                        patch("/v1/members/me")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"nickname\":\"중복닉네임\"}")
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("NICKNAME_ALREADY_EXISTS"));
+    }
+
+    @Test
+    void patchMembersMe_예약닉네임이면_422() throws Exception {
+        mockValidToken();
+        when(memberService.updateMyProfile(eq("firebase-uid"), any(UpdateMemberProfileRequest.class)))
+                .thenThrow(new BusinessException(ErrorCode.NICKNAME_RESERVED));
+
+        mockMvc.perform(
+                        patch("/v1/members/me")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                                .contentType(APPLICATION_JSON)
+                                .content("{\"nickname\":\"스쿠리 유저2\"}")
+                )
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errorCode").value("NICKNAME_RESERVED"));
+    }
+
+    @Test
     void patchMembersMe_본인소유가아닌내부프로필URL이면_422() throws Exception {
         mockValidToken();
         when(memberService.updateMyProfile(eq("firebase-uid"), any(UpdateMemberProfileRequest.class)))

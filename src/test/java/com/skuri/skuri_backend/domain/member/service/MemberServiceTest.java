@@ -2,8 +2,8 @@ package com.skuri.skuri_backend.domain.member.service;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.domain.chat.service.ChatService;
-import com.skuri.skuri_backend.domain.friend.service.FriendProfileProvisioningService;
 import com.skuri.skuri_backend.domain.image.service.ProfileImageStorageService;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberBankAccountRequest;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberNotificationSettingsRequest;
@@ -14,6 +14,7 @@ import com.skuri.skuri_backend.domain.member.dto.response.MemberUpsertResult;
 import com.skuri.skuri_backend.domain.member.entity.LinkedAccount;
 import com.skuri.skuri_backend.domain.member.entity.LinkedAccountProvider;
 import com.skuri.skuri_backend.domain.member.entity.Member;
+import com.skuri.skuri_backend.domain.member.event.MemberLifecycleEvent;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.member.exception.WithdrawnMemberRejoinNotAllowedException;
 import com.skuri.skuri_backend.domain.member.repository.LinkedAccountRepository;
@@ -67,7 +68,7 @@ class MemberServiceTest {
     private DepartmentService departmentService;
 
     @Mock
-    private FriendProfileProvisioningService friendProfileProvisioningService;
+    private AfterCommitApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private MemberService memberService;
@@ -81,7 +82,7 @@ class MemberServiceTest {
 
         assertTrue(result.created());
         assertEquals(authenticatedMember.uid(), result.member().id());
-        verify(friendProfileProvisioningService).ensureForActiveMember(authenticatedMember.uid());
+        verify(eventPublisher, never()).publish(any());
     }
 
     @Test
@@ -223,6 +224,77 @@ class MemberServiceTest {
     }
 
     @Test
+    void updateMyProfile_프로필이처음완료되면_친구프로필발급이벤트를발행한다() {
+        Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
+        when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
+        when(departmentService.normalizeSupported("컴퓨터공학과")).thenReturn("컴퓨터공학과");
+
+        MemberMeResponse response = memberService.updateMyProfile(
+                "firebase-uid",
+                new UpdateMemberProfileRequest("새회원", "20261234", "컴퓨터공학과", null)
+        );
+
+        assertEquals("새회원", response.nickname());
+        assertEquals("새회원", member.getNicknameKey());
+        verify(memberRepository).saveAndFlush(member);
+        verify(eventPublisher).publish(new MemberLifecycleEvent.MemberProfileCompleted("firebase-uid"));
+    }
+
+    @Test
+    void updateMyProfile_예약닉네임이면_거부한다() {
+        Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
+        when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> memberService.updateMyProfile(
+                        "firebase-uid",
+                        new UpdateMemberProfileRequest("우리 스쿠리\u00a0유저 모임", null, null, null)
+                )
+        );
+
+        assertEquals(ErrorCode.NICKNAME_RESERVED, exception.getErrorCode());
+        verify(memberRepository, never()).saveAndFlush(any(Member.class));
+    }
+
+    @Test
+    void updateMyProfile_ACTIVE회원과중복된닉네임이면_거부한다() {
+        Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
+        when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
+        when(memberRepository.existsActiveNicknameConflict("firebase-uid", "중복닉네임")).thenReturn(true);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> memberService.updateMyProfile(
+                        "firebase-uid",
+                        new UpdateMemberProfileRequest("중복닉네임", null, null, null)
+                )
+        );
+
+        assertEquals(ErrorCode.NICKNAME_ALREADY_EXISTS, exception.getErrorCode());
+        verify(memberRepository, never()).saveAndFlush(any(Member.class));
+    }
+
+    @Test
+    void updateMyProfile_동시중복저장충돌도_닉네임중복오류로변환한다() {
+        Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
+        when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
+        doThrow(new DataIntegrityViolationException("duplicate nickname_key"))
+                .when(memberRepository).saveAndFlush(member);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> memberService.updateMyProfile(
+                        "firebase-uid",
+                        new UpdateMemberProfileRequest("동시닉네임", null, null, null)
+                )
+        );
+
+        assertEquals(ErrorCode.NICKNAME_ALREADY_EXISTS, exception.getErrorCode());
+        verify(eventPublisher, never()).publish(any());
+    }
+
+    @Test
     void updateMyProfile_photoUrlNull이면_기존사진을유지한다() {
         Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
         member.updateProfile("기존닉네임", "20201234", "컴퓨터공학과", "https://example.com/old.jpg");
@@ -352,6 +424,24 @@ class MemberServiceTest {
         );
 
         assertEquals(ErrorCode.VALIDATION_ERROR, exception.getErrorCode());
+    }
+
+    @Test
+    void updateMyProfile_학번을공백으로바꿔_완료프로필을미완료로만들수없다() {
+        Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
+        member.updateProfile("기존닉네임", "20201234", "컴퓨터공학과", null);
+        when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> memberService.updateMyProfile(
+                        "firebase-uid",
+                        new UpdateMemberProfileRequest(null, "   ", null, null)
+                )
+        );
+
+        assertEquals(ErrorCode.VALIDATION_ERROR, exception.getErrorCode());
+        assertEquals("20201234", member.getStudentId());
     }
 
     @Test
