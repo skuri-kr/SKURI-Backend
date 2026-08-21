@@ -102,6 +102,7 @@ public class FriendRelationshipService {
 
     @Transactional
     public void setFavorite(String ownerMemberId, String friendPublicId, boolean favorite) {
+        pairLockService.requireActiveProfileCompleteMember(ownerMemberId);
         String friendMemberId = resolveTargetMemberId(friendPublicId);
         FriendMemberPair pair = pairLockService.lockActivePair(ownerMemberId, friendMemberId);
         requireFriendship(pair);
@@ -114,6 +115,7 @@ public class FriendRelationshipService {
 
     @Transactional
     public void removeFriendship(String ownerMemberId, String friendPublicId) {
+        pairLockService.requireActiveProfileCompleteMember(ownerMemberId);
         String friendMemberId = resolveTargetMemberId(friendPublicId);
         FriendMemberPair pair = pairLockService.lockActivePair(ownerMemberId, friendMemberId);
         Friendship friendship = requireFriendship(pair);
@@ -124,6 +126,7 @@ public class FriendRelationshipService {
 
     @Transactional
     public void blockMember(String blockerMemberId, String targetFriendPublicId) {
+        pairLockService.requireActiveProfileCompleteMember(blockerMemberId);
         String blockedMemberId = resolveTargetMemberId(targetFriendPublicId);
         if (blockerMemberId.equals(blockedMemberId)) {
             throw new BusinessException(ErrorCode.FRIEND_SELF_BLOCK_NOT_ALLOWED);
@@ -148,6 +151,7 @@ public class FriendRelationshipService {
 
     @Transactional
     public void unblockMember(String blockerMemberId, String targetFriendPublicId) {
+        pairLockService.requireActiveProfileCompleteMember(blockerMemberId);
         String blockedMemberId = resolveTargetMemberId(targetFriendPublicId);
         pairLockService.lockActivePair(blockerMemberId, blockedMemberId);
         memberBlockRepository.deleteByBlockerIdAndBlockedId(blockerMemberId, blockedMemberId);

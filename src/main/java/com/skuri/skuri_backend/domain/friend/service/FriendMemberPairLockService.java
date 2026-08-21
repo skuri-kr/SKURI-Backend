@@ -17,11 +17,20 @@ public class FriendMemberPairLockService {
 
     private final MemberRepository memberRepository;
 
+    /**
+     * 대상 공개 ID를 해석하기 전 호출자 자격만 먼저 확인한다.
+     *
+     * <p>여기서 잠금을 획득하면 이후 ordered pair lock과 잠금 순서가 역전될 수 있으므로,
+     * 실제 write 직전 {@link #lockActivePair(String, String)}에서 다시 잠금·검증한다.</p>
+     */
+    public void requireActiveProfileCompleteMember(String memberId) {
+        Member member = memberRepository.findActiveById(memberId).orElseThrow(MemberNotFoundException::new);
+        requireProfileComplete(member);
+    }
+
     public void lockActiveMember(String memberId) {
         Member member = memberRepository.findActiveByIdForUpdate(memberId).orElseThrow(MemberNotFoundException::new);
-        if (!member.isProfileComplete()) {
-            throw new BusinessException(ErrorCode.MEMBER_PROFILE_INCOMPLETE);
-        }
+        requireProfileComplete(member);
     }
 
     public FriendMemberPair lockActivePair(String firstMemberId, String secondMemberId) {
@@ -38,9 +47,7 @@ public class FriendMemberPairLockService {
         if (firstMember == null) {
             throw new MemberNotFoundException();
         }
-        if (!firstMember.isProfileComplete()) {
-            throw new BusinessException(ErrorCode.MEMBER_PROFILE_INCOMPLETE);
-        }
+        requireProfileComplete(firstMember);
         Member secondMember = members.stream()
                 .filter(member -> member.getId().equals(secondMemberId))
                 .findFirst()
@@ -50,6 +57,12 @@ public class FriendMemberPairLockService {
         }
 
         return FriendMemberPair.of(firstMemberId, secondMemberId);
+    }
+
+    private void requireProfileComplete(Member member) {
+        if (!member.isProfileComplete()) {
+            throw new BusinessException(ErrorCode.MEMBER_PROFILE_INCOMPLETE);
+        }
     }
 
     /**
