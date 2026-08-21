@@ -76,7 +76,7 @@ PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색�
 - URL 딥링크는 QR payload에 포함하지 않는다.
 - FriendProfile과 최초 ACTIVE 코드는 프로필을 완료한 ACTIVE 회원에게만 발급한다. 최초 소셜 로그인으로 Member row만 만들어지고 학번·학과·유효 닉네임이 없는 회원에게는 발급하지 않는다.
 - 친구 API의 lazy provisioning과 기동 backfill도 같은 가입 완료 판정을 사용하며, 미완료 회원을 Friend 데이터로 복원하지 않는다.
-- 일반적인 완료 회원의 재발급·탈퇴 코드는 RETIRED로 영구 보존한다. 단, 친구 모바일 기능 배포 전 잘못 발급된 미완료 회원의 FriendProfile과 ACTIVE 코드는 일회성 운영 cleanup에서 완전히 삭제하며 이 예외를 정상 코드 수명주기에 적용하지 않는다.
+- 일반적인 완료 회원의 재발급·탈퇴 코드는 RETIRED로 영구 보존한다. 단, 친구 모바일 기능 배포 전 잘못 발급된 미완료 회원의 FriendProfile과 소유 친구 코드 전체(ACTIVE·RETIRED)는 일회성 운영 cleanup에서 완전히 삭제하며 이 예외를 정상 코드 수명주기에 적용하지 않는다.
 
 ### 2.3 닉네임 검색
 
@@ -353,10 +353,11 @@ friend_code_registry:
 Core 출시 준비의 일회성 운영 cleanup:
 
 - 새 eligibility 코드가 모든 Backend 인스턴스에 배포된 뒤 실행한다. 구버전 provisioning이 살아 있는 동안 먼저 삭제하지 않는다.
-- read-only preflight에서 미완료 회원과 연결된 FriendProfile·ACTIVE 코드·요청·관계·즐겨찾기·차단을 정확히 집계한다.
+- read-only preflight에서 미완료 회원과 연결된 FriendProfile·소유 친구 코드 전체·요청·관계·즐겨찾기·차단을 정확히 집계한다.
 - 대상 회원과 연결된 파생 Friend 데이터를 관계 순서대로 정리하고 FriendProfile과 해당 ACTIVE registry row를 같은 작업에서 완전히 삭제한다.
 - 기존 완료 회원의 정상 ACTIVE·RETIRED 코드와 기존 중복 닉네임은 수정하지 않는다.
 - postcheck에서 미완료 회원 Friend row 0건, orphan 0건, 완료 회원 누락 0건을 확인한다.
+- 실행 파일은 `docs/sql/2026-08-21-friend-core-readiness-preflight.sql` → `docs/sql/2026-08-21-friend-core-readiness-cleanup.sql` → `docs/sql/2026-08-21-friend-core-readiness-postcheck.sql` 순서로 사용한다. cleanup procedure에는 preflight에서 기록한 정확한 7개 건수를 전달하며 불일치하면 전체 트랜잭션을 rollback한다.
 
 ### 6.2 friend_requests
 
@@ -959,7 +960,7 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-21 | Backend #78·#79·#80과 Frontend #22·#23을 완료 이력으로 고정하고 후속 구현과 구분 |
 | 2026-08-21 | 승인 V1은 Core 출시 준비, 친구 화면 완성, 시간표 공유, 친구 초대, 알림·탈퇴 정리의 5단계·저장소별 단계당 1개 PR로 진행 |
 | 2026-08-21 | FriendProfile·최초 코드는 프로필 완료 ACTIVE 회원에게만 발급하고 backfill·lazy ensure도 같은 eligibility를 사용 |
-| 2026-08-21 | 친구 FE 배포 전 잘못 발급된 미완료 회원 FriendProfile·ACTIVE 코드는 일회성 cleanup에서 삭제하되 정상 코드는 RETIRED 영구 미재사용 유지 |
+| 2026-08-21 | 친구 FE 배포 전 잘못 발급된 미완료 회원 FriendProfile·소유 친구 코드는 ACTIVE·RETIRED 모두 일회성 cleanup에서 삭제하되 정상 완료 회원의 코드는 RETIRED 영구 미재사용 유지 |
 | 2026-08-21 | nicknameSearchable 기본값을 true로 변경하고 닉네임 검색은 1글자부터 허용 |
 | 2026-08-21 | 스쿠리 유저·운영자 포함 닉네임을 금지하고 신규·변경 닉네임은 ACTIVE 회원 사이에서만 고유하며 탈퇴 후 재사용 허용 |
 | 2026-08-21 | 기존 중복 닉네임은 임의 변경하지 않고 새 닉네임 확정 시에만 unique claim을 요구 |

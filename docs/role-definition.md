@@ -109,12 +109,12 @@ Spring 백엔드는 마인크래프트 기능도 예외 없이 최종 판단한�
 
 > 상태: Foundation과 친구 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·PENDING 목록) 구현 완료, 공유·초대·알림은 후속 구현 예정
 
-Friend는 Supporting 도메인으로서 영구 미재사용 친구 코드 registry·요청·상호 관계·즐겨찾기·친구 끊기·차단을 소유한다. 모든 mutation과 lazy provisioning은 Member 잠금 후 요청자·대상이 모두 ACTIVE인지 다시 확인한다. friendPublicId 신고 진입에서는 내부 Member 대상만 해석하고 신고 저장·중복·운영 규칙은 Support에 위임한다. 다른 기능의 최종 규칙은 해당 도메인이 계속 소유하며 Friend가 내부 엔티티를 직접 수정하지 않는다.
+Friend는 Supporting 도메인으로서 영구 미재사용 친구 코드 registry·요청·상호 관계·즐겨찾기·친구 끊기·차단을 소유한다. FriendProfile·최초 코드는 유효 닉네임·학번·학과를 갖춘 프로필 완료 ACTIVE 회원에게만 발급한다. 모든 mutation과 lazy provisioning은 Member 잠금 후 요청자·대상이 이 조건을 만족하는지 다시 확인한다. friendPublicId 신고 진입에서는 내부 Member 대상만 해석하고 신고 저장·중복·운영 규칙은 Support에 위임한다. 다른 기능의 최종 규칙은 해당 도메인이 계속 소유하며 Friend가 내부 엔티티를 직접 수정하지 않는다.
 
 | 영역 | Spring 내 최종 책임 |
 | --- | --- |
 | Friend | ACTIVE·RETIRED 코드 registry와 preview, PENDING cursor 검색, 요청, friendship, 즐겨찾기, 친구 끊기, 차단, friendPublicId 신고 진입 |
-| Member | ACTIVE 회원과 공개 프로필, 친구·초대 알림 설정, WITHDRAWN 선확정과 Phase 14 cleanup orchestration |
+| Member | ACTIVE·프로필 완료 판정, ACTIVE 닉네임 고유·예약어 정책, 공개 프로필, 친구·초대 알림 설정, WITHDRAWN 선확정과 Phase 14 cleanup orchestration |
 | Academic | friendship·차단 확인 후 공개 범위별 친구 시간표 projection |
 | TaxiParty | OPEN·정원·참여 조건을 포함한 택시파티 초대 상태와 수락 |
 | Chat | 공개 non-PARTY 방의 자격·정원·초대 상태와 수락 |

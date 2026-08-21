@@ -26,6 +26,7 @@ Phase 10은 회원 탈퇴를 단순 row 삭제가 아니라 계정 라이프사�
   - `email`은 unique 충돌 방지를 위해 `withdrawn+{SHA256(uid)}@deleted.skuri.local` 형식의 placeholder 값으로 치환한다.
   - `studentId`, `department`, `photoUrl`, `realname`, 계좌 정보는 제거한다.
   - `nickname`은 `탈퇴한 사용자`로 고정한다.
+  - ACTIVE 닉네임 고유 키 `nickname_key`는 null로 비워 탈퇴 후 닉네임 재사용을 허용한다.
   - `notificationSetting`은 전체 비활성 기본값으로 재설정한다.
 
 ### 2.2 탈퇴 시점
@@ -136,7 +137,7 @@ ALTER TABLE members
 - 받은·보낸 친구 요청, friendship, 양방향 즐겨찾기, 차단·피차단 관계, 시간표 공개 기본값과 친구별 override를 정리한다. (후속 구현)
 - TaxiParty와 Chat이 소유한 발송·수신 `PENDING` 초대는 각각 `EXPIRED + MEMBER_WITHDRAWN`으로 전이하고 `respondedAt`을 기록한다. 이미 terminal인 초대와 한 번 기록된 `expiryReason`은 변경하지 않는다. (후속 구현)
 - Support의 inquiry/report record는 기존 보존 정책을 유지한다.
-- 탈퇴와 경쟁해 대기하던 Friend mutation·초대 처리·lazy provisioning은 같은 Member 잠금 획득 후 요청자와 대상의 `ACTIVE` 상태를 다시 확인하고, 하나라도 `WITHDRAWN`이면 새 Friend row나 파생 데이터를 생성·복원하지 않는다.
+- 탈퇴와 경쟁해 대기하던 Friend mutation·초대 처리·lazy provisioning은 같은 Member 잠금 획득 후 요청자와 대상의 `ACTIVE`·프로필 완료 상태를 다시 확인하고, 하나라도 조건을 만족하지 않으면 새 Friend row나 파생 데이터를 생성·복원하지 않는다.
 - 검증에는 탈퇴와 요청·차단·즐겨찾기·공유 설정·초대·lazy provisioning의 경쟁, 폐기 코드 미재사용, 초대 만료 사유 불변성을 포함한다.
 
 ---
