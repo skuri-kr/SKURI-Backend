@@ -1041,7 +1041,7 @@ SSE 운영 제약:
 
 ### Phase 14: 친구·시간표 공유·친구 초대
 
-> 상태: Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·검색·PENDING 목록) 완료, 공유·초대·알림은 후속 구현
+> 상태: Backend #78·#79·#80과 Frontend #22·#23 완료, Core 출시 준비 보완과 후속 4단계 구현 계획 승인
 > 상세 기준: docs/features/friends.md
 > 후속 구현 시작 조건: 해당 기능 기준 문서 검토 후 사용자의 별도 코드 구현 승인
 
@@ -1049,7 +1049,9 @@ SSE 운영 제약:
 
 - 친구 코드, QR, 닉네임 검색을 통한 상호 친구 관계 구축
 - 재발급·탈퇴한 친구 코드를 영구 미재사용하는 ACTIVE·RETIRED registry 구축
-- 기존 ACTIVE 회원 FriendProfile backfill과 멱등 provisioning 이후 모바일 노출
+- 프로필 완료 ACTIVE 회원 FriendProfile backfill과 멱등 provisioning 이후 모바일 노출
+- 최초 소셜 로그인 미완료 회원에는 FriendProfile·코드를 발급하지 않고 완료 전 Friend API를 차단
+- ACTIVE 닉네임 예약어·중복 정책, 검색 기본 true·1글자 검색과 관계 상태 enum 제공
 - 즐겨찾기, 친구 끊기, 차단과 요청·초대 badge 제공
 - PRIVATE, BUSY_ONLY, DETAILS 기반 시간표 공유와 친구별 예외
 - 공통 공강과 같이 듣는 공식 수업 제공
@@ -1069,24 +1071,45 @@ SSE 운영 제약:
 | TaxiParty | OPEN 파티 초대, 수락 정원·참여 동시성 |
 | Chat | 공개 non-PARTY 방 초대와 입장 자격 |
 | Minecraft | 친구용 계정 안전 projection |
-| Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, PARTY_INVITATION, CHAT_ROOM_INVITATION |
+| Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, FRIEND_DECLINED, PARTY_INVITATION, CHAT_ROOM_INVITATION |
 | Support | Friend가 내부 Member로 해석한 기존 MEMBER 신고 저장·중복·운영 처리 |
 
-#### 14-3. 구현 단위
+#### 14-3. 완료 이력
 
-1. [x] FriendProfile·FriendCodeRegistry schema, 멱등 provisioning service와 기존 ACTIVE 회원 backfill·누락 0건 검증, 코드 조회·재발급·preview, nicknameSearchable GET·PATCH
-2. [x] Friend 핵심 요청·관계 API, 잠금 후 Member ACTIVE 재확인과 terminal 전이 잠금
-3. [x] nickname 검색과 PENDING 요청 cursor 목록, 즐겨찾기·친구 끊기·차단, 친구 요청 badge count
-4. [ ] friendPublicId 신고 진입
-5. [ ] 시간표 공유 설정과 친구 시간표 조회
-6. [ ] Minecraft 친구 계정 projection
-7. [ ] TaxiParty 수신자별 부분 성공 친구 초대
-8. [ ] 공개 Chat 수신자별 부분 성공 친구 초대
-9. [ ] Notification·badge·회원 탈퇴 cleanup
-10. [x] 관계 Core OpenAPI, ERD, 도메인 문서, Contract·Service 테스트 동기화
-11. [ ] 후속 도메인 협력 OpenAPI, ERD, 도메인 문서, Contract·Service 테스트 동기화
+| 저장소 | PR | 완료 범위 |
+| --- | --- | --- |
+| Backend | [#78](https://github.com/skuri-kr/SKURI-Backend/pull/78) | 친구 기능 기준 문서와 도메인·상태·권한 계획 |
+| Backend | [#79](https://github.com/skuri-kr/SKURI-Backend/pull/79) | FriendProfile·FriendCodeRegistry, 코드·privacy API, provisioning·backfill |
+| Backend | [#80](https://github.com/skuri-kr/SKURI-Backend/pull/80) | 친구 요청·관계·즐겨찾기·친구 끊기·차단·검색·PENDING 목록·badge API |
+| Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 모바일 친구 기능 구현 계획 |
+| Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings와 관계 Core 연동 |
 
-#### 14-4. 제외 범위
+#### 14-4. 남은 5단계 구현 단위
+
+한 단계에서는 저장소당 최대 1개 PR만 만들고 런타임·테스트·문서는 같은 PR의 목적별 커밋으로 나눈다. 승인된 남은 계획은 Backend 5개, Frontend 5개 PR이며 Admin 친구 관계망 UI는 V1에서 제외한다.
+
+1. [ ] Core 출시 준비
+   - 가입 완료 판정, ACTIVE 닉네임 예약·중복 정책
+   - 완료 회원만 provisioning·backfill·lazy ensure
+   - nicknameSearchable 기본 true, 1글자 검색, relationshipState enum
+   - 미완료 회원 Friend 데이터 운영 cleanup과 관계 Core 모바일 QA 보완
+2. [ ] 친구 화면 완성
+   - QR 생성·스캔과 카메라 권한
+   - friendPublicId 신고 진입
+   - Minecraft 친구 계정 안전 projection과 SELF·FRIEND 계층
+3. [ ] 시간표 공유
+   - 시간표 공유 설정·친구별 예외·친구 시간표 조회
+   - 모바일 accordion·공통 공강·같이 듣는 수업
+4. [ ] 친구 초대
+   - TaxiParty·공개 Chat 수신자별 부분 성공 친구 초대
+   - FriendHub 초대 탭·공통 친구 선택 UX
+5. [ ] 알림·탈퇴 정리
+   - 친구 요청·수락·거절·초대 인박스·FCM·SSE·이동
+   - Notification 설정·badge와 회원 탈퇴 cleanup
+
+각 단계에서 OpenAPI, ERD, 도메인 문서와 Contract·Service 테스트를 해당 런타임 PR에 함께 동기화한다. 변경량 때문에 같은 저장소 PR을 분리해야 하면 먼저 사용자 승인을 받는다.
+
+#### 14-5. 제외 범위
 
 - URL 딥링크 친구 추가
 - 1:1·비공개 친구 채팅
@@ -1097,10 +1120,10 @@ SSE 운영 제약:
 - 공개 콘텐츠 전역 차단 필터
 - 관리자 친구 관계망 운영 UI
 
-#### 14-5. 완료 기준
+#### 14-6. 완료 기준
 
 - [ ] 친구 요청 30일 만료, 즉시 재요청, 중복·차단·동시 요청 규칙 검증
-- [x] 기존 ACTIVE 회원 FriendProfile backfill·멱등 재실행·충돌 재시도·누락 0건 검증
+- [ ] 프로필 완료 ACTIVE 회원 FriendProfile backfill·멱등 재실행·충돌 재시도·누락 0건과 미완료 회원 Friend row 0건 검증
 - [x] 재발급·탈퇴한 RETIRED 친구 코드의 영구 미재사용과 과거 코드 preview 실패 검증
 - [ ] Friend mutation·lazy provisioning과 탈퇴 경쟁에서 잠금 후 ACTIVE 재확인 및 파생 데이터 비복원 검증
 - [ ] 요청·초대 accept와 decline·cancel·expire 경쟁의 단일 terminal 부수효과 검증
@@ -1188,6 +1211,7 @@ Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 > **문서 이력**
 > - 2026-08-18: Phase 14 리뷰 보완 — 영구 코드 registry, privacy·PENDING cursor 계약, invitationId·expiryReason과 탈퇴 경쟁 검증을 추가
 > - 2026-08-18: Phase 14 친구·시간표 공유·친구 초대 계획 추가 — 정책 기준 문서, 도메인 분리, 구현 중지선과 완료 기준을 문서화
+> - 2026-08-21: Phase 14 전달 이력·출시 준비 계획 갱신 — Backend #78·#79·#80과 Frontend #22·#23 완료 범위, 프로필 완료 eligibility와 저장소별 5단계 후속 PR 계획을 반영
 > - 2026-04-06: Admin Chat read API 구현 반영 — 공개 채팅방 관리자 목록/상세/메시지 조회와 관리자 파티 메시지 조회를 Phase 3/Phase 2 운영 API 및 완료 기준에 추가
 > - 2026-04-01: Phase 13 구현 반영 완료 상태로 갱신 — 마인크래프트 public/internal API, public SSE, bridge outbox, IMAGE placeholder, notification policy, 테스트/문서 완료 기준을 체크 상태로 동기화
 > - 2026-03-30: Phase 13 마인크래프트 Spring 전환 계획 추가 — public/internal API, SSE bridge, whitelist/검증 이관 범위, PR 분리 기준, 완료 기준을 문서화
