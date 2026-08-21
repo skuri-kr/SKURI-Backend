@@ -1,6 +1,7 @@
 -- Friend Core 출시 준비 운영 DB 일회성 cleanup
 -- 이 파일은 procedure만 정의하며 자동 실행하지 않는다.
 -- 신규 서버 배포 후, preflight의 정확한 7개 건수를 인자로 전달해 직접 CALL한다.
+-- 친구 코드 건수에는 미완료 회원의 소유 ACTIVE 코드와 첫 출시 전 전체 RETIRED 코드가 함께 포함된다.
 -- 예: CALL cleanup_incomplete_friend_data(10, 8, 8, 2, 1, 2, 1);
 
 DROP PROCEDURE IF EXISTS cleanup_incomplete_friend_data;
@@ -71,8 +72,8 @@ main: BEGIN
       AND (
         m.nickname IS NULL
         OR TRIM(m.nickname) = ''
-        OR REPLACE(LOWER(TRIM(m.nickname)), ' ', '') LIKE '%스쿠리유저%'
-        OR REPLACE(LOWER(TRIM(m.nickname)), ' ', '') LIKE '%운영자%'
+        OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%스쿠리유저%'
+        OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%운영자%'
         OR m.student_id IS NULL
         OR TRIM(m.student_id) = ''
         OR m.department IS NULL
@@ -93,9 +94,14 @@ main: BEGIN
 
     SELECT COUNT(*) INTO v_count
     FROM friend_code_registry c
-    JOIN skuri_incomplete_friend_members_cleanup t ON t.member_id = c.owner_member_id;
+    WHERE c.status = 'RETIRED'
+       OR EXISTS (
+            SELECT 1
+            FROM skuri_incomplete_friend_members_cleanup t
+            WHERE t.member_id = c.owner_member_id
+       );
     IF v_count <> p_expected_codes THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '미완료 회원 친구 코드 건수가 preflight와 다릅니다.';
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'cleanup 대상 친구 코드 건수가 preflight와 다릅니다.';
     END IF;
 
     SELECT COUNT(*) INTO v_count
@@ -186,7 +192,12 @@ main: BEGIN
     END IF;
 
     DELETE c FROM friend_code_registry c
-    JOIN skuri_incomplete_friend_members_cleanup t ON t.member_id = c.owner_member_id;
+    WHERE c.status = 'RETIRED'
+       OR EXISTS (
+            SELECT 1
+            FROM skuri_incomplete_friend_members_cleanup t
+            WHERE t.member_id = c.owner_member_id
+       );
     SET v_deleted = ROW_COUNT();
     IF v_deleted <> p_expected_codes THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = '친구 코드 삭제 건수가 기대값과 다릅니다.';

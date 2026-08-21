@@ -31,7 +31,7 @@ erDiagram
         varchar(36) id PK "UUID or Firebase UID"
         varchar(255) email UK "NOT NULL"
         varchar(50) nickname
-        varchar(50) nickname_key UK "nullable, 신규·변경 ACTIVE 닉네임 정규화 키"
+        varchar(255) nickname_key UK "nullable, 신규·변경 ACTIVE 닉네임 정규화 키"
         varchar(20) student_id
         varchar(50) department FK
         varchar(500) photo_url "nullable, 가입 시 null"
@@ -773,7 +773,7 @@ erDiagram
 | id | VARCHAR(36) | PK | Firebase UID 또는 UUID |
 | email | VARCHAR(255) | UK, NOT NULL | 이메일 (로그인 식별자) |
 | nickname | VARCHAR(50) | | 앱 내 닉네임 |
-| nickname_key | VARCHAR(50) | UK, nullable | 신규·변경 ACTIVE 닉네임의 trim·NFC·소문자 고유 키. 기존 중복 닉네임은 null로 유지 가능 |
+| nickname_key | VARCHAR(255) | UK, nullable | 신규·변경 ACTIVE 닉네임의 trim·NFC·소문자 고유 키. 소문자화로 길이가 늘어나는 Unicode 닉네임을 보존하며, 기존 중복 닉네임은 null로 유지 가능 |
 | student_id | VARCHAR(20) | | 학번 |
 | department | VARCHAR(50) | FK, nullable | `departments.name` 학과 |
 | photo_url | VARCHAR(500) | | 프로필 이미지 URL (가입 시 기본 null) |
@@ -1526,7 +1526,7 @@ CREATE UNIQUE INDEX uk_friendships_member_pair ON friendships(member_low_id, mem
 > **문서 이력**
 > - 2026-08-18: Friend 관계 Core 테이블 추가 — `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`와 PENDING pair unique·cursor 인덱스를 반영
 > - 2026-08-18: Friend Foundation 테이블 추가 — `friend_profiles`, `friend_code_registry`의 공개 식별자·ACTIVE/RETIRED 영구 코드 registry와 unique 제약을 반영
-> - 2026-08-21: Friend Core 출시 준비 반영 — nullable `members.nickname_key`, 프로필 완료 ACTIVE 회원 eligibility, `nickname_searchable` 기본 true를 반영
+> - 2026-08-21: Friend Core 출시 준비 반영 — nullable `members.nickname_key`(VARCHAR(255)), 프로필 완료 ACTIVE 회원 eligibility, `nickname_searchable` 기본 true를 반영
 > - 2026-03-30: Minecraft 도메인 테이블 추가 — `minecraft_accounts`, `minecraft_server_state`, `minecraft_online_players`, `minecraft_bridge_events`와 관련 인덱스, chat sender key/Minotar 전제를 반영
 > - 2026-02-03: 초안 작성
 > - 2026-03-05: Board 댓글 정책 동기화 — `comments.parent_id` 관계를 부모 보존 정책(B)에 맞게 정정(`ON DELETE SET NULL`), depth 1 제약/placeholder soft delete 설명 반영

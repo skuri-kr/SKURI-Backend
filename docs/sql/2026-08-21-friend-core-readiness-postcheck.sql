@@ -3,7 +3,7 @@
 
 SELECT DATABASE() AS target_database, VERSION() AS mysql_version;
 
--- 미완료 ACTIVE 회원과 연결된 Friend 파생 데이터는 모두 0이어야 한다.
+-- 미완료 ACTIVE 회원과 연결된 Friend 파생 데이터와 첫 출시 전 RETIRED 코드는 모두 0이어야 한다.
 DROP TEMPORARY TABLE IF EXISTS skuri_incomplete_friend_members_postcheck;
 CREATE TEMPORARY TABLE skuri_incomplete_friend_members_postcheck (
     member_id VARCHAR(36) PRIMARY KEY
@@ -14,8 +14,8 @@ WHERE m.status = 'ACTIVE'
   AND (
     m.nickname IS NULL
     OR TRIM(m.nickname) = ''
-    OR REPLACE(LOWER(TRIM(m.nickname)), ' ', '') LIKE '%스쿠리유저%'
-    OR REPLACE(LOWER(TRIM(m.nickname)), ' ', '') LIKE '%운영자%'
+    OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%스쿠리유저%'
+    OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%운영자%'
     OR m.student_id IS NULL
     OR TRIM(m.student_id) = ''
     OR m.department IS NULL
@@ -25,6 +25,7 @@ WHERE m.status = 'ACTIVE'
 SELECT
     (SELECT COUNT(*) FROM friend_profiles p JOIN skuri_incomplete_friend_members_postcheck t ON t.member_id = p.member_id) AS incomplete_friend_profiles,
     (SELECT COUNT(*) FROM friend_code_registry c JOIN skuri_incomplete_friend_members_postcheck t ON t.member_id = c.owner_member_id) AS incomplete_friend_codes,
+    (SELECT COUNT(*) FROM friend_code_registry c WHERE c.status = 'RETIRED') AS remaining_pre_release_retired_friend_codes,
     (SELECT COUNT(*) FROM friend_requests r WHERE EXISTS (SELECT 1 FROM skuri_incomplete_friend_members_postcheck t WHERE t.member_id = r.requester_id OR t.member_id = r.recipient_id)) AS incomplete_friend_requests,
     (SELECT COUNT(*) FROM friendships f WHERE EXISTS (SELECT 1 FROM skuri_incomplete_friend_members_postcheck t WHERE t.member_id = f.member_low_id OR t.member_id = f.member_high_id)) AS incomplete_friendships,
     (SELECT COUNT(*) FROM friend_preferences p WHERE EXISTS (SELECT 1 FROM skuri_incomplete_friend_members_postcheck t WHERE t.member_id = p.owner_member_id OR t.member_id = p.friend_member_id)) AS incomplete_friend_preferences,
@@ -37,8 +38,8 @@ LEFT JOIN friend_profiles p ON p.member_id = m.id
 WHERE m.status = 'ACTIVE'
   AND m.nickname IS NOT NULL
   AND TRIM(m.nickname) <> ''
-  AND REPLACE(LOWER(TRIM(m.nickname)), ' ', '') NOT LIKE '%스쿠리유저%'
-  AND REPLACE(LOWER(TRIM(m.nickname)), ' ', '') NOT LIKE '%운영자%'
+  AND REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') NOT LIKE '%스쿠리유저%'
+  AND REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') NOT LIKE '%운영자%'
   AND m.student_id IS NOT NULL
   AND TRIM(m.student_id) <> ''
   AND m.department IS NOT NULL
@@ -54,8 +55,8 @@ WHERE m.id IS NULL
    OR m.status <> 'ACTIVE'
    OR m.nickname IS NULL
    OR TRIM(m.nickname) = ''
-   OR REPLACE(LOWER(TRIM(m.nickname)), ' ', '') LIKE '%스쿠리유저%'
-   OR REPLACE(LOWER(TRIM(m.nickname)), ' ', '') LIKE '%운영자%'
+   OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%스쿠리유저%'
+   OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%운영자%'
    OR m.student_id IS NULL
    OR TRIM(m.student_id) = ''
    OR m.department IS NULL

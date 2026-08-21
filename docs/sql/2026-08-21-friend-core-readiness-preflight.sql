@@ -1,6 +1,7 @@
 -- Friend Core 출시 준비 운영 DB 사전 점검
 -- 읽기 전용 SELECT만 포함한다. cleanup 실행 전에 결과 건수를 기록한다.
 -- 프로필 완료 기준: ACTIVE + 예약어가 아닌 비어 있지 않은 nickname + student_id + department.
+-- 친구 코드 건수는 미완료 회원의 소유 ACTIVE 코드와 첫 출시 전 전체 RETIRED 코드를 합산한다.
 
 SELECT DATABASE() AS target_database, VERSION() AS mysql_version;
 
@@ -36,8 +37,8 @@ WITH incomplete AS (
       AND (
         m.nickname IS NULL
         OR TRIM(m.nickname) = ''
-        OR REPLACE(LOWER(TRIM(m.nickname)), ' ', '') LIKE '%스쿠리유저%'
-        OR REPLACE(LOWER(TRIM(m.nickname)), ' ', '') LIKE '%운영자%'
+        OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%스쿠리유저%'
+        OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%운영자%'
         OR m.student_id IS NULL
         OR TRIM(m.student_id) = ''
         OR m.department IS NULL
@@ -47,7 +48,7 @@ WITH incomplete AS (
 SELECT
     (SELECT COUNT(*) FROM incomplete) AS incomplete_active_members,
     (SELECT COUNT(*) FROM friend_profiles p JOIN incomplete t ON t.member_id = p.member_id) AS incomplete_friend_profiles,
-    (SELECT COUNT(*) FROM friend_code_registry c JOIN incomplete t ON t.member_id = c.owner_member_id) AS incomplete_friend_codes,
+    (SELECT COUNT(*) FROM friend_code_registry c WHERE c.status = 'RETIRED' OR EXISTS (SELECT 1 FROM incomplete t WHERE t.member_id = c.owner_member_id)) AS incomplete_active_and_pre_release_retired_friend_codes,
     (SELECT COUNT(*) FROM friend_requests r WHERE EXISTS (SELECT 1 FROM incomplete t WHERE t.member_id = r.requester_id OR t.member_id = r.recipient_id)) AS incomplete_related_friend_requests,
     (SELECT COUNT(*) FROM friendships f WHERE EXISTS (SELECT 1 FROM incomplete t WHERE t.member_id = f.member_low_id OR t.member_id = f.member_high_id)) AS incomplete_related_friendships,
     (SELECT COUNT(*) FROM friend_preferences p WHERE EXISTS (SELECT 1 FROM incomplete t WHERE t.member_id = p.owner_member_id OR t.member_id = p.friend_member_id)) AS incomplete_related_friend_preferences,
@@ -61,8 +62,8 @@ WITH incomplete AS (
       AND (
         m.nickname IS NULL
         OR TRIM(m.nickname) = ''
-        OR REPLACE(LOWER(TRIM(m.nickname)), ' ', '') LIKE '%스쿠리유저%'
-        OR REPLACE(LOWER(TRIM(m.nickname)), ' ', '') LIKE '%운영자%'
+        OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%스쿠리유저%'
+        OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%운영자%'
         OR m.student_id IS NULL
         OR TRIM(m.student_id) = ''
         OR m.department IS NULL

@@ -17,7 +17,16 @@
 - 실제 구현 시 런타임 OpenAPI와 docs/api-specification.md를 같은 PR에서 동기화한다.
 - 구현 중 정책 변경이 필요하면 코드를 먼저 바꾸지 않고 이 문서의 결정 기록을 갱신한 뒤 승인을 받는다.
 
-### 1.1 완료된 PR 이력
+### 1.1 단계 종료 문서 정합성 게이트
+
+각 구현 단계의 코드·테스트가 끝난 뒤 해당 단계의 최종 PR을 마무리하기 전에, 구현과 문서의 정합성을 반드시 점검한다.
+
+- 백엔드 런타임 source of truth, 이 문서, 모바일 구현 계획, OpenAPI, ERD, 배포·회원 탈퇴 문서를 상호 대조한다.
+- API 변경이 있으면 Controller·DTO·OpenAPI와 모바일 DTO·mapper·화면 소비 계약을 함께 대조한다.
+- 정책 충돌, 완료·예정 범위 오표기, 구현과 문서의 drift를 해소하고 필요한 문서 갱신을 최종 PR에 포함한다.
+- 최종 PR에는 대조한 범위와 자동·수동 검증 결과를 기록한다. 아직 하지 못한 운영·실기기 검증은 완료로 표시하지 않는다.
+
+### 1.2 완료된 PR 이력
 
 친구 기능의 현재 기준선은 아래 병합 PR로 구성된다.
 
@@ -76,7 +85,7 @@ PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색�
 - URL 딥링크는 QR payload에 포함하지 않는다.
 - FriendProfile과 최초 ACTIVE 코드는 프로필을 완료한 ACTIVE 회원에게만 발급한다. 최초 소셜 로그인으로 Member row만 만들어지고 학번·학과·유효 닉네임이 없는 회원에게는 발급하지 않는다.
 - 친구 API의 lazy provisioning과 기동 backfill도 같은 가입 완료 판정을 사용하며, 미완료 회원을 Friend 데이터로 복원하지 않는다.
-- 일반적인 완료 회원의 재발급·탈퇴 코드는 RETIRED로 영구 보존한다. 단, 친구 모바일 기능 배포 전 잘못 발급된 미완료 회원의 FriendProfile과 소유 친구 코드 전체(ACTIVE·RETIRED)는 일회성 운영 cleanup에서 완전히 삭제하며 이 예외를 정상 코드 수명주기에 적용하지 않는다.
+- 일반적인 완료 회원의 재발급·탈퇴 코드는 RETIRED로 영구 보존한다. 단, 친구 모바일 기능 첫 배포 전에는 실제 사용자에게 공유·사용된 친구 코드가 없고 기존 데이터가 테스트 데이터라는 전제에서, 일회성 운영 cleanup으로 미완료 회원의 FriendProfile·소유 ACTIVE 코드와 당시 존재하는 모든 RETIRED 코드를 완전히 삭제한다. 이 예외는 첫 출시 전 한 번만 적용하며 이후 정상 코드 수명주기에 적용하지 않는다.
 
 ### 2.3 닉네임 검색
 
@@ -105,6 +114,8 @@ PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색�
 - studentId가 null·빈 문자열·공백 문자열이 아니다.
 - department가 null·빈 문자열·공백 문자열이 아니다.
 - photoUrl은 선택값이므로 완료 판정에 포함하지 않는다.
+
+예약어 판정에 사용하는 Unicode 공백 제거 기준은 Java 정책, backfill·검색 repository query, 운영 preflight·cleanup·postcheck SQL에서 동일해야 한다.
 
 검색·친구 코드 preview의 요청 행동 상태는 Boolean 하나로 축약하지 않고 다음 enum을 사용한다.
 
@@ -338,7 +349,7 @@ friend_code_registry:
 
 - 생성기는 registry에 하이픈을 제거한 대문자 `normalized_code`를 INSERT하고 영구 unique 충돌 시 새 무작위 값으로 제한된 횟수만 재시도한다. API는 `SKR-XXXX-XXXX` 표시 형식만 반환한다.
 - 재발급은 현재 registry row를 RETIRED로 바꾸고 owner_member_id를 제거한 뒤 새 ACTIVE row와 profile 참조를 같은 트랜잭션에서 확정한다.
-- RETIRED registry row는 탈퇴 cleanup에서도 삭제하지 않는다. preview는 ACTIVE row와 ACTIVE Member profile이 함께 존재할 때만 성공한다.
+- RETIRED registry row는 일반적인 탈퇴 cleanup에서도 삭제하지 않는다. 다만 모바일 첫 출시 전 실제 사용 이력이 없고 모든 데이터가 테스트 데이터라는 전제에서 실행하는 일회성 cleanup은 아래 Core 출시 준비 예외에 따라 당시 존재하던 RETIRED row 전체를 제거한다. preview는 ACTIVE row와 ACTIVE Member profile이 함께 존재할 때만 성공한다.
 - ACTIVE row는 owner_member_id와 이를 참조하는 FriendProfile이 모두 필요하다. owner_member_id의 non-null unique와 profile의 active_friend_code_id unique로 회원당 ACTIVE 코드 한 개와 코드당 profile 한 개를 보장한다.
 
 기존 회원 provisioning:
@@ -353,10 +364,10 @@ friend_code_registry:
 Core 출시 준비의 일회성 운영 cleanup:
 
 - 새 eligibility 코드가 모든 Backend 인스턴스에 배포된 뒤 실행한다. 구버전 provisioning이 살아 있는 동안 먼저 삭제하지 않는다.
-- read-only preflight에서 미완료 회원과 연결된 FriendProfile·소유 친구 코드 전체·요청·관계·즐겨찾기·차단을 정확히 집계한다.
-- 대상 회원과 연결된 파생 Friend 데이터를 관계 순서대로 정리하고 FriendProfile과 해당 ACTIVE registry row를 같은 작업에서 완전히 삭제한다.
-- 기존 완료 회원의 정상 ACTIVE·RETIRED 코드와 기존 중복 닉네임은 수정하지 않는다.
-- postcheck에서 미완료 회원 Friend row 0건, orphan 0건, 완료 회원 누락 0건을 확인한다.
+- read-only preflight에서 미완료 회원과 연결된 FriendProfile·소유 ACTIVE 친구 코드·요청·관계·즐겨찾기·차단과, 당시 존재하는 RETIRED registry row 전체를 정확히 집계한다.
+- 대상 회원과 연결된 파생 Friend 데이터를 관계 순서대로 정리하고 FriendProfile과 소유 ACTIVE registry row를 같은 작업에서 완전히 삭제한다. 모바일 첫 출시 전 테스트 데이터 cleanup에서는 당시 존재하는 RETIRED registry row 전체도 함께 제거한다.
+- 기존 완료 회원의 정상 ACTIVE 코드와 기존 중복 닉네임은 수정하지 않는다. RETIRED row 전체 제거는 실제 사용 이력이 없는 첫 출시 전 한 번에만 적용하며, 출시 후에는 일반 정책대로 tombstone을 보존한다.
+- postcheck에서 미완료 회원 Friend row 0건, 남은 RETIRED registry row 0건, orphan 0건, 완료 회원 누락 0건을 확인한다.
 - 실행 파일은 `docs/sql/2026-08-21-friend-core-readiness-preflight.sql` → `docs/sql/2026-08-21-friend-core-readiness-cleanup.sql` → `docs/sql/2026-08-21-friend-core-readiness-postcheck.sql` 순서로 사용한다. cleanup procedure에는 preflight에서 기록한 정확한 7개 건수를 전달하며 불일치하면 전체 트랜잭션을 rollback한다.
 
 ### 6.2 friend_requests
@@ -960,9 +971,10 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-21 | Backend #78·#79·#80과 Frontend #22·#23을 완료 이력으로 고정하고 후속 구현과 구분 |
 | 2026-08-21 | 승인 V1은 Core 출시 준비, 친구 화면 완성, 시간표 공유, 친구 초대, 알림·탈퇴 정리의 5단계·저장소별 단계당 1개 PR로 진행 |
 | 2026-08-21 | FriendProfile·최초 코드는 프로필 완료 ACTIVE 회원에게만 발급하고 backfill·lazy ensure도 같은 eligibility를 사용 |
-| 2026-08-21 | 친구 FE 배포 전 잘못 발급된 미완료 회원 FriendProfile·소유 친구 코드는 ACTIVE·RETIRED 모두 일회성 cleanup에서 삭제하되 정상 완료 회원의 코드는 RETIRED 영구 미재사용 유지 |
+| 2026-08-21 | 친구 FE 첫 배포 전에는 실제 사용 이력이 없는 테스트 데이터라는 전제에서 미완료 회원 FriendProfile·소유 ACTIVE 코드와 당시 모든 RETIRED 코드를 일회성 cleanup으로 삭제하고, 이후 RETIRED 코드는 영구 미재사용 유지 |
 | 2026-08-21 | nicknameSearchable 기본값을 true로 변경하고 닉네임 검색은 1글자부터 허용 |
 | 2026-08-21 | 스쿠리 유저·운영자 포함 닉네임을 금지하고 신규·변경 닉네임은 ACTIVE 회원 사이에서만 고유하며 탈퇴 후 재사용 허용 |
 | 2026-08-21 | 기존 중복 닉네임은 임의 변경하지 않고 새 닉네임 확정 시에만 unique claim을 요구 |
 | 2026-08-21 | canSendFriendRequest 호환 field 없이 REQUESTABLE·INCOMING_PENDING·OUTGOING_PENDING·ALREADY_FRIEND 관계 상태로 교체 |
 | 2026-08-21 | 친구 요청 거절 알림은 알림 단계에서 원 요청자에게 제공하고 FriendHub 요청 탭으로 이동 |
+| 2026-08-21 | 각 구현 단계의 최종 PR 전에는 런타임·친구 명세·모바일 계획·OpenAPI·ERD·운영 문서를 대조하고 drift를 같은 PR에서 해소 |

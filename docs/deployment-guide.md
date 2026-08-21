@@ -515,7 +515,7 @@ ORDER BY category;
 
 ## 10.2 Friend Core 출시 준비 일회성 cleanup
 
-친구 모바일 기능 배포 전에 잘못 발급된 프로필 미완료 ACTIVE 회원의 Friend 파생 데이터만 제거한다. 정상 완료 회원의 ACTIVE·RETIRED 코드와 기존 중복 닉네임은 변경하지 않는다.
+친구 모바일 기능 첫 배포 전에 잘못 발급된 프로필 미완료 ACTIVE 회원의 Friend 파생 데이터와 당시 존재하는 모든 RETIRED 친구 코드 registry 행을 제거한다. 이 작업은 실제 사용자에게 공유·사용된 친구 코드가 없고 기존 데이터가 테스트 데이터인 첫 출시 전 한 번만 수행한다. 정상 완료 회원의 ACTIVE 코드와 기존 중복 닉네임은 변경하지 않는다.
 
 실행 순서:
 
@@ -524,14 +524,14 @@ ORDER BY category;
 3. `docs/sql/2026-08-21-friend-core-readiness-preflight.sql`을 읽기 전용으로 실행하고 대상 DB명과 7개 대상 건수를 기록한다.
 4. 결과의 회원 ID·닉네임 등 운영 데이터는 외부 문서나 PR에 복사하지 않는다.
 5. `docs/sql/2026-08-21-friend-core-readiness-cleanup.sql`을 로드한 뒤 기록한 정확한 건수로 `cleanup_incomplete_friend_data(...)`를 호출한다. 건수가 달라지면 procedure가 전체 DML을 rollback한다.
-6. `docs/sql/2026-08-21-friend-core-readiness-postcheck.sql`을 실행해 미완료 회원 Friend row, 잘못된 profile 참조, 완료 회원 profile 누락이 모두 0인지 확인한다.
+6. `docs/sql/2026-08-21-friend-core-readiness-postcheck.sql`을 실행해 미완료 회원 Friend row, 남은 RETIRED 코드, 잘못된 profile 참조, 완료 회원 profile 누락이 모두 0인지 확인한다.
 7. Backend 로그에서 프로필 완료 회원 backfill 완료와 누락 오류 부재를 확인한 뒤 모바일 Friend 진입점을 배포한다.
 
 주의:
 
-- cleanup은 미완료 회원의 FriendProfile·친구 코드 전체(ACTIVE·RETIRED)·요청·friendship·즐겨찾기·차단을 hard delete한다. 이미지 롤백으로 데이터가 복구되지 않으므로 백업 확인 없이 실행하지 않는다.
+- cleanup은 미완료 회원의 FriendProfile·소유 ACTIVE 코드·요청·friendship·즐겨찾기·차단과, 첫 출시 전 당시 존재하는 모든 RETIRED 코드를 hard delete한다. 이미지 롤백으로 데이터가 복구되지 않으므로 백업 확인 없이 실행하지 않는다.
 - 구버전 Backend 인스턴스가 남아 있으면 삭제한 FriendProfile을 다시 만들 수 있으므로 cleanup을 먼저 실행하지 않는다.
-- 일반적인 코드 재발급·탈퇴의 RETIRED tombstone은 이 cleanup 대상이 아니다.
+- 첫 출시 뒤 일반적인 코드 재발급·탈퇴로 생기는 RETIRED tombstone은 이 cleanup 대상이 아니며 영구 미재사용 정책을 유지한다.
 
 ## 11. 배포 후 체크리스트
 
