@@ -3,6 +3,8 @@ package com.skuri.skuri_backend.domain.member.repository;
 import com.skuri.skuri_backend.domain.member.constant.AdminMemberSortField;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.MemberStatus;
+import com.skuri.skuri_backend.domain.friend.entity.FriendProfile;
+import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.notification.entity.FcmToken;
 import com.skuri.skuri_backend.domain.notification.repository.FcmTokenRepository;
 import org.junit.jupiter.api.Test;
@@ -30,6 +32,9 @@ class MemberRepositoryDataJpaTest {
 
     @Autowired
     private MemberRepository memberRepository;
+
+    @Autowired
+    private FriendProfileRepository friendProfileRepository;
 
     @Autowired
     private FcmTokenRepository fcmTokenRepository;
@@ -204,6 +209,30 @@ class MemberRepositoryDataJpaTest {
         memberRepository.saveAndFlush(withdrawn);
 
         assertFalse(memberRepository.existsActiveNicknameConflict("requester", "재사용닉네임"));
+    }
+
+    @Test
+    void 프로필완료후보조회는_유니코드공백으로우회한예약닉네임을제외한다() {
+        Member reserved = Member.create("reserved", "reserved@sungkyul.ac.kr", null, LocalDateTime.now());
+        reserved.updateProfile("스쿠리\u00a0유저", "스쿠리\u00a0유저", "20260004", "컴퓨터공학과", null);
+        memberRepository.saveAndFlush(reserved);
+        Member reservedSearchable = Member.create("reserved-search", "reserved-search@sungkyul.ac.kr", null, LocalDateTime.now());
+        reservedSearchable.updateProfile("운\t영자", "운\t영자", "20260005", "컴퓨터공학과", null);
+        memberRepository.saveAndFlush(reservedSearchable);
+        friendProfileRepository.saveAndFlush(
+                FriendProfile.create("reserved-search", "reserved-search-public", "reserved-search-code")
+        );
+
+        assertTrue(
+                memberRepository.findProfileCompleteActiveMemberIdsWithoutFriendProfile(PageRequest.of(0, 10)).isEmpty()
+        );
+        assertEquals(0, memberRepository.countProfileCompleteActiveMembers());
+        assertTrue(
+                friendProfileRepository.findNicknameSearchResults(
+                        "requester", "", null, null, PageRequest.of(0, 10)
+                ).isEmpty()
+        );
+        assertEquals(0, friendProfileRepository.countForProfileCompleteActiveMembers());
     }
 
     private Member saveMember(

@@ -30,8 +30,8 @@ public interface FriendProfileRepository extends JpaRepository<FriendProfile, St
             where m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
               and m.nickname is not null
               and trim(m.nickname) <> ''
-              and replace(lower(trim(m.nickname)), ' ', '') not like '%스쿠리유저%'
-              and replace(lower(trim(m.nickname)), ' ', '') not like '%운영자%'
+              and cast(function('regexp_replace', lower(trim(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') as string) not like '%스쿠리유저%'
+              and cast(function('regexp_replace', lower(trim(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') as string) not like '%운영자%'
               and m.studentId is not null
               and trim(m.studentId) <> ''
               and m.department is not null
@@ -76,8 +76,8 @@ public interface FriendProfileRepository extends JpaRepository<FriendProfile, St
                   and m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
                   and m.nickname is not null
                   and trim(m.nickname) <> ''
-                  and replace(lower(trim(m.nickname)), ' ', '') not like '%스쿠리유저%'
-                  and replace(lower(trim(m.nickname)), ' ', '') not like '%운영자%'
+                  and cast(function('regexp_replace', lower(trim(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') as string) not like '%스쿠리유저%'
+                  and cast(function('regexp_replace', lower(trim(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') as string) not like '%운영자%'
                   and m.studentId is not null
                   and trim(m.studentId) <> ''
                   and m.department is not null
