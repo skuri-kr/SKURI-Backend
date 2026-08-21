@@ -13,6 +13,20 @@ public record FriendSummaryResponse(
         @Schema(description = "프로필 사진 URL", nullable = true, example = "https://example.com/profile.jpg")
         String photoUrl,
         @Schema(description = "내 즐겨찾기 여부", example = "true")
-        boolean favorite
+        boolean favorite,
+        @Schema(description = "대표 SELF 마인크래프트 게임명", nullable = true, example = "skuriPlayer")
+        String primaryMinecraftGameName,
+        @Schema(description = "등록된 SELF·FRIEND 마인크래프트 계정 수", nullable = true, example = "3")
+        Integer minecraftAccountCount
 ) {
+
+    public FriendSummaryResponse(
+            String friendPublicId,
+            String nickname,
+            String department,
+            String photoUrl,
+            boolean favorite
+    ) {
+        this(friendPublicId, nickname, department, photoUrl, favorite, null, null);
+    }
 }

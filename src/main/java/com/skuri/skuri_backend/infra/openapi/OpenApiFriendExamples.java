@@ -81,7 +81,9 @@ public final class OpenApiFriendExamples {
                 "nickname": "스쿠리",
                 "department": "컴퓨터공학과",
                 "photoUrl": null,
-                "favorite": true
+                "favorite": true,
+                "primaryMinecraftGameName": "skuriPlayer",
+                "minecraftAccountCount": 3
               }]
             }
             """;
@@ -94,7 +96,27 @@ public final class OpenApiFriendExamples {
                 "nickname": "스쿠리",
                 "department": "컴퓨터공학과",
                 "photoUrl": null,
-                "favorite": true
+                "favorite": true,
+                "primaryMinecraftGameName": "skuriPlayer",
+                "minecraftAccountCount": 3
+              }
+            }
+            """;
+
+    public static final String SUCCESS_FRIEND_MINECRAFT_ACCOUNTS = """
+            {
+              "success": true,
+              "data": {
+                "selfAccounts": [{
+                  "gameName": "skuriPlayer",
+                  "edition": "JAVA",
+                  "avatarUuid": "8667ba71b85a4004af54457a9734eed7",
+                  "friendAccounts": [{
+                    "gameName": "skuriBedrock",
+                    "edition": "BEDROCK",
+                    "avatarUuid": "8667ba71b85a4004af54457a9734eed7"
+                  }]
+                }]
               }
             }
             """;
