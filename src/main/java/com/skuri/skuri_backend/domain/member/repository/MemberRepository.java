@@ -113,6 +113,14 @@ public interface MemberRepository extends JpaRepository<Member, String>, MemberR
             select m.id
             from Member m
             where m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+              and m.nickname is not null
+              and cast(function('regexp_replace', m.nickname, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') as string) <> ''
+              and cast(function('regexp_replace', lower(trim(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') as string) not like '%스쿠리유저%'
+              and cast(function('regexp_replace', lower(trim(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') as string) not like '%운영자%'
+              and m.studentId is not null
+              and cast(function('regexp_replace', m.studentId, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') as string) <> ''
+              and m.department is not null
+              and cast(function('regexp_replace', m.department, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') as string) <> ''
               and not exists (
                   select p.memberId
                   from FriendProfile p
@@ -120,7 +128,37 @@ public interface MemberRepository extends JpaRepository<Member, String>, MemberR
               )
             order by m.id asc
             """)
-    List<String> findActiveMemberIdsWithoutFriendProfile(Pageable pageable);
+    List<String> findProfileCompleteActiveMemberIdsWithoutFriendProfile(Pageable pageable);
+
+    @Query("""
+            select count(m)
+            from Member m
+            where m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+              and m.nickname is not null
+              and cast(function('regexp_replace', m.nickname, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') as string) <> ''
+              and cast(function('regexp_replace', lower(trim(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') as string) not like '%스쿠리유저%'
+              and cast(function('regexp_replace', lower(trim(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') as string) not like '%운영자%'
+              and m.studentId is not null
+              and cast(function('regexp_replace', m.studentId, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') as string) <> ''
+              and m.department is not null
+              and cast(function('regexp_replace', m.department, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') as string) <> ''
+            """)
+    long countProfileCompleteActiveMembers();
+
+    @Query("""
+            select count(m) > 0
+            from Member m
+            where m.id <> :excludedMemberId
+              and m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+              and (
+                    m.nicknameKey = :nicknameKey
+                    or lower(trim(m.nickname)) = :nicknameKey
+              )
+            """)
+    boolean existsActiveNicknameConflict(
+            @Param("excludedMemberId") String excludedMemberId,
+            @Param("nicknameKey") String nicknameKey
+    );
 
     @Query("""
             select m.id

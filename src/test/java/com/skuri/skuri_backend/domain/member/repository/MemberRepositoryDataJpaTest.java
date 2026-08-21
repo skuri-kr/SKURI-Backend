@@ -1,8 +1,11 @@
 package com.skuri.skuri_backend.domain.member.repository;
 
 import com.skuri.skuri_backend.domain.member.constant.AdminMemberSortField;
+import com.skuri.skuri_backend.domain.member.constant.MemberNicknamePolicy;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.MemberStatus;
+import com.skuri.skuri_backend.domain.friend.entity.FriendProfile;
+import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.notification.entity.FcmToken;
 import com.skuri.skuri_backend.domain.notification.repository.FcmTokenRepository;
 import org.junit.jupiter.api.Test;
@@ -20,6 +23,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
 @ActiveProfiles("test")
@@ -28,6 +33,9 @@ class MemberRepositoryDataJpaTest {
 
     @Autowired
     private MemberRepository memberRepository;
+
+    @Autowired
+    private FriendProfileRepository friendProfileRepository;
 
     @Autowired
     private FcmTokenRepository fcmTokenRepository;
@@ -176,6 +184,101 @@ class MemberRepositoryDataJpaTest {
 
         assertEquals(List.of("member-match"), result.getContent().stream().map(AdminMemberSummaryProjection::id).toList());
         assertEquals(1, result.getTotalElements());
+    }
+
+    @Test
+    void existsActiveNicknameConflict_레거시닉네임과닉네임키를모두검사한다() {
+        Member legacy = Member.create("legacy", "legacy@sungkyul.ac.kr", null, LocalDateTime.now());
+        legacy.updateProfile("LegacyName", "20260001", "컴퓨터공학과", null);
+        memberRepository.saveAndFlush(legacy);
+
+        Member keyed = Member.create("keyed", "keyed@sungkyul.ac.kr", null, LocalDateTime.now());
+        keyed.updateProfile("새닉네임", "새닉네임", "20260002", "컴퓨터공학과", null);
+        memberRepository.saveAndFlush(keyed);
+
+        assertTrue(memberRepository.existsActiveNicknameConflict("requester", "legacyname"));
+        assertTrue(memberRepository.existsActiveNicknameConflict("requester", "새닉네임"));
+        assertFalse(memberRepository.existsActiveNicknameConflict("requester", "사용가능"));
+        assertFalse(memberRepository.existsActiveNicknameConflict("legacy", "legacyname"));
+    }
+
+    @Test
+    void existsActiveNicknameConflict_탈퇴회원닉네임은재사용할수있다() {
+        Member withdrawn = Member.create("withdrawn", "withdrawn@sungkyul.ac.kr", null, LocalDateTime.now());
+        withdrawn.updateProfile("재사용닉네임", "재사용닉네임", "20260003", "컴퓨터공학과", null);
+        withdrawn.withdraw(LocalDateTime.now());
+        memberRepository.saveAndFlush(withdrawn);
+
+        assertFalse(memberRepository.existsActiveNicknameConflict("requester", "재사용닉네임"));
+    }
+
+    @Test
+    void 프로필완료후보조회는_유니코드공백으로우회한예약닉네임을제외한다() {
+        Member reserved = Member.create("reserved", "reserved@sungkyul.ac.kr", null, LocalDateTime.now());
+        reserved.updateProfile("스쿠리\u00a0유저", "스쿠리\u00a0유저", "20260004", "컴퓨터공학과", null);
+        memberRepository.saveAndFlush(reserved);
+        Member reservedSearchable = Member.create("reserved-search", "reserved-search@sungkyul.ac.kr", null, LocalDateTime.now());
+        reservedSearchable.updateProfile("운\t영자", "운\t영자", "20260005", "컴퓨터공학과", null);
+        memberRepository.saveAndFlush(reservedSearchable);
+        friendProfileRepository.saveAndFlush(
+                FriendProfile.create("reserved-search", "reserved-search-public", "reserved-search-code")
+        );
+
+        assertTrue(
+                memberRepository.findProfileCompleteActiveMemberIdsWithoutFriendProfile(PageRequest.of(0, 10)).isEmpty()
+        );
+        assertEquals(0, memberRepository.countProfileCompleteActiveMembers());
+        assertTrue(
+                friendProfileRepository.findNicknameSearchResults(
+                        "requester", "", null, null, PageRequest.of(0, 10)
+                ).isEmpty()
+        );
+        assertEquals(0, friendProfileRepository.countForProfileCompleteActiveMembers());
+    }
+
+    @Test
+    void 프로필완료후보조회는_StringIsBlank_기준의공백만있는필드를제외한다() {
+        Member blankNickname = Member.create("blank-nickname", "blank-nickname@sungkyul.ac.kr", null, LocalDateTime.now());
+        blankNickname.updateProfile("\t", "\t", "20260007", "컴퓨터공학과", null);
+        Member blankStudentId = Member.create("blank-student-id", "blank-student-id@sungkyul.ac.kr", null, LocalDateTime.now());
+        blankStudentId.updateProfile("학번공백", "학번공백", "\t", "컴퓨터공학과", null);
+        Member blankDepartment = Member.create("blank-department", "blank-department@sungkyul.ac.kr", null, LocalDateTime.now());
+        blankDepartment.updateProfile("학과공백", "학과공백", "20260008", "\t", null);
+        memberRepository.saveAllAndFlush(List.of(blankNickname, blankStudentId, blankDepartment));
+        friendProfileRepository.saveAndFlush(
+                FriendProfile.create("blank-nickname", "blank-nickname-public", "blank-nickname-code")
+        );
+
+        assertFalse(blankNickname.isProfileComplete());
+        assertFalse(blankStudentId.isProfileComplete());
+        assertFalse(blankDepartment.isProfileComplete());
+        assertTrue(
+                memberRepository.findProfileCompleteActiveMemberIdsWithoutFriendProfile(PageRequest.of(0, 10)).isEmpty()
+        );
+        assertEquals(0, memberRepository.countProfileCompleteActiveMembers());
+        assertTrue(
+                friendProfileRepository.findNicknameSearchResults(
+                        "requester", "", null, null, PageRequest.of(0, 10)
+                ).isEmpty()
+        );
+        assertEquals(0, friendProfileRepository.countForProfileCompleteActiveMembers());
+    }
+
+    @Test
+    void 소문자화시길이가늘어난_50자닉네임의고유키를저장한다() {
+        String nickname = "İ".repeat(50);
+        Member member = Member.create("expanding-key", "expanding-key@sungkyul.ac.kr", null, LocalDateTime.now());
+        member.updateProfile(
+                nickname,
+                MemberNicknamePolicy.toUniquenessKey(nickname),
+                "20260006",
+                "컴퓨터공학과",
+                null
+        );
+
+        memberRepository.saveAndFlush(member);
+
+        assertEquals(100, memberRepository.findById("expanding-key").orElseThrow().getNicknameKey().length());
     }
 
     private Member saveMember(

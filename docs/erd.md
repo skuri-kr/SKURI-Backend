@@ -1,6 +1,6 @@
 # Spring 백엔드 ERD (Entity Relationship Diagram)
 
-> 최종 수정일: 2026-08-18
+> 최종 수정일: 2026-08-21
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -31,6 +31,7 @@ erDiagram
         varchar(36) id PK "UUID or Firebase UID"
         varchar(255) email UK "NOT NULL"
         varchar(50) nickname
+        varchar(255) nickname_key UK "nullable, 신규·변경 ACTIVE 닉네임 정규화 키"
         varchar(20) student_id
         varchar(50) department FK
         varchar(500) photo_url "nullable, 가입 시 null"
@@ -692,7 +693,7 @@ erDiagram
         varchar(36) member_id PK "Member 내부 식별자"
         varchar(36) public_id UK "친구 공개 식별자"
         varchar(36) active_friend_code_id UK "현재 ACTIVE registry 참조"
-        boolean nickname_searchable "NOT NULL DEFAULT false"
+        boolean nickname_searchable "NOT NULL, 신규 profile true"
         datetime rotated_at
         datetime created_at
         datetime updated_at
@@ -772,6 +773,7 @@ erDiagram
 | id | VARCHAR(36) | PK | Firebase UID 또는 UUID |
 | email | VARCHAR(255) | UK, NOT NULL | 이메일 (로그인 식별자) |
 | nickname | VARCHAR(50) | | 앱 내 닉네임 |
+| nickname_key | VARCHAR(255) | UK, nullable | 신규·변경 ACTIVE 닉네임의 trim·NFC·소문자 고유 키. 소문자화로 길이가 늘어나는 Unicode 닉네임을 보존하며, 운영 MySQL `utf8mb4_unicode_ci` 비교로 대소문자·악센트 차이는 중복으로 취급한다. 기존 중복 닉네임은 null로 유지 가능 |
 | student_id | VARCHAR(20) | | 학번 |
 | department | VARCHAR(50) | FK, nullable | `departments.name` 학과 |
 | photo_url | VARCHAR(500) | | 프로필 이미지 URL (가입 시 기본 null) |
@@ -802,6 +804,8 @@ erDiagram
 > Phase 8부터 학사 일정 알림용 `academic_schedule_notifications`, `academic_schedule_day_before_enabled`, `academic_schedule_all_events_enabled` 컬럼을 사용한다.
 
 > Phase 10부터 회원 탈퇴는 hard delete 대신 `status`, `withdrawn_at` 기반 soft delete tombstone으로 관리한다.
+
+> Friend Core 출시 준비부터 신규·변경 닉네임은 ACTIVE 회원 사이에서만 고유하며, 탈퇴 시 `nickname_key`를 null로 비워 재사용을 허용한다. 기존 ACTIVE 중복 닉네임은 임의 변경하지 않는다.
 
 **linked_accounts 테이블 상세:**
 
@@ -977,7 +981,7 @@ Taxi history 계약 메모:
 
 | 테이블 | 설명 | 예상 레코드 수 |
 |--------|------|---------------|
-| `friend_profiles` | 회원별 친구 공개 식별자·검색 공개 설정·현재 코드 참조 | 활성 회원 수와 동일 |
+| `friend_profiles` | 프로필 완료 ACTIVE 회원별 친구 공개 식별자·검색 공개 설정·현재 코드 참조 | 프로필 완료 ACTIVE 회원 수와 동일 |
 | `friend_code_registry` | ACTIVE·RETIRED 친구 코드의 영구 미재사용 registry | 재발급 횟수에 비례 |
 | `friend_requests` | 요청의 PENDING·terminal 이력. 현재 PENDING pair는 한 건만 허용 | 친구 요청량에 비례 |
 | `friendships` | 정렬된 두 Member ID의 상호 친구 관계 | 친구 관계 수 |
@@ -991,7 +995,7 @@ Taxi history 계약 메모:
 | member_id | VARCHAR(36) | PK | 내부 회원 ID. 외부 API 미노출 |
 | public_id | VARCHAR(36) | UK, NOT NULL | 친구 기능 공개 식별자 |
 | active_friend_code_id | VARCHAR(36) | UK, NOT NULL | 현재 활성 registry ID |
-| nickname_searchable | BOOLEAN | NOT NULL, DEFAULT false | 닉네임 검색 허용 여부 |
+| nickname_searchable | BOOLEAN | NOT NULL, 애플리케이션 생성 기본 true | 닉네임 검색 허용 여부 |
 | rotated_at | DATETIME | NULL | 마지막 코드 재발급 시각 |
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
@@ -1175,7 +1179,7 @@ Taxi history 계약 메모:
 | 파티-요청 | parties | join_requests | 1:N | 파티에 여러 동승 요청 |
 | 채팅방-멤버 | chat_rooms | chat_room_members | 1:N | 채팅방에 여러 멤버 |
 | 채팅방-메시지 | chat_rooms | chat_messages | 1:N | 채팅방에 여러 메시지 |
-| 회원-친구 공개 프로필 | members | friend_profiles | 1:0..1 | ACTIVE 회원당 하나의 공개 프로필 |
+| 회원-친구 공개 프로필 | members | friend_profiles | 1:0..1 | 프로필 완료 ACTIVE 회원당 하나의 공개 프로필 |
 | 활성 친구 코드-공개 프로필 | friend_code_registry | friend_profiles | 1:0..1 | ACTIVE 코드만 현재 프로필에 연결 |
 | 게시글-이미지 | posts | post_images | 1:N | 게시글에 여러 이미지 |
 | 게시글-댓글 | posts | comments | 1:N | 게시글에 여러 댓글 |
@@ -1302,6 +1306,7 @@ ALTER TABLE user_timetable_manual_courses
 ```sql
 -- members
 CREATE UNIQUE INDEX idx_members_email ON members(email);
+CREATE UNIQUE INDEX uk_members_nickname_key ON members(nickname_key);
 CREATE INDEX idx_members_student_id ON members(student_id);
 CREATE INDEX idx_members_department ON members(department);
 
@@ -1521,6 +1526,7 @@ CREATE UNIQUE INDEX uk_friendships_member_pair ON friendships(member_low_id, mem
 > **문서 이력**
 > - 2026-08-18: Friend 관계 Core 테이블 추가 — `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`와 PENDING pair unique·cursor 인덱스를 반영
 > - 2026-08-18: Friend Foundation 테이블 추가 — `friend_profiles`, `friend_code_registry`의 공개 식별자·ACTIVE/RETIRED 영구 코드 registry와 unique 제약을 반영
+> - 2026-08-21: Friend Core 출시 준비 반영 — nullable `members.nickname_key`(VARCHAR(255)), 프로필 완료 ACTIVE 회원 eligibility, `nickname_searchable` 기본 true를 반영
 > - 2026-03-30: Minecraft 도메인 테이블 추가 — `minecraft_accounts`, `minecraft_server_state`, `minecraft_online_players`, `minecraft_bridge_events`와 관련 인덱스, chat sender key/Minotar 전제를 반영
 > - 2026-02-03: 초안 작성
 > - 2026-03-05: Board 댓글 정책 동기화 — `comments.parent_id` 관계를 부모 보존 정책(B)에 맞게 정정(`ON DELETE SET NULL`), depth 1 제약/placeholder soft delete 설명 반영

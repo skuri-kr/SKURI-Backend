@@ -37,7 +37,7 @@ public class FriendProfile extends BaseTimeEntity {
         this.memberId = memberId;
         this.publicId = publicId;
         this.activeFriendCodeId = activeFriendCodeId;
-        this.nicknameSearchable = false;
+        this.nicknameSearchable = true;
     }
 
     public static FriendProfile create(String memberId, String publicId, String activeFriendCodeId) {

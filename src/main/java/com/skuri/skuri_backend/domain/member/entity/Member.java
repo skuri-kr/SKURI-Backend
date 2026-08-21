@@ -1,6 +1,7 @@
 package com.skuri.skuri_backend.domain.member.entity;
 
 import com.skuri.skuri_backend.common.entity.BaseTimeEntity;
+import com.skuri.skuri_backend.domain.member.constant.MemberNicknamePolicy;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -31,6 +32,9 @@ public class Member extends BaseTimeEntity {
 
     @Column(name = "nickname", length = 50)
     private String nickname;
+
+    @Column(name = "nickname_key", unique = true, length = 255)
+    private String nicknameKey;
 
     @Column(name = "student_id", length = 20)
     private String studentId;
@@ -103,9 +107,10 @@ public class Member extends BaseTimeEntity {
         this.lastLogin = lastLogin;
     }
 
-    public void updateProfile(String nickname, String studentId, String department, String photoUrl) {
+    public void updateProfile(String nickname, String nicknameKey, String studentId, String department, String photoUrl) {
         if (nickname != null) {
             this.nickname = nickname;
+            this.nicknameKey = nicknameKey;
         }
         if (studentId != null) {
             this.studentId = studentId;
@@ -116,6 +121,10 @@ public class Member extends BaseTimeEntity {
         if (photoUrl != null) {
             this.photoUrl = photoUrl;
         }
+    }
+
+    public void updateProfile(String nickname, String studentId, String department, String photoUrl) {
+        updateProfile(nickname, nicknameKey, studentId, department, photoUrl);
     }
 
     public void removeProfilePhoto() {
@@ -184,11 +193,24 @@ public class Member extends BaseTimeEntity {
         return status == MemberStatus.WITHDRAWN;
     }
 
+    public boolean isProfileComplete() {
+        return isActive()
+                && hasText(nickname)
+                && !MemberNicknamePolicy.isReserved(nickname)
+                && hasText(studentId)
+                && hasText(department);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
     public void withdraw(LocalDateTime withdrawnAt) {
         this.status = MemberStatus.WITHDRAWN;
         this.withdrawnAt = withdrawnAt;
         this.email = MemberWithdrawalSanitizer.redactEmail(id);
         this.nickname = MemberWithdrawalSanitizer.WITHDRAWN_DISPLAY_NAME;
+        this.nicknameKey = null;
         this.studentId = null;
         this.department = null;
         this.photoUrl = null;

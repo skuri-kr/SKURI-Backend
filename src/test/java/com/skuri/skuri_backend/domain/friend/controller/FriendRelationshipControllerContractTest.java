@@ -206,16 +206,16 @@ class FriendRelationshipControllerContractTest {
     }
 
     @Test
-    void 닉네임검색의_짧은검색어는_VALIDATION_ERROR_422이다() throws Exception {
+    void 닉네임검색은_한글자검색어도허용한다() throws Exception {
         mockValidToken();
+        when(friendRelationshipQueryService.search("firebase-uid", "가", null, null))
+                .thenReturn(new FriendSearchPageResponse(List.of(), false, null));
 
         mockMvc.perform(get("/v1/friends/search")
                         .header(AUTHORIZATION, "Bearer valid-token")
                         .param("query", "가"))
-                .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
-
-        verifyNoInteractions(friendRelationshipService, friendRelationshipQueryService);
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items").isEmpty());
     }
 
     @Test
@@ -299,6 +299,17 @@ class FriendRelationshipControllerContractTest {
                         .header(AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("FRIEND_REQUEST_STATE_NOT_ALLOWED"));
+    }
+
+    @Test
+    void 프로필미완료회원의_친구API는_409를반환한다() throws Exception {
+        mockValidToken();
+        when(friendRelationshipQueryService.getFriends("firebase-uid"))
+                .thenThrow(new BusinessException(ErrorCode.MEMBER_PROFILE_INCOMPLETE));
+
+        mockMvc.perform(get("/v1/friends").header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("MEMBER_PROFILE_INCOMPLETE"));
     }
 
     @Test

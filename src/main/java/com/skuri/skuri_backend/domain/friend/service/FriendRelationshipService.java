@@ -12,6 +12,8 @@ import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
+import com.skuri.skuri_backend.domain.member.entity.Member;
+import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +34,7 @@ public class FriendRelationshipService {
     private final FriendRequestTransitionService friendRequestTransitionService;
     private final FriendRequestExpiryService friendRequestExpiryService;
     private final FriendSummarySnapshotFactory friendSummarySnapshotFactory;
+    private final MemberRepository memberRepository;
 
     @Transactional
     public FriendRequestCreationResult createRequest(String requesterMemberId, String targetFriendPublicId) {
@@ -99,6 +102,7 @@ public class FriendRelationshipService {
 
     @Transactional
     public void setFavorite(String ownerMemberId, String friendPublicId, boolean favorite) {
+        pairLockService.requireActiveProfileCompleteMember(ownerMemberId);
         String friendMemberId = resolveTargetMemberId(friendPublicId);
         FriendMemberPair pair = pairLockService.lockActivePair(ownerMemberId, friendMemberId);
         requireFriendship(pair);
@@ -111,6 +115,7 @@ public class FriendRelationshipService {
 
     @Transactional
     public void removeFriendship(String ownerMemberId, String friendPublicId) {
+        pairLockService.requireActiveProfileCompleteMember(ownerMemberId);
         String friendMemberId = resolveTargetMemberId(friendPublicId);
         FriendMemberPair pair = pairLockService.lockActivePair(ownerMemberId, friendMemberId);
         Friendship friendship = requireFriendship(pair);
@@ -121,6 +126,7 @@ public class FriendRelationshipService {
 
     @Transactional
     public void blockMember(String blockerMemberId, String targetFriendPublicId) {
+        pairLockService.requireActiveProfileCompleteMember(blockerMemberId);
         String blockedMemberId = resolveTargetMemberId(targetFriendPublicId);
         if (blockerMemberId.equals(blockedMemberId)) {
             throw new BusinessException(ErrorCode.FRIEND_SELF_BLOCK_NOT_ALLOWED);
@@ -145,14 +151,19 @@ public class FriendRelationshipService {
 
     @Transactional
     public void unblockMember(String blockerMemberId, String targetFriendPublicId) {
+        pairLockService.requireActiveProfileCompleteMember(blockerMemberId);
         String blockedMemberId = resolveTargetMemberId(targetFriendPublicId);
         pairLockService.lockActivePair(blockerMemberId, blockedMemberId);
         memberBlockRepository.deleteByBlockerIdAndBlockedId(blockerMemberId, blockedMemberId);
     }
 
     private String resolveTargetMemberId(String friendPublicId) {
-        return friendProfileRepository.findByPublicId(friendPublicId)
+        String memberId = friendProfileRepository.findByPublicId(friendPublicId)
                 .map(profile -> profile.getMemberId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND));
+        return memberRepository.findActiveById(memberId)
+                .filter(Member::isProfileComplete)
+                .map(Member::getId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND));
     }
 

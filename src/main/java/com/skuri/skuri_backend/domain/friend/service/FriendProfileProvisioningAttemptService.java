@@ -1,5 +1,7 @@
 package com.skuri.skuri_backend.domain.friend.service;
 
+import com.skuri.skuri_backend.common.exception.BusinessException;
+import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.friend.entity.FriendCodeRegistry;
 import com.skuri.skuri_backend.domain.friend.entity.FriendProfile;
 import com.skuri.skuri_backend.domain.friend.repository.FriendCodeRegistryRepository;
@@ -23,8 +25,11 @@ class FriendProfileProvisioningAttemptService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public FriendProfile ensureForActiveMember(String memberId, String publicId, String normalizedCode) {
-        memberRepository.findActiveByIdForUpdate(memberId)
+        var member = memberRepository.findActiveByIdForUpdate(memberId)
                 .orElseThrow(MemberNotFoundException::new);
+        if (!member.isProfileComplete()) {
+            throw new BusinessException(ErrorCode.MEMBER_PROFILE_INCOMPLETE);
+        }
 
         return friendProfileRepository.findByMemberIdForUpdate(memberId)
                 .orElseGet(() -> createProfile(memberId, publicId, normalizedCode));

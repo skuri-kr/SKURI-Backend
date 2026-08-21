@@ -103,7 +103,7 @@ public final class OpenApiMemberExamples {
               "data": {
                 "id": "dw9rPtuticbjnaYPkeiF3RGPpqk1",
                 "email": "user@sungkyul.ac.kr",
-                "nickname": "스쿠리유저_수정",
+                "nickname": "성결친구",
                 "studentId": "2023112233",
                 "department": "미디어소프트웨어학과",
                 "photoUrl": "https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo-new.jpg",
@@ -440,6 +440,10 @@ public final class OpenApiMemberExamples {
 
     public static final String ERROR_MEMBER_NOT_FOUND =
             "{\"success\":false,\"message\":\"회원을 찾을 수 없습니다.\",\"errorCode\":\"MEMBER_NOT_FOUND\",\"timestamp\":\"2026-03-04T12:00:00\"}";
+    public static final String ERROR_NICKNAME_ALREADY_EXISTS =
+            "{\"success\":false,\"message\":\"이미 사용 중인 닉네임입니다.\",\"errorCode\":\"NICKNAME_ALREADY_EXISTS\",\"timestamp\":\"2026-08-21T12:00:00\"}";
+    public static final String ERROR_NICKNAME_RESERVED =
+            "{\"success\":false,\"message\":\"사용할 수 없는 닉네임입니다.\",\"errorCode\":\"NICKNAME_RESERVED\",\"timestamp\":\"2026-08-21T12:00:00\"}";
     public static final String ERROR_MEMBER_WITHDRAWN =
             "{\"success\":false,\"message\":\"탈퇴한 회원은 서비스에 접근할 수 없습니다.\",\"errorCode\":\"MEMBER_WITHDRAWN\",\"timestamp\":\"2026-03-09T12:00:00\"}";
     public static final String ERROR_MEMBER_WITHDRAWAL_NOT_ALLOWED =

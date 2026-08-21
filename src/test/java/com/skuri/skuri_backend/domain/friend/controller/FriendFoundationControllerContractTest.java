@@ -3,11 +3,14 @@ package com.skuri.skuri_backend.domain.friend.controller;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendCodePreviewResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendCodeResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendPrivacyResponse;
+import com.skuri.skuri_backend.domain.friend.dto.response.FriendRelationshipState;
 import com.skuri.skuri_backend.domain.friend.exception.FriendCodeNotFoundException;
 import com.skuri.skuri_backend.domain.friend.exception.FriendCodeRegenerationCooldownException;
 import com.skuri.skuri_backend.domain.friend.service.FriendCodeService;
 import com.skuri.skuri_backend.domain.friend.service.FriendPrivacyService;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
+import com.skuri.skuri_backend.common.exception.BusinessException;
+import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.minecraft.config.MinecraftInternalSecretFilter;
 import com.skuri.skuri_backend.infra.auth.config.ApiAccessDeniedHandler;
 import com.skuri.skuri_backend.infra.auth.config.ApiAuthenticationEntryPoint;
@@ -91,6 +94,17 @@ class FriendFoundationControllerContractTest {
     }
 
     @Test
+    void 내친구코드_프로필미완료회원은_409() throws Exception {
+        mockValidToken();
+        when(friendCodeService.getMyCode("firebase-uid"))
+                .thenThrow(new BusinessException(ErrorCode.MEMBER_PROFILE_INCOMPLETE));
+
+        mockMvc.perform(get("/v1/friends/me/code").header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("MEMBER_PROFILE_INCOMPLETE"));
+    }
+
+    @Test
     void 친구코드_재발급_성공_200() throws Exception {
         mockValidToken();
         when(friendCodeService.regenerateMyCode("firebase-uid"))
@@ -130,7 +144,7 @@ class FriendFoundationControllerContractTest {
         mockValidToken();
         when(friendCodeService.preview("firebase-uid", "SKR-7K4M-9Q2D"))
                 .thenReturn(new FriendCodePreviewResponse(
-                        "friend-public-id", "스쿠리", null, "컴퓨터공학과", true
+                        "friend-public-id", "스쿠리", null, "컴퓨터공학과", FriendRelationshipState.REQUESTABLE
                 ));
 
         mockMvc.perform(post("/v1/friend-codes/preview")
@@ -139,7 +153,8 @@ class FriendFoundationControllerContractTest {
                         .content("{\"friendCode\":\"SKR-7K4M-9Q2D\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.friendPublicId").value("friend-public-id"))
-                .andExpect(jsonPath("$.data.canSendFriendRequest").value(true));
+                .andExpect(jsonPath("$.data.relationshipState").value("REQUESTABLE"))
+                .andExpect(jsonPath("$.data.canSendFriendRequest").doesNotExist());
     }
 
     @Test

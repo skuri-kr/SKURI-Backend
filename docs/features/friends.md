@@ -1,8 +1,8 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: 정책 및 구현 계획 승인 완료, Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·검색·PENDING 목록) 런타임 구현 완료
-> 기준일: 2026-08-18
-> 다음 구현 단위: 시간표 공유, Minecraft 안전 projection, 택시·공개방 초대, 알림·회원 탈퇴 cleanup을 도메인 단위로 순차 구현한다.
+> 문서 상태: Foundation·관계 Core 구현 완료, Core 출시 준비 보완과 후속 4단계 구현 계획 승인
+> 기준일: 2026-08-21
+> 다음 구현 단위: 가입 완료 회원만 FriendProfile을 제공하는 Core 출시 준비 보완을 먼저 수행한 뒤 친구 화면 완성, 시간표 공유, 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
 ---
@@ -17,7 +17,30 @@
 - 실제 구현 시 런타임 OpenAPI와 docs/api-specification.md를 같은 PR에서 동기화한다.
 - 구현 중 정책 변경이 필요하면 코드를 먼저 바꾸지 않고 이 문서의 결정 기록을 갱신한 뒤 승인을 받는다.
 
-### 1.1 용어 구분
+### 1.1 단계 종료 문서 정합성 게이트
+
+각 구현 단계의 코드·테스트가 끝난 뒤 해당 단계의 최종 PR을 마무리하기 전에, 구현과 문서의 정합성을 반드시 점검한다.
+
+- 백엔드 런타임 source of truth, 이 문서, 모바일 구현 계획, OpenAPI, ERD, 배포·회원 탈퇴 문서를 상호 대조한다.
+- API 변경이 있으면 Controller·DTO·OpenAPI와 모바일 DTO·mapper·화면 소비 계약을 함께 대조한다.
+- 정책 충돌, 완료·예정 범위 오표기, 구현과 문서의 drift를 해소하고 필요한 문서 갱신을 최종 PR에 포함한다.
+- 최종 PR에는 대조한 범위와 자동·수동 검증 결과를 기록한다. 아직 하지 못한 운영·실기기 검증은 완료로 표시하지 않는다.
+
+### 1.2 완료된 PR 이력
+
+친구 기능의 현재 기준선은 아래 병합 PR로 구성된다.
+
+| 저장소 | PR | 완료 범위 |
+| --- | --- | --- |
+| Backend | [#78](https://github.com/skuri-kr/SKURI-Backend/pull/78) | 친구 기능 기준 명세, 도메인 경계, 상태·권한·탈퇴 계획 문서화 |
+| Backend | [#79](https://github.com/skuri-kr/SKURI-Backend/pull/79) | FriendProfile·영구 코드 registry, 코드 조회·재발급·preview, 검색 공개 설정, provisioning·backfill |
+| Backend | [#80](https://github.com/skuri-kr/SKURI-Backend/pull/80) | 친구 요청·관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록·badge API |
+| Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 모바일 친구 기능 정보 구조·화면·상태·검증 계획 문서화 |
+| Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings와 관계 Core 연동 |
+
+PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색·요청 상태 문제는 Core 출시 준비 단계에서 보완한다. 이는 기존 완료 범위를 되돌리는 작업이 아니라 실제 배포 전에 회원과 Friend 데이터의 생성 자격을 바로잡는 출시 준비 작업이다.
+
+### 1.2 용어 구분
 
 | 용어 | 의미 |
 | --- | --- |
@@ -60,22 +83,53 @@
 - 사용자가 확인 화면에서 발송을 누른 뒤 preview 응답의 friendPublicId로 별도 친구 요청을 생성한다.
 - 요청자와 대상 사이 어느 방향으로든 차단이 있으면 preview를 거부하고, 잘못되거나 폐기된 코드와 같은 일반적인 대상 없음 응답을 사용해 차단 여부를 노출하지 않는다.
 - URL 딥링크는 QR payload에 포함하지 않는다.
+- FriendProfile과 최초 ACTIVE 코드는 프로필을 완료한 ACTIVE 회원에게만 발급한다. 최초 소셜 로그인으로 Member row만 만들어지고 학번·학과·유효 닉네임이 없는 회원에게는 발급하지 않는다.
+- 친구 API의 lazy provisioning과 기동 backfill도 같은 가입 완료 판정을 사용하며, 미완료 회원을 Friend 데이터로 복원하지 않는다.
+- 일반적인 완료 회원의 재발급·탈퇴 코드는 RETIRED로 영구 보존한다. 단, 친구 모바일 기능 첫 배포 전에는 실제 사용자에게 공유·사용된 친구 코드가 없고 기존 데이터가 테스트 데이터라는 전제에서, 일회성 운영 cleanup으로 미완료 회원의 FriendProfile·소유 ACTIVE 코드와 당시 존재하는 모든 RETIRED 코드를 완전히 삭제한다. 이 예외는 첫 출시 전 한 번만 적용하며 이후 정상 코드 수명주기에 적용하지 않는다.
 
 ### 2.3 닉네임 검색
 
-- 인증된 ACTIVE 회원만 검색할 수 있다.
+- 인증되고 프로필을 완료한 ACTIVE 회원만 검색할 수 있다.
 - 검색 허용 설정을 켠 회원만 결과에 포함한다.
-- 검색 허용 기본값은 false다.
+- 검색 허용 기본값은 true다.
 - FriendSettings는 서버의 현재 nicknameSearchable 값을 먼저 조회하고 사용자가 변경한 최종 값을 PATCH 응답으로 다시 받는다.
-- 닉네임 2글자 이상 부분 일치로 검색하며 한 페이지는 최대 20건이다.
+- 닉네임 1글자 이상 부분 일치로 검색하며 한 페이지는 최대 20건이다.
 - `%`, `_`, `!`는 검색 문법이 아니라 닉네임의 일반 문자로 해석한다. 서버는 SQL LIKE escape를 적용해 이 문자만으로 검색 공개 회원 전체를 열거할 수 없게 한다.
 - 결과는 닉네임 가나다순, friendPublicId 오름차순으로 안정 정렬한다.
 - opaque cursor 기반으로 hasNext와 nextCursor를 반환하며 cursor는 마지막 결과의 정렬 위치를 서버만 해석할 수 있게 표현한다.
 - 같은 검색어와 cursor를 사용해 다음 페이지를 조회하고 검색어가 바뀌면 cursor를 다시 사용할 수 없다.
-- 닉네임은 고유하지 않으므로 결과에는 프로필 사진과 학과를 함께 제공한다.
+- 신규 가입이나 프로필 변경으로 확정하는 닉네임은 ACTIVE 회원 사이에서 중복될 수 없다. WITHDRAWN 회원의 닉네임은 재사용할 수 있다.
+- 닉네임 중복은 trim·Unicode NFC·소문자 `nickname_key`를 기준으로 하며, 운영 MySQL의 `utf8mb4_unicode_ci` 비교 규칙에 따라 대소문자와 악센트 차이도 같은 닉네임으로 취급한다. 예를 들어 `Jose`와 `José`는 함께 사용할 수 없다.
+- 기존 ACTIVE 회원에 이미 존재하는 중복 닉네임은 임의 변경하지 않는다. 해당 회원이 닉네임을 그대로 두고 다른 프로필 필드만 수정할 수는 있지만, 새 닉네임을 확정할 때는 ACTIVE 중복 검사를 통과해야 한다.
+- `스쿠리 유저`, `운영자`가 포함된 닉네임은 회원가입과 프로필 편집에서 사용할 수 없다. 비교 전 앞뒤 공백과 Unicode 표현 차이를 정규화하고, 예약어 판정에서는 중간 공백으로 우회할 수 없게 한다.
+- 닉네임 중복과 예약어 검사는 별도 중복 확인 버튼을 두지 않고 회원가입·프로필 저장 요청에서 서버가 최종 검증한다. 중복은 `409`, 예약어는 `422`로 거부하며 모바일은 현재 화면에 머물러 안내한다.
+- 기존 중복 닉네임이 남아 있을 수 있으므로 검색 결과에는 프로필 사진과 학과를 함께 제공하고 필요한 화면에서만 friendPublicId 식별 코드를 보조로 표시한다.
 - 이메일, 실명, 학번, Firebase UID는 검색 결과에 노출하지 않는다.
 - 검색 결과의 공개 식별자 필드명은 friendPublicId로 통일한다.
 - 차단 관계는 양방향 모두 검색 결과에서 제외한다.
+
+가입 완료 판정은 다음을 모두 만족하는 경우다.
+
+- Member 상태가 ACTIVE다.
+- nickname이 Java `String.isBlank()` 기준으로 null·빈 문자열·공백 문자열이 아니며 예약어 정책을 통과한다.
+- studentId가 Java `String.isBlank()` 기준으로 null·빈 문자열·공백 문자열이 아니다.
+- department가 Java `String.isBlank()` 기준으로 null·빈 문자열·공백 문자열이 아니다.
+- photoUrl은 선택값이므로 완료 판정에 포함하지 않는다.
+
+- 프로필 완료의 공백 판정은 Java `String.isBlank()` 의미를 기준으로 backfill·검색 repository query와 운영 preflight·cleanup·postcheck SQL에서 동일해야 한다.
+
+예약어 판정에 사용하는 Unicode 공백 제거 기준은 Java 정책, backfill·검색 repository query, 운영 preflight·cleanup·postcheck SQL에서 동일해야 한다.
+
+검색·친구 코드 preview의 요청 행동 상태는 Boolean 하나로 축약하지 않고 다음 enum을 사용한다.
+
+| 상태 | 의미 | 모바일 행동 |
+| --- | --- | --- |
+| REQUESTABLE | 활성 관계나 PENDING 요청이 없음 | `요청` |
+| INCOMING_PENDING | 상대가 나에게 보낸 PENDING 요청이 있음 | `수락` |
+| OUTGOING_PENDING | 내가 상대에게 보낸 PENDING 요청이 있음 | 비활성 `요청 보냄` |
+| ALREADY_FRIEND | 이미 friendship이 있음 | 비활성 `이미 친구` |
+
+INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDING 요청을 수락해 friendship을 만드는 기존 서버 계약을 사용한다. 명시적 재검색·preview는 과거 클라이언트 상태가 아니라 서버 최신 상태를 반환한다.
 
 ### 2.4 즐겨찾기와 정렬
 
@@ -187,6 +241,7 @@
 
 - FRIEND_REQUEST
 - FRIEND_ACCEPTED
+- FRIEND_DECLINED
 - PARTY_INVITATION
 - CHAT_ROOM_INVITATION
 
@@ -197,13 +252,14 @@
 - 부분 PATCH에서 필드가 null 또는 생략되면 기존 값을 유지한다.
 - 친구·초대 알림의 유효 수신 조건은 `allNotifications && friendAndInvitationNotifications`다.
 - `partyNotifications`는 최초 PARTY_INVITATION을 제어하지 않고, 초대 수락 후 기존 파티 활동 알림에만 적용한다.
-- 친구 요청은 수신자에게, 친구 수락은 원 요청자에게 알린다.
+- 친구 요청은 수신자에게, 친구 수락과 거절은 원 요청자에게 알린다.
 - 택시파티와 공개방 초대는 수신자에게 알린다.
-- 거절, 취소, 친구 끊기, 차단은 푸시 알림을 발송하지 않는다.
+- 요청 취소, 친구 끊기, 차단은 푸시 알림을 발송하지 않는다.
 - 유효 수신 조건이 false면 일반 알림 인박스 row, 알림 SSE와 FCM은 생성·전송하지 않지만 FriendHub의 친구 요청·초대 도메인 원본과 PENDING badge는 유지한다.
 - FRIEND_REQUEST payload는 requestId, FRIEND_ACCEPTED payload는 friendPublicId를 포함한다.
+- FRIEND_DECLINED payload는 requestId를 포함하되 V1 terminal 이력을 카드로 재구성하지 않는다.
 - PARTY_INVITATION과 CHAT_ROOM_INVITATION payload는 invitationId와 invitationType을 포함한다.
-- FRIEND_REQUEST는 친구 허브 요청 탭, FRIEND_ACCEPTED는 수락한 친구 상세, 초대 알림은 친구 허브 초대 탭의 해당 invitationId 카드로 이동한다.
+- FRIEND_REQUEST와 FRIEND_DECLINED는 친구 허브 요청 탭, FRIEND_ACCEPTED는 수락한 친구 상세, 초대 알림은 친구 허브 초대 탭의 해당 invitationId 카드로 이동한다.
 
 ---
 
@@ -267,6 +323,8 @@ Friend 도메인은 다른 도메인의 내부 엔티티를 직접 수정하지 
 
 `friend_profiles`, `friend_code_registry`, `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`는 Foundation·관계 Core 런타임 테이블이다. 시간표 예외·택시파티 초대·공개방 초대·알림 설정 관련 표는 이후 구현 단위의 논리 모델이며 실제 컬럼명과 마이그레이션은 해당 구현 PR에서 ERD와 함께 확정한다.
 
+ACTIVE 닉네임 중복은 서비스 조회만으로 판단하지 않고 동시 저장도 막는 DB unique claim을 사용한다. `members.nickname_key`는 새로 가입하거나 닉네임을 변경해 정책을 통과한 ACTIVE 회원의 정규화 키이며 nullable unique다. 운영 MySQL `utf8mb4_unicode_ci` 비교로 대소문자·악센트 차이는 같은 claim으로 취급한다. 기존 중복 닉네임은 임의 변경하지 않고 grandfathering을 위해 claim을 강제로 채우지 않는다. 기존 닉네임과 동일한 값을 유지한 프로필 수정은 허용하고, 새 값으로 변경할 때는 claim이 없는 기존 ACTIVE 닉네임까지 조회해 중복을 거부한다. 탈퇴 시 claim을 해제해 닉네임 재사용을 허용한다. 실제 컬럼·인덱스는 Core 출시 준비 PR에서 `docs/erd.md`와 동기화한다.
+
 ### 6.1 friend_profiles
 
 | 필드 | 설명 |
@@ -274,7 +332,7 @@ Friend 도메인은 다른 도메인의 내부 엔티티를 직접 수정하지 
 | member_id | 회원 내부 ID, PK |
 | public_id | 친구 기능 전용 무작위 공개 ID, unique |
 | active_friend_code_id | friend_code_registry의 ACTIVE 코드 참조, unique |
-| nickname_searchable | 닉네임 검색 허용, 기본 false |
+| nickname_searchable | 닉네임 검색 허용, 기본 true |
 | created_at | 생성 시각 |
 | rotated_at | 재발급 시각 |
 
@@ -294,16 +352,26 @@ friend_code_registry:
 
 - 생성기는 registry에 하이픈을 제거한 대문자 `normalized_code`를 INSERT하고 영구 unique 충돌 시 새 무작위 값으로 제한된 횟수만 재시도한다. API는 `SKR-XXXX-XXXX` 표시 형식만 반환한다.
 - 재발급은 현재 registry row를 RETIRED로 바꾸고 owner_member_id를 제거한 뒤 새 ACTIVE row와 profile 참조를 같은 트랜잭션에서 확정한다.
-- RETIRED registry row는 탈퇴 cleanup에서도 삭제하지 않는다. preview는 ACTIVE row와 ACTIVE Member profile이 함께 존재할 때만 성공한다.
+- RETIRED registry row는 일반적인 탈퇴 cleanup에서도 삭제하지 않는다. 다만 모바일 첫 출시 전 실제 사용 이력이 없고 모든 데이터가 테스트 데이터라는 전제에서 실행하는 일회성 cleanup은 아래 Core 출시 준비 예외에 따라 당시 존재하던 RETIRED row 전체를 제거한다. preview는 ACTIVE row와 ACTIVE Member profile이 함께 존재할 때만 성공한다.
 - ACTIVE row는 owner_member_id와 이를 참조하는 FriendProfile이 모두 필요하다. owner_member_id의 non-null unique와 profile의 active_friend_code_id unique로 회원당 ACTIVE 코드 한 개와 코드당 profile 한 개를 보장한다.
 
 기존 회원 provisioning:
 
-- 앱 기동 시 FriendProfile이 없는 기존 ACTIVE Member만 고정 크기 batch로 조회해 backfill한다. 이미 profile이 있는 ACTIVE Member는 재조회·잠금·재발급하지 않는다.
-- 신규 가입과 backfill은 같은 멱등 provisioning service를 사용하고 이미 존재하는 profile은 다시 만들지 않는다.
+- 앱 기동 시 FriendProfile이 없는 프로필 완료 ACTIVE Member만 고정 크기 batch로 조회해 backfill한다. 이미 profile이 있는 완료 회원은 재조회·잠금·재발급하지 않는다.
+- 신규 회원은 최초 소셜 로그인 시점이 아니라 미완료에서 완료로 전이된 프로필 저장 트랜잭션의 after-commit 후 provisioning한다. backfill과 같은 멱등 provisioning service를 사용하고 이미 존재하는 profile은 다시 만들지 않는다.
 - public_id와 friend_code_registry.normalized_code는 각각 unique constraint 충돌 시 새 무작위 값을 생성해 제한된 횟수만 재시도하며 members.id나 Firebase UID에서 파생하지 않는다.
-- 친구 API 진입 시 ACTIVE Member인데 profile이 없는 비정상·과도기 상태는 같은 service로 lazy ensure해 self-heal한다. 닉네임 검색 대상은 batch backfill로 먼저 완성하고 lazy ensure만으로 누락 회원을 방치하지 않는다.
-- 배포 검증에서 ACTIVE Member 수와 FriendProfile 보유 ACTIVE Member 수가 일치하고 중복 public_id·ACTIVE 코드가 없으며 모든 profile이 ACTIVE registry row를 참조하는지 확인한 뒤 모바일 진입점을 노출한다.
+- 친구 API 진입 시 프로필 완료 ACTIVE Member인데 profile이 없는 비정상·과도기 상태만 같은 service로 lazy ensure해 self-heal한다. 미완료 회원은 `409 MEMBER_PROFILE_INCOMPLETE`로 거부하고 Friend 데이터를 만들지 않는다.
+- backfill과 lazy ensure는 기존 FriendProfile이 참조한 코드 row 자체가 유실된 손상을 정상 상태로 간주하지 않는다. 운영 검증에서 orphan·깨진 참조를 별도로 탐지하고 자동으로 새 코드를 덮어 발급하지 않는다.
+- 배포 검증에서 프로필 완료 ACTIVE Member 수와 FriendProfile 보유 완료 ACTIVE Member 수가 일치하고, 미완료 회원 profile이 0건이며, 중복 public_id·ACTIVE 코드가 없고 모든 profile이 ACTIVE registry row를 참조하는지 확인한 뒤 모바일 진입점을 노출한다.
+
+Core 출시 준비의 일회성 운영 cleanup:
+
+- 새 eligibility 코드가 모든 Backend 인스턴스에 배포된 뒤 실행한다. 구버전 provisioning이 살아 있는 동안 먼저 삭제하지 않는다.
+- read-only preflight에서 미완료 회원과 연결된 FriendProfile·소유 ACTIVE 친구 코드·요청·관계·즐겨찾기·차단과, 당시 존재하는 RETIRED registry row 전체를 정확히 집계한다.
+- 대상 회원과 연결된 파생 Friend 데이터를 관계 순서대로 정리하고 FriendProfile과 소유 ACTIVE registry row를 같은 작업에서 완전히 삭제한다. 모바일 첫 출시 전 테스트 데이터 cleanup에서는 당시 존재하는 RETIRED registry row 전체도 함께 제거한다.
+- 기존 완료 회원의 정상 ACTIVE 코드와 기존 중복 닉네임은 수정하지 않는다. RETIRED row 전체 제거는 실제 사용 이력이 없는 첫 출시 전 한 번에만 적용하며, 출시 후에는 일반 정책대로 tombstone을 보존한다.
+- postcheck에서 미완료 회원 Friend row 0건, 남은 RETIRED registry row 0건, orphan 0건, 완료 회원 누락 0건을 확인한다.
+- 실행 파일은 `docs/sql/2026-08-21-friend-core-readiness-preflight.sql` → `docs/sql/2026-08-21-friend-core-readiness-cleanup.sql` → `docs/sql/2026-08-21-friend-core-readiness-postcheck.sql` 순서로 사용한다. cleanup procedure에는 preflight에서 기록한 정확한 7개 건수를 전달하며 불일치하면 전체 트랜잭션을 rollback한다.
 
 ### 6.2 friend_requests
 
@@ -407,7 +475,7 @@ member_low_id + member_high_id는 unique다.
 
 | 필드 | 설명 |
 | --- | --- |
-| friend_and_invitation_notifications | 친구 요청·수락과 택시파티·공개방 초대 알림 허용, 기본 true |
+| friend_and_invitation_notifications | 친구 요청·수락·거절과 택시파티·공개방 초대 알림 허용, 기본 true |
 
 - 기존 NotificationSetting에 포함하며 별도 친구 설정 테이블을 만들지 않는다.
 - DB migration과 backfill 완료 전 호환 구간에서는 null을 true로 해석한다.
@@ -519,18 +587,18 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 - photoUrl
 - favorite
 
-친구 관계 Core 구현에서는 위 다섯 필드만 반환한다. `effectiveTimetableScope`, `primaryMinecraftGameName`, `minecraftAccountCount`는 각각 시간표 공유·Minecraft 안전 projection이 구현되는 후속 도메인 PR에서 additive field로 추가한다. 아직 구현되지 않은 도메인의 기본값이나 추측한 값을 친구 목록에 반환하지 않는다.
+친구 관계 Core 구현에서는 위 다섯 필드만 반환한다. `effectiveTimetableScope`는 시간표 공유 단계에서, `primaryMinecraftGameName`과 `minecraftAccountCount`는 친구 화면 완성 단계에서 additive field로 추가한다. 아직 구현되지 않은 도메인의 기본값이나 추측한 값을 친구 목록에 반환하지 않는다.
 
 관계 Core의 HTTP 응답은 다음처럼 고정한다.
 
 - `DELETE /v1/friends/{friendPublicId}`, `PATCH /v1/friends/{friendPublicId}/favorite`, 요청 거절·취소, 차단·차단 해제는 성공 시 `204 No Content`다.
-- 닉네임 검색 항목은 다섯 공개 프로필 필드와 별개로 `canSendFriendRequest`만 추가한다. 기존 친구·유효 PENDING 요청에는 false를 반환하며, 차단 대상은 결과에서 제외한다.
+- Core 출시 준비 이후 닉네임 검색과 친구 코드 preview는 다섯 공개 프로필 필드와 `relationshipState`를 반환한다. 기존 `canSendFriendRequest` Boolean은 제거하며, 차단 대상은 검색에서 제외하고 preview는 일반 대상 없음으로 마스킹한다.
 - 차단 목록 항목은 `friendPublicId`, `nickname`, `department`, `photoUrl`, `blockedAt`을 반환한다.
 - 관계 Core 시점의 `inbox-counts`는 `incomingRequestCount`만 실제 요청 수를 계산한다. 택시·공개방 초대 도메인이 아직 없으므로 `partyInvitationCount`, `chatRoomInvitationCount`는 0이고 total은 세 값의 합이다.
 
 검색 query와 응답:
 
-- query: nickname 필수, cursor 선택, size 기본 20·최대 20
+- query: 1~50자 nickname 필수, cursor 선택, size 기본 20·최대 20
 - response: items, hasNext, nextCursor
 - items는 닉네임 가나다순, friendPublicId 오름차순이며 cursor는 같은 nickname query에만 사용할 수 있다.
 
@@ -539,6 +607,7 @@ privacy 조회·변경 응답:
 - GET과 PATCH 모두 null이 아닌 nicknameSearchable을 반환한다.
 - PATCH body의 nicknameSearchable은 필수 Boolean이며 저장된 최종 값을 응답한다.
 - 모바일은 GET 완료 전 로컬 기본값으로 toggle을 추측하지 않는다.
+- 신규 profile 기본값과 기존 운영 데이터의 정책 기본값은 true다. 모바일은 사용자가 toggle을 누르면 낙관적으로 반영하고 PATCH 실패 시 마지막 서버 확인 값으로 원복한다.
 
 inbox-counts 응답:
 
@@ -569,7 +638,7 @@ inbox-counts 응답:
 - accept·decline·cancel에서 존재하지 않는 requestId는 `404 FRIEND_REQUEST_NOT_FOUND`다. ACTIVE 대상 확인이 불가능하거나 차단 마스킹이 필요한 경우는 `404 FRIEND_TARGET_NOT_FOUND`를 사용한다.
 - 차단 관계의 대상은 차단 사실을 노출하지 않는다. 친구 요청 생성은 `404 FRIEND_TARGET_NOT_FOUND`로 처리하고, 친구 코드 preview·닉네임 검색에서도 동일하게 일반 대상 없음으로 숨긴다.
 
-현재 preview의 `canSendFriendRequest`는 기존 친구와 유효 PENDING 요청에도 false를 반환한다. 양방향 차단은 preview 자체를 `404 FRIEND_CODE_NOT_FOUND`로 마스킹하며 false로 구분해 노출하지 않는다. 재발급 제한 중 `POST /v1/friends/me/code/regenerate`는 `429 FRIEND_CODE_REGENERATION_COOLDOWN`과 초 단위 `Retry-After` 헤더를 반환한다. 전송 timeout 이후 앱은 새 재발급 요청을 자동 재시도하지 않고 `GET /v1/friends/me/code`로 현재 코드를 조회해 조정한다.
+Core 출시 준비 이전 preview의 `canSendFriendRequest`는 기존 친구와 유효 PENDING 요청을 모두 false로 축약해 교차 요청·이미 친구를 구분하지 못했다. Core 출시 준비 PR에서 이 필드를 `relationshipState` enum으로 교체한다. 양방향 차단은 preview 자체를 `404 FRIEND_CODE_NOT_FOUND`로 마스킹하며 상태로 구분해 노출하지 않는다. 재발급 제한 중 `POST /v1/friends/me/code/regenerate`는 `429 FRIEND_CODE_REGENERATION_COOLDOWN`과 초 단위 `Retry-After` 헤더를 반환한다. 전송 timeout 이후 앱은 새 재발급 요청을 자동 재시도하지 않고 `GET /v1/friends/me/code`로 현재 코드를 조회해 조정한다.
 
 요청 목록 계약:
 
@@ -672,7 +741,8 @@ batch 요청과 응답:
 
 ## 10. 동시성, 멱등성, 보안
 
-- 모든 Friend write와 lazy provisioning은 작업에 관련된 Member row를 먼저 잠그고 상태를 다시 읽는다. 회원 쌍 작업은 양쪽 모두, 내 코드·privacy 같은 단일 회원 작업은 현재 회원이 ACTIVE여야만 계속한다.
+- friendPublicId를 받는 Friend write는 대상 해석 전에 호출자의 ACTIVE·프로필 완료 상태를 읽기 검증해 미완료 회원이 대상 존재 여부를 구분하지 못하게 한다. 이후 실제 write 전에 ordered Member pair 잠금을 획득하고 호출자 자격을 다시 검증한다.
+- 모든 Friend write와 lazy provisioning은 실제 상태 확정 전에 작업에 관련된 Member row를 잠그고 상태를 다시 읽는다. 회원 쌍 작업은 양쪽 모두, 내 코드·privacy 같은 단일 회원 작업은 현재 회원이 ACTIVE여야만 계속한다.
 - 동일 회원 쌍을 변경하는 친구 요청 생성·terminal 전이, 친구 관계 삭제, 차단·차단 해제, 즐겨찾기 변경, 친구별 시간표 override 생성·변경·삭제는 두 Member row를 내부 ID 오름차순으로 같은 PESSIMISTIC_WRITE 잠금 경계에서 획득한다.
 - friendPublicId 해석 결과만 신뢰하지 않고 잠금 획득 후 요청자와 대상 Member를 다시 읽어 둘 다 ACTIVE인지 확인한다. 하나라도 WITHDRAWN이면 어떤 Friend row나 파생 데이터도 만들거나 복원하지 않는다.
 - 친구 요청 accept·decline·cancel·expire·역방향 자동 수락은 ordered Member pair 다음 FriendRequest 행을 PESSIMISTIC_WRITE로 잠그고 상태·expires_at을 다시 읽는다. 최초로 PENDING을 terminal 상태로 바꾼 트랜잭션만 friendship 생성이나 active_pair_key 해제 같은 부수효과를 수행한다.
@@ -724,17 +794,38 @@ batch 요청과 응답:
 
 ## 13. 구현 및 배포 순서
 
-1. 기준 문서 검토·병합
-2. FriendProfile·FriendCodeRegistry schema와 멱등 provisioning service 배포, 기존 ACTIVE Member batch backfill·충돌 재시도·누락 0건 검증
-3. Friend 핵심 요청, 관계, 즐겨찾기, 차단, 잠금 후 Member ACTIVE 재확인과 terminal 전이 잠금
-4. 모바일 친구 허브와 코드·cursor 닉네임 검색·QR·신고 흐름
-5. Academic 시간표 공유와 모바일 아코디언
-6. Minecraft 안전 projection과 친구 상세 계층
-7. TaxiParty 수신자별 부분 성공 초대와 모바일 택시 채팅 진입점
-8. 공개 Chat 수신자별 부분 성공 초대와 모바일 공개방 진입점
-9. 알림·배지·딥링크 목적지 통합 검증
+완료된 기준선:
 
-백엔드는 기존 앱과 호환되는 additive API로 먼저 배포한다. 모바일 노출은 필요한 백엔드 API 배포 확인 후 진행한다.
+1. Backend #78 기준 문서
+2. Backend #79 Friend Foundation
+3. Backend #80 관계 Core
+4. Frontend #22 모바일 계획
+5. Frontend #23 관계 Core 모바일
+
+남은 승인 구현은 다음 5단계다.
+
+1. Core 출시 준비
+   - 프로필 완료 판정과 ACTIVE 닉네임 예약·중복 정책
+   - 완료 회원만 provisioning·backfill·lazy ensure
+   - 검색 기본 true·1글자, relationshipState enum
+   - 운영 DB preflight·일회성 cleanup·postcheck와 모바일 QA 보완
+2. 친구 화면 완성
+   - QR 생성·스캔
+   - friendPublicId 신고 진입
+   - Minecraft 안전 projection과 SELF·FRIEND 계층
+3. 시간표 공유
+   - Academic 공개 범위·친구별 예외·친구 시간표 projection
+   - 모바일 아코디언·공통 공강·같이 듣는 수업
+4. 친구 초대
+   - TaxiParty와 공개 Chat 수신자별 부분 성공 초대
+   - FriendHub 초대 탭과 공통 친구 선택 UX
+5. 알림·탈퇴 정리
+   - 친구 요청·수락·거절과 초대 인박스·FCM·SSE·화면 이동
+   - 모든 Friend·공유·초대 파생 데이터의 회원 탈퇴 cleanup
+
+각 단계는 저장소당 최대 1개 PR로 진행한다. Backend와 Frontend에 각각 5개의 후속 PR을 만들며 Admin 친구 관계망 UI는 V1 제외 범위라 PR을 만들지 않는다. 단계 내부에서 서로 다른 도메인·테스트·문서는 작은 Conventional Commit으로 구분하고, 변경량 때문에 PR 분리가 필요하면 먼저 사용자 승인을 받는다.
+
+Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 친구 FE가 아직 배포되지 않았으므로 구버전 호환 field를 유지하지 않는다. 이후 단계는 가능한 한 additive API로 Backend를 먼저 배포하고, 모바일 노출은 필요한 API 배포 확인 후 진행한다.
 
 각 런타임 PR은 다음을 함께 갖춰야 한다.
 
@@ -753,9 +844,12 @@ batch 요청과 응답:
 ### 14.1 백엔드 자동 검증
 
 - 친구 요청 정상, self, 차단, 중복 PENDING, 양방향 동시 요청
-- 기존 ACTIVE Member FriendProfile backfill, 멱등 재실행, public_id·registry code 충돌 재시도와 누락 0건
+- 프로필 완료 ACTIVE Member FriendProfile backfill, 멱등 재실행, public_id·registry code 충돌 재시도와 완료 회원 누락 0건
+- 최초 소셜 로그인 미완료 회원에게 FriendProfile·코드가 발급되지 않고 완료 전 Friend API가 `409 MEMBER_PROFILE_INCOMPLETE`로 실패하는지 검증
+- 예약 닉네임과 ACTIVE 중복 닉네임 저장 거부, 동시 저장 unique 보장, WITHDRAWN 후 재사용, 기존 중복 nickname grandfathering 검증
+- 운영 cleanup fixture에서 미완료 회원 Friend row 0건, orphan 0건, 완료 회원 누락 0건 검증
 - 재발급·탈퇴한 RETIRED 코드 영구 미재사용과 과거 코드·QR preview 실패
-- 닉네임 검색 안정 정렬, 20건 cursor 경계, 중복 닉네임 다음 페이지와 잘못된 query·cursor 조합
+- 1글자 닉네임 검색, 안정 정렬, 20건 cursor 경계, 기존 중복 닉네임 다음 페이지와 잘못된 query·cursor 조합
 - 친구 코드 preview가 요청을 생성하지 않고 friendPublicId 공개 프로필만 반환하는지 검증
 - 양방향 차단 시 코드 preview가 일반 대상 없음으로 실패하고 차단 여부를 노출하지 않는지 검증
 - 30일 만료가 목록·badge·preview·검색·생성·수락·거절·취소·역방향 요청 전에 반영되고 active_pair_key를 해제하는지 검증
@@ -807,8 +901,14 @@ batch 요청과 응답:
 
 ## 16. 문서 검토 결과
 
-검토일: 2026-08-18
+검토일: 2026-08-21
 
+- [x] Backend #78·#79·#80과 Frontend #22·#23의 완료 범위가 후속 단계와 구분되어 있다.
+- [x] 승인 V1이 5단계·저장소별 단계당 최대 1개 PR 계획으로 정리되어 있다.
+- [x] 가입 완료 판정과 미완료 회원 Friend 데이터 비생성·일회성 cleanup이 명시되어 있다.
+- [x] ACTIVE 닉네임 예약·중복·탈퇴 후 재사용과 기존 중복 grandfathering이 명시되어 있다.
+- [x] 검색 기본 true·1글자와 관계 상태 enum 계약이 명시되어 있다.
+- [x] 친구 요청 거절 알림이 마지막 알림 단계 범위로 보존되어 있다.
 - [x] 승인된 V1과 TODO가 구분되어 있다.
 - [x] 친구 요청 30일 만료, 거절 cooldown·발송량 제한 없음이 반영되어 있다.
 - [x] 시간표 PRIVATE, BUSY_ONLY, DETAILS와 친구별 예외·재공유 금지가 반영되어 있다.
@@ -824,7 +924,7 @@ batch 요청과 응답:
 - [x] 공개 식별자 field를 friendPublicId로 통일하고 차단 목록·해제 계약을 명시했다.
 - [x] 공개방 정원 마감 초대의 EXPIRED·비복원 정책을 명시했다.
 - [x] 즐겨찾기·시간표 override와 관계 삭제의 공통 pair lock을 명시했다.
-- [x] 기존 ACTIVE 회원 FriendProfile provisioning·충돌 재시도·모바일 노출 gate를 명시했다.
+- [x] 기존 프로필 완료 ACTIVE 회원 FriendProfile provisioning·충돌 재시도·모바일 노출 gate를 명시했다.
 - [x] 모든 요청·초대 terminal 전이의 행 잠금과 고정 잠금 순서를 명시했다.
 - [x] 친구 요청 만료가 모든 PENDING 의존 경로에서 active_pair_key 해제와 함께 반영된다.
 - [x] 닉네임 검색 cursor·안정 정렬과 다중 초대 수신자별 부분 성공 계약을 명시했다.
@@ -846,7 +946,7 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 날짜 | 결정 |
 | --- | --- |
 | 2026-08-18 | 친구 코드, QR, 닉네임 검색을 V1에 포함하고 URL 딥링크는 TODO로 보류 |
-| 2026-08-18 | 닉네임 검색은 opt-in, 2글자 이상 부분 일치, 페이지당 최대 20건의 opaque cursor 방식으로 확정 |
+| 2026-08-18 | 닉네임 검색은 opt-in, 2글자 이상 부분 일치, 페이지당 최대 20건의 opaque cursor 방식으로 확정 — 기본값·최소 길이는 2026-08-21 결정으로 대체 |
 | 2026-08-18 | 친구 요청 30일 만료, 거절 cooldown과 발송량 제한 없음 |
 | 2026-08-18 | 시간표 기본 PRIVATE, BUSY_ONLY·DETAILS와 친구별 예외, 재공유 금지 확정 |
 | 2026-08-18 | 공통 공강은 야간 수업을 포함한 월~금 1~15교시, 같이 듣는 수업은 공식 courseId 기준 |
@@ -862,7 +962,7 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-18 | badge는 받은 PENDING 요청·초대만 합산하고 보낸 요청은 제외 |
 | 2026-08-18 | 정원이 찬 공개방 초대는 EXPIRED이며 자리 발생 후에도 복원하지 않음 |
 | 2026-08-18 | Friend는 Supporting 유형의 런타임 도메인으로 Foundation·관계 Core를 구현하고, 기존 도메인 협력은 후속 범위로 분리 |
-| 2026-08-18 | 기존 ACTIVE 회원은 batch backfill 후 누락 0건을 확인하고 멱등 lazy provisioning을 안전망으로 사용 |
+| 2026-08-18 | 기존 ACTIVE 회원은 batch backfill 후 누락 0건을 확인하고 멱등 lazy provisioning을 안전망으로 사용 — 대상 eligibility는 2026-08-21 결정으로 대체 |
 | 2026-08-18 | 친구 요청·초대의 모든 terminal 전이는 상태 행 잠금과 고정된 상위 잠금 순서를 사용 |
 | 2026-08-18 | 친구 요청 만료는 모든 PENDING 의존 경로에서 lazy reconciliation하고 만료 batch는 보조 수단으로 사용 |
 | 2026-08-18 | 다중 초대는 수신자별 부분 성공이며 민감한 부적격 사유는 NOT_ELIGIBLE로 통합 |
@@ -872,3 +972,15 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-18 | batch 초대는 SENT와 본인 ALREADY_PENDING에만 invitationId를 제공하고 EXPIRED 사유는 immutable enum으로 저장 |
 | 2026-08-18 | nicknameSearchable은 GET·PATCH로 서버 값을 제공하고 요청 목록은 PENDING 전용 20건 cursor 방식 |
 | 2026-08-18 | 친구 코드 재발급은 24시간에 한 번으로 제한하고, 제한 중에는 `429`와 `Retry-After`로 다음 재시도 가능 시점을 전달 |
+| 2026-08-21 | Backend #78·#79·#80과 Frontend #22·#23을 완료 이력으로 고정하고 후속 구현과 구분 |
+| 2026-08-21 | 승인 V1은 Core 출시 준비, 친구 화면 완성, 시간표 공유, 친구 초대, 알림·탈퇴 정리의 5단계·저장소별 단계당 1개 PR로 진행 |
+| 2026-08-21 | FriendProfile·최초 코드는 프로필 완료 ACTIVE 회원에게만 발급하고 backfill·lazy ensure도 같은 eligibility를 사용 |
+| 2026-08-21 | 친구 FE 첫 배포 전에는 실제 사용 이력이 없는 테스트 데이터라는 전제에서 미완료 회원 FriendProfile·소유 ACTIVE 코드와 당시 모든 RETIRED 코드를 일회성 cleanup으로 삭제하고, 이후 RETIRED 코드는 영구 미재사용 유지 |
+| 2026-08-21 | nicknameSearchable 기본값을 true로 변경하고 닉네임 검색은 1글자부터 허용 |
+| 2026-08-21 | 프로필 완료 공백 판정을 Java `String.isBlank()`와 repository·운영 SQL에 동일하게 적용 |
+| 2026-08-21 | 스쿠리 유저·운영자 포함 닉네임을 금지하고 신규·변경 닉네임은 ACTIVE 회원 사이에서만 고유하며 탈퇴 후 재사용 허용 |
+| 2026-08-21 | 닉네임 중복 비교는 운영 MySQL `utf8mb4_unicode_ci` 규칙을 따라 대소문자·악센트 차이를 같은 닉네임으로 취급 |
+| 2026-08-21 | 기존 중복 닉네임은 임의 변경하지 않고 새 닉네임 확정 시에만 unique claim을 요구 |
+| 2026-08-21 | canSendFriendRequest 호환 field 없이 REQUESTABLE·INCOMING_PENDING·OUTGOING_PENDING·ALREADY_FRIEND 관계 상태로 교체 |
+| 2026-08-21 | 친구 요청 거절 알림은 알림 단계에서 원 요청자에게 제공하고 FriendHub 요청 탭으로 이동 |
+| 2026-08-21 | 각 구현 단계의 최종 PR 전에는 런타임·친구 명세·모바일 계획·OpenAPI·ERD·운영 문서를 대조하고 drift를 같은 PR에서 해소 |

@@ -28,6 +28,14 @@ public interface FriendProfileRepository extends JpaRepository<FriendProfile, St
             from FriendProfile p
             join Member m on m.id = p.memberId
             where m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+              and m.nickname is not null
+              and cast(function('regexp_replace', m.nickname, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') as string) <> ''
+              and cast(function('regexp_replace', lower(trim(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') as string) not like '%스쿠리유저%'
+              and cast(function('regexp_replace', lower(trim(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') as string) not like '%운영자%'
+              and m.studentId is not null
+              and cast(function('regexp_replace', m.studentId, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') as string) <> ''
+              and m.department is not null
+              and cast(function('regexp_replace', m.department, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') as string) <> ''
               and p.nicknameSearchable = true
               and p.memberId <> :requesterMemberId
               and lower(m.nickname) like lower(concat('%', :escapedQuery, '%')) escape '!'
@@ -66,7 +74,15 @@ public interface FriendProfileRepository extends JpaRepository<FriendProfile, St
                 from Member m
                 where m.id = p.memberId
                   and m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+                  and m.nickname is not null
+                  and cast(function('regexp_replace', m.nickname, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') as string) <> ''
+                  and cast(function('regexp_replace', lower(trim(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') as string) not like '%스쿠리유저%'
+                  and cast(function('regexp_replace', lower(trim(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') as string) not like '%운영자%'
+                  and m.studentId is not null
+                  and cast(function('regexp_replace', m.studentId, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') as string) <> ''
+                  and m.department is not null
+                  and cast(function('regexp_replace', m.department, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') as string) <> ''
             )
             """)
-    long countForActiveMembers();
+    long countForProfileCompleteActiveMembers();
 }

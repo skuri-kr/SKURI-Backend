@@ -60,6 +60,9 @@ public final class OpenApiCommonExamples {
     public static final String ERROR_MEMBER_NOT_FOUND =
             "{\"success\":false,\"message\":\"회원을 찾을 수 없습니다.\",\"errorCode\":\"MEMBER_NOT_FOUND\",\"timestamp\":\"2026-03-04T12:00:00\"}";
 
+    public static final String ERROR_MEMBER_PROFILE_INCOMPLETE =
+            "{\"success\":false,\"message\":\"회원가입을 완료한 후 친구 기능을 이용할 수 있습니다.\",\"errorCode\":\"MEMBER_PROFILE_INCOMPLETE\",\"timestamp\":\"2026-08-21T12:00:00\"}";
+
     public static final String ERROR_CONFLICT =
             "{\"success\":false,\"message\":\"리소스 충돌이 발생했습니다.\",\"errorCode\":\"CONFLICT\",\"timestamp\":\"2026-03-04T12:00:00\"}";
 

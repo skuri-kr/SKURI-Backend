@@ -210,8 +210,20 @@ public class MemberController {
                     )
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409",
+                    description = "ACTIVE 회원 사이의 닉네임 중복",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(
+                                    name = "nickname_already_exists",
+                                    value = OpenApiMemberExamples.ERROR_NICKNAME_ALREADY_EXISTS
+                            )
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "422",
-                    description = "유효성 검증 실패",
+                    description = "유효성 검증 실패 또는 예약 닉네임",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ApiResponse.class),
@@ -220,6 +232,10 @@ public class MemberController {
                                     @ExampleObject(
                                             name = "photo_url_not_owned",
                                             value = OpenApiMemberExamples.ERROR_MEMBER_PROFILE_IMAGE_NOT_OWNED
+                                    ),
+                                    @ExampleObject(
+                                            name = "nickname_reserved",
+                                            value = OpenApiMemberExamples.ERROR_NICKNAME_RESERVED
                                     )
                             }
                     )
@@ -231,7 +247,7 @@ public class MemberController {
             content = @Content(
                     schema = @Schema(implementation = UpdateMemberProfileRequest.class),
                     examples = @ExampleObject(
-                            value = "{\"nickname\":\"스쿠리유저\",\"studentId\":\"2023112233\",\"department\":\"컴퓨터공학과\",\"photoUrl\":\"https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg\"}"
+                            value = "{\"nickname\":\"성결친구\",\"studentId\":\"2023112233\",\"department\":\"컴퓨터공학과\",\"photoUrl\":\"https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg\"}"
                     )
             )
     )

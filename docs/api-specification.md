@@ -230,6 +230,7 @@ Spring 서버 처리:
 > 정책: 회원 생성 시 `members.photoUrl`은 `null`로 저장한다.  
 > 소셜 계정 프로필 이미지(`picture`)는 `linked_accounts.photo_url`에만 저장한다.
 > 회원 생성 시 `members.realname`은 provider 프로필 이름(`linked_accounts.provider_display_name`)으로 초기화한다.
+> 이 시점의 `스쿠리 유저`는 가입 진행 중 placeholder이며, `nickname`·`studentId`·`department`가 유효하게 채워지기 전에는 FriendProfile과 친구 코드를 발급하지 않는다.
 >
 > 용어 구분:
 > - API 요청/응답의 `nickname` = `members.nickname` (앱 내 닉네임)
@@ -341,6 +342,11 @@ Spring 서버 처리:
 - 요청 본문에 포함되지 않은 필드는 기존 값을 유지합니다.
 - JSON `null`도 런타임에서는 "변경 없음"으로 해석합니다. 특히 `photoUrl: null`은 삭제가 아니라 기존 값을 유지합니다.
 - `nickname`은 `members.nickname`을 수정합니다.
+- `nickname`은 앞뒤 공백 제거와 Unicode NFC 정규화 후 저장합니다.
+- 공백 차이로 우회한 경우까지 포함해 `스쿠리 유저`, `운영자`를 포함한 닉네임은 `422 NICKNAME_RESERVED`로 거부합니다.
+- 신규·변경 닉네임은 ACTIVE 회원 사이에서만 고유해야 합니다. 중복이면 `409 NICKNAME_ALREADY_EXISTS`이며, 탈퇴 회원의 닉네임은 재사용할 수 있습니다.
+- 닉네임 고유 비교는 운영 MySQL `utf8mb4_unicode_ci` 규칙을 사용하므로 대소문자와 악센트 차이도 중복입니다. 예를 들어 `Jose`와 `José`를 함께 저장할 수 없습니다.
+- 기존 ACTIVE 회원의 중복 닉네임은 임의 변경하지 않습니다. 해당 회원이 닉네임을 변경할 때부터 신규 정책을 적용합니다.
 - `department`는 서버가 지원하는 학과 카탈로그 기준으로만 허용합니다.
   - 학과 카탈로그의 runtime source of truth는 `departments` 테이블입니다.
   - legacy 표기(예: `소프트웨어학과`)는 canonical 값으로 정규화해 저장합니다.
@@ -7403,7 +7409,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 > Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록)는 현재 운영 API다. 시간표 공유·Minecraft projection·택시·공개방 초대·알림·신고 진입은 아직 구현되지 않았다.
 
-모든 Friend 런타임 API(Foundation·관계 Core)는 인증된 ACTIVE 회원만 호출할 수 있다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
+모든 Friend 런타임 API(Foundation·관계 Core)는 인증된 프로필 완료 ACTIVE 회원만 호출할 수 있다. 완료 기준은 예약어가 아닌 비어 있지 않은 닉네임, 학번, 학과이며 프로필 사진은 선택이다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`, 프로필 미완료 회원은 `409 MEMBER_PROFILE_INCOMPLETE`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
 
 ### 14.1 내 친구 코드
 
@@ -7443,7 +7449,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 }
 ```
 
-성공 응답은 `friendPublicId`, `nickname`, `photoUrl`, `department`, `canSendFriendRequest`만 포함한다. 기존 친구 또는 유효 PENDING 요청이면 `canSendFriendRequest`는 false다. 양방향 차단은 false로 구분해 노출하지 않고 잘못되거나 폐기된 코드와 동일한 `404 FRIEND_CODE_NOT_FOUND`로 마스킹한다.
+성공 응답은 `friendPublicId`, `nickname`, `photoUrl`, `department`, `relationshipState`만 포함한다. `relationshipState`는 `REQUESTABLE`, `INCOMING_PENDING`, `OUTGOING_PENDING`, `ALREADY_FRIEND` 중 하나다. 양방향 차단은 상태로 구분해 노출하지 않고 잘못되거나 폐기된 코드와 동일한 `404 FRIEND_CODE_NOT_FOUND`로 마스킹한다.
 
 잘못되었거나 폐기된 코드는 `404 FRIEND_CODE_NOT_FOUND`로 처리한다. 인증된 UID에 가입한 ACTIVE 회원이 없으면 코드 확인 전 `404 MEMBER_NOT_FOUND`를 반환한다. 자신의 코드는 `400 FRIEND_SELF_NOT_ALLOWED`다.
 
@@ -7451,7 +7457,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 #### `GET /v1/friends/me/privacy`
 
-현재 `nicknameSearchable` 값을 반환한다. 기본값은 false다.
+현재 `nicknameSearchable` 값을 반환한다. 프로필 완료 시 생성되는 FriendProfile의 기본값은 true다.
 
 #### `PATCH /v1/friends/me/privacy`
 
@@ -7500,7 +7506,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 #### `GET /v1/friends/search`
 
-필수 query `query`는 2~50자의 닉네임 부분 일치다. `%`, `_`, `!`는 검색 문법이 아닌 일반 문자로 처리한다. `cursor`는 선택이고 `size`는 기본 20·최대 20이다. 결과는 검색 공개 허용 ACTIVE 회원만 대상으로 닉네임 가나다순·friendPublicId 오름차순으로 정렬한다.
+필수 query `query`는 1~50자의 닉네임 부분 일치다. `%`, `_`, `!`는 검색 문법이 아닌 일반 문자로 처리한다. `cursor`는 선택이고 `size`는 기본 20·최대 20이다. 결과는 검색 공개를 허용한 프로필 완료 ACTIVE 회원만 대상으로 닉네임 가나다순·friendPublicId 오름차순으로 정렬한다.
 
 ```json
 {
@@ -7511,7 +7517,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
       "nickname": "스쿠리",
       "department": "컴퓨터공학과",
       "photoUrl": null,
-      "canSendFriendRequest": true
+      "relationshipState": "REQUESTABLE"
     }],
     "hasNext": false,
     "nextCursor": null
@@ -7520,6 +7526,8 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 ```
 
 cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형식이 잘못되면 `400 INVALID_REQUEST`다. 양방향 차단 대상은 검색 결과에서 제외한다.
+
+`relationshipState`는 검색 시점의 서버 상태다. 요청을 보낸 뒤 상대가 거절하는 등 상태가 바뀌면 같은 검색을 다시 실행해 최신 상태를 받으며, 앱의 과거 로컬 요청 성공 기록만으로 상태를 고정하지 않는다.
 
 #### `GET /v1/friend-requests`
 
@@ -7586,6 +7594,7 @@ cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형�
 
 | 에러 코드 | HTTP | 설명 |
 | --- | --- | --- |
+| `MEMBER_PROFILE_INCOMPLETE` | 409 | 유효 닉네임·학번·학과로 회원가입 프로필을 완료하지 않음 |
 | `FRIEND_CODE_NOT_FOUND` | 404 | 잘못되었거나 폐기된 친구 코드 |
 | `FRIEND_CODE_REGENERATION_COOLDOWN` | 429 | 24시간 재발급 제한. `Retry-After` 헤더 포함 |
 | `FRIEND_SELF_NOT_ALLOWED` | 400 | 자신의 친구 코드를 preview함 |
@@ -7603,6 +7612,7 @@ cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형�
 ---
 
 > 변경 이력
+> - 2026-08-21: Friend Core 출시 준비 계약 반영 — 프로필 완료 회원만 FriendProfile·코드 발급, 검색 기본 공개·1자 검색, `relationshipState` enum, ACTIVE 닉네임 중복·예약어 오류를 동기화
 > - 2026-08-18: Friend 관계 Core 구현 반영 — 요청·friendship·즐겨찾기·친구 끊기·차단·검색·PENDING cursor 목록 및 차단 마스킹 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-18: Friend Foundation 구현 반영 — 친구 공개 프로필·영구 코드 registry, 코드 조회/재발급/preview, 닉네임 검색 공개 설정과 429 `Retry-After` 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-14: DB 기반 학과 master와 시간표 강의 필터 추가 — `GET /v1/departments`, `GET /v1/courses/filter-options`, 강의 `category` exact 필터, 직접 입력 강의 `department` 계약과 canonical 이수구분 정책을 반영
