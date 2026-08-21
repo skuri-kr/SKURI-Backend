@@ -2,9 +2,10 @@ package com.skuri.skuri_backend.domain.member.service;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.domain.chat.service.ChatService;
-import com.skuri.skuri_backend.domain.friend.service.FriendProfileProvisioningService;
 import com.skuri.skuri_backend.domain.image.service.ProfileImageStorageService;
+import com.skuri.skuri_backend.domain.member.constant.MemberNicknamePolicy;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberBankAccountRequest;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberNotificationSettingsRequest;
 import com.skuri.skuri_backend.domain.member.dto.request.UpdateMemberProfileRequest;
@@ -19,6 +20,7 @@ import com.skuri.skuri_backend.domain.member.entity.LinkedAccount;
 import com.skuri.skuri_backend.domain.member.entity.LinkedAccountProvider;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.NotificationSetting;
+import com.skuri.skuri_backend.domain.member.event.MemberLifecycleEvent;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.member.exception.WithdrawnMemberRejoinNotAllowedException;
 import com.skuri.skuri_backend.domain.member.repository.LinkedAccountRepository;
@@ -35,6 +37,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -45,7 +48,7 @@ public class MemberService {
     private final ChatService chatService;
     private final ProfileImageStorageService profileImageStorageService;
     private final DepartmentService departmentService;
-    private final FriendProfileProvisioningService friendProfileProvisioningService;
+    private final AfterCommitApplicationEventPublisher eventPublisher;
 
     // Intentionally non-transactional: insert 충돌(DataIntegrityViolationException) 이후
     // 복구 조회를 새로운 JPA 세션/트랜잭션에서 수행해 Session 오염을 피한다.
@@ -71,7 +74,6 @@ public class MemberService {
             createLinkedAccount(existingMember, authenticatedMember);
             result = MemberUpsertResult.existing(toMemberCreateResponse(existingMember));
         }
-        friendProfileProvisioningService.ensureForActiveMember(result.member().id());
         return result;
     }
 
@@ -85,22 +87,53 @@ public class MemberService {
     @Transactional
     public MemberMeResponse updateMyProfile(String memberId, UpdateMemberProfileRequest request) {
         Member member = getMemberOrThrow(memberId);
+        boolean profileWasComplete = member.isProfileComplete();
         String previousDepartment = member.getDepartment();
+        String normalizedNickname = normalizeAndValidateNickname(request.nickname());
+        String nicknameKey = member.getNicknameKey();
+        boolean nicknameChanged = normalizedNickname != null
+                && !Objects.equals(
+                        MemberNicknamePolicy.normalizeForStorage(member.getNickname()),
+                        normalizedNickname
+                );
+        if (nicknameChanged) {
+            nicknameKey = MemberNicknamePolicy.toUniquenessKey(normalizedNickname);
+            if (memberRepository.existsActiveNicknameConflict(memberId, nicknameKey)) {
+                throw new BusinessException(ErrorCode.NICKNAME_ALREADY_EXISTS);
+            }
+        }
+        String normalizedStudentId = normalizeRequiredOptionalField(request.studentId(), "studentId");
         String normalizedDepartment = request.department() != null
                 ? departmentService.normalizeSupported(request.department())
                 : null;
-        if (request.department() != null && StringUtils.hasText(request.department()) && normalizedDepartment == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "지원하지 않는 department입니다.");
+        if (request.department() != null) {
+            if (!StringUtils.hasText(request.department())) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "department는 비어 있을 수 없습니다.");
+            }
+            if (normalizedDepartment == null) {
+                throw new BusinessException(ErrorCode.VALIDATION_ERROR, "지원하지 않는 department입니다.");
+            }
         }
         profileImageStorageService.validateProfilePhotoReference(memberId, member.getPhotoUrl(), request.photoUrl());
         member.updateProfile(
-                request.nickname(),
-                request.studentId(),
+                normalizedNickname,
+                nicknameKey,
+                normalizedStudentId,
                 normalizedDepartment,
                 request.photoUrl()
         );
+        if (nicknameChanged) {
+            try {
+                memberRepository.saveAndFlush(member);
+            } catch (DataIntegrityViolationException exception) {
+                throw new BusinessException(ErrorCode.NICKNAME_ALREADY_EXISTS);
+            }
+        }
         if (request.department() != null && !normalizeNullable(previousDepartment).equals(normalizeNullable(member.getDepartment()))) {
             chatService.removeMemberFromDepartmentChatRooms(memberId);
+        }
+        if (!profileWasComplete && member.isProfileComplete()) {
+            eventPublisher.publish(new MemberLifecycleEvent.MemberProfileCompleted(memberId));
         }
         return toMemberMeResponse(member);
     }
@@ -193,6 +226,31 @@ public class MemberService {
             return "";
         }
         return value.trim();
+    }
+
+    private String normalizeAndValidateNickname(String requestedNickname) {
+        if (requestedNickname == null) {
+            return null;
+        }
+        String normalizedNickname = MemberNicknamePolicy.normalizeForStorage(requestedNickname);
+        if (!StringUtils.hasText(normalizedNickname)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "nickname은 비어 있을 수 없습니다.");
+        }
+        if (MemberNicknamePolicy.isReserved(normalizedNickname)) {
+            throw new BusinessException(ErrorCode.NICKNAME_RESERVED);
+        }
+        return normalizedNickname;
+    }
+
+    private String normalizeRequiredOptionalField(String requestedValue, String fieldName) {
+        if (requestedValue == null) {
+            return null;
+        }
+        String normalizedValue = requestedValue.trim();
+        if (!StringUtils.hasText(normalizedValue)) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, fieldName + "는 비어 있을 수 없습니다.");
+        }
+        return normalizedValue;
     }
 
     private void cleanupProfilePhotoAfterCommit(String memberId, String photoUrl) {

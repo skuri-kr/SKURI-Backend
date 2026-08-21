@@ -113,6 +113,14 @@ public interface MemberRepository extends JpaRepository<Member, String>, MemberR
             select m.id
             from Member m
             where m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+              and m.nickname is not null
+              and trim(m.nickname) <> ''
+              and replace(lower(trim(m.nickname)), ' ', '') not like '%스쿠리유저%'
+              and replace(lower(trim(m.nickname)), ' ', '') not like '%운영자%'
+              and m.studentId is not null
+              and trim(m.studentId) <> ''
+              and m.department is not null
+              and trim(m.department) <> ''
               and not exists (
                   select p.memberId
                   from FriendProfile p
@@ -120,7 +128,37 @@ public interface MemberRepository extends JpaRepository<Member, String>, MemberR
               )
             order by m.id asc
             """)
-    List<String> findActiveMemberIdsWithoutFriendProfile(Pageable pageable);
+    List<String> findProfileCompleteActiveMemberIdsWithoutFriendProfile(Pageable pageable);
+
+    @Query("""
+            select count(m)
+            from Member m
+            where m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+              and m.nickname is not null
+              and trim(m.nickname) <> ''
+              and replace(lower(trim(m.nickname)), ' ', '') not like '%스쿠리유저%'
+              and replace(lower(trim(m.nickname)), ' ', '') not like '%운영자%'
+              and m.studentId is not null
+              and trim(m.studentId) <> ''
+              and m.department is not null
+              and trim(m.department) <> ''
+            """)
+    long countProfileCompleteActiveMembers();
+
+    @Query("""
+            select count(m) > 0
+            from Member m
+            where m.id <> :excludedMemberId
+              and m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+              and (
+                    m.nicknameKey = :nicknameKey
+                    or lower(trim(m.nickname)) = :nicknameKey
+              )
+            """)
+    boolean existsActiveNicknameConflict(
+            @Param("excludedMemberId") String excludedMemberId,
+            @Param("nicknameKey") String nicknameKey
+    );
 
     @Query("""
             select m.id
