@@ -252,6 +252,34 @@ class FriendRelationshipServiceDataJpaTest {
     }
 
     @Test
+    void 프로필미완료호출자는_존재하지않는공개ID보다_먼저_409로거부한다() {
+        Member incomplete = Member.create(
+                "member-incomplete",
+                "incomplete@sungkyul.ac.kr",
+                "미완료회원",
+                LocalDateTime.now()
+        );
+        memberRepository.saveAndFlush(incomplete);
+
+        assertThatThrownBy(() -> friendRelationshipService.setFavorite("member-incomplete", "missing-public-id", true))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.MEMBER_PROFILE_INCOMPLETE);
+        assertThatThrownBy(() -> friendRelationshipService.removeFriendship("member-incomplete", "missing-public-id"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.MEMBER_PROFILE_INCOMPLETE);
+        assertThatThrownBy(() -> friendRelationshipService.blockMember("member-incomplete", "missing-public-id"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.MEMBER_PROFILE_INCOMPLETE);
+        assertThatThrownBy(() -> friendRelationshipService.unblockMember("member-incomplete", "missing-public-id"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.MEMBER_PROFILE_INCOMPLETE);
+    }
+
+    @Test
     void 친구mutation잠금은_프로필미완료대상을_일반대상없음으로숨긴다() {
         saveMember("member-complete", "complete@sungkyul.ac.kr", "완료회원");
         Member incomplete = Member.create(
