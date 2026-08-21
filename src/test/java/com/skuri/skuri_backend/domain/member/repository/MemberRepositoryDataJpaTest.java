@@ -237,6 +237,34 @@ class MemberRepositoryDataJpaTest {
     }
 
     @Test
+    void 프로필완료후보조회는_StringIsBlank_기준의공백만있는필드를제외한다() {
+        Member blankNickname = Member.create("blank-nickname", "blank-nickname@sungkyul.ac.kr", null, LocalDateTime.now());
+        blankNickname.updateProfile("\t", "\t", "20260007", "컴퓨터공학과", null);
+        Member blankStudentId = Member.create("blank-student-id", "blank-student-id@sungkyul.ac.kr", null, LocalDateTime.now());
+        blankStudentId.updateProfile("학번공백", "학번공백", "\t", "컴퓨터공학과", null);
+        Member blankDepartment = Member.create("blank-department", "blank-department@sungkyul.ac.kr", null, LocalDateTime.now());
+        blankDepartment.updateProfile("학과공백", "학과공백", "20260008", "\t", null);
+        memberRepository.saveAllAndFlush(List.of(blankNickname, blankStudentId, blankDepartment));
+        friendProfileRepository.saveAndFlush(
+                FriendProfile.create("blank-nickname", "blank-nickname-public", "blank-nickname-code")
+        );
+
+        assertFalse(blankNickname.isProfileComplete());
+        assertFalse(blankStudentId.isProfileComplete());
+        assertFalse(blankDepartment.isProfileComplete());
+        assertTrue(
+                memberRepository.findProfileCompleteActiveMemberIdsWithoutFriendProfile(PageRequest.of(0, 10)).isEmpty()
+        );
+        assertEquals(0, memberRepository.countProfileCompleteActiveMembers());
+        assertTrue(
+                friendProfileRepository.findNicknameSearchResults(
+                        "requester", "", null, null, PageRequest.of(0, 10)
+                ).isEmpty()
+        );
+        assertEquals(0, friendProfileRepository.countForProfileCompleteActiveMembers());
+    }
+
+    @Test
     void 소문자화시길이가늘어난_50자닉네임의고유키를저장한다() {
         String nickname = "İ".repeat(50);
         Member member = Member.create("expanding-key", "expanding-key@sungkyul.ac.kr", null, LocalDateTime.now());
