@@ -54,7 +54,7 @@
 
 ### 2.1 승인된 목표 도메인 (9개 + 인프라)
 
-> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정)과 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록)는 현재 런타임에 구현되어 있다. 시간표 공유·Minecraft projection·택시파티·공개방 초대·알림·신고 진입의 기존 도메인 협력은 후속 구현 계획이다.
+> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정)과 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), Minecraft 안전 projection은 현재 런타임에 구현되어 있다. 시간표 공유·택시파티·공개방 초대·알림의 도메인 협력은 후속 구현 계획이다.
 
 | # | 도메인 | 유형 | 핵심 책임 | 주요 엔티티 |
 |---|--------|------|----------|------------|
@@ -808,7 +808,7 @@ Hooks:
 
 ### 3.9 Friend (친구, Phase 14 관계 Core 구현)
 
-> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회 구현 완료. 시간표 공유·Minecraft projection·초대·알림·신고 진입은 후속 구현 예정
+> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection 구현 완료. 시간표 공유·초대·알림은 후속 구현 예정
 > 상세 기준: `docs/features/friends.md`
 
 ```
@@ -820,7 +820,6 @@ Hooks:
   - 친구 요청과 상호 friendship
   - 사용자 방향별 즐겨찾기
   - 친구 끊기와 차단
-  - friendPublicId 기반 신고 진입과 내부 Member 대상 해석 (후속)
 
 현재 엔티티:
   - FriendProfile (프로필 완료 ACTIVE 회원만 소유)
@@ -837,7 +836,6 @@ Hooks:
   - 친구용 계정 projection: Minecraft
   - 알림 인박스·SSE·FCM 전달: Notification 인프라
   - ACTIVE 회원·알림 설정과 탈퇴 orchestration: Member
-  - 신고 저장·중복 정책·운영 처리: Support
 ```
 
 ---
@@ -884,7 +882,7 @@ Hooks:
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-위 다이어그램은 현재 런타임 구조다. Friend 관계 Core는 이미 런타임에 존재하며, 아래 시간표·초대·계정 projection·알림·신고 협력은 후속 Phase 14 범위다. 각 도메인은 상대 도메인의 내부 엔티티를 직접 수정하지 않는다.
+위 다이어그램은 현재 런타임 구조다. Friend 관계 Core와 Minecraft 안전 projection은 이미 런타임에 존재하며, 아래 시간표·초대·알림 협력은 후속 Phase 14 범위다. 각 도메인은 상대 도메인의 내부 엔티티를 직접 수정하지 않는다.
 
 ```text
 Member ◄── Friend ──► Notification
@@ -907,9 +905,8 @@ Member ◄── Friend ──► Notification
 | Friend → Member | 약결합, 관계 Core 구현 | 관계 생성·변경은 공개 ID 해석 뒤 ordered ACTIVE Member 잠금을 획득하고 요청자·대상을 재확인한다. 이미 생성된 요청의 만료 terminal 정리는 탈퇴 회원도 처리할 수 있도록 기존 Member 행을 상태와 무관하게 잠근다. 내부 회원 ID는 외부에 노출하지 않는다. |
 | Academic → Friend | 정책 확인, Phase 14 계획 | friendship·차단을 확인한 뒤 Academic이 시간표 공개 projection을 결정 |
 | TaxiParty, Chat → Friend | 정책 확인, Phase 14 계획 | 초대 생성·수락 시 friendship·차단을 재검증하되 초대 상태는 각 도메인이 소유 |
-| Minecraft → Friend | 정책 확인, Phase 14 계획 | friendship·차단 확인 후 Minecraft가 안전 계정 projection을 생성 |
+| Minecraft → Friend | 정책 확인, 런타임 구현 | friendship·차단 확인 후 Minecraft가 SELF·FRIEND 안전 계정 projection을 생성 |
 | Friend, TaxiParty, Chat → Notification | 이벤트, Phase 14 계획 | 친구 요청·수락과 친구 기반 초대를 인박스·SSE·FCM으로 전달 |
-| Friend → Support | 위임, Phase 14 계획 | Friend가 friendPublicId를 내부 Member로 해석하고 Support의 기존 MEMBER 신고 생성·중복·운영 처리에 위임 |
 
 ### 4.3 도메인 이벤트
 

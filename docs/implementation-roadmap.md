@@ -1066,13 +1066,13 @@ SSE 운영 제약:
 
 | 영역 | 최종 책임 |
 | --- | --- |
-| friend 신규 도메인 | ACTIVE·RETIRED 코드 registry, PENDING cursor 검색, 요청, 관계, 즐겨찾기, 친구 끊기, 차단, friendPublicId 신고 진입(후속) |
+| friend 신규 도메인 | ACTIVE·RETIRED 코드 registry, PENDING cursor 검색, 요청, 관계, 즐겨찾기, 친구 끊기, 차단 |
 | Academic | 시간표 공유 설정과 허용 범위별 projection |
 | TaxiParty | OPEN 파티 초대, 수락 정원·참여 동시성 |
 | Chat | 공개 non-PARTY 방 초대와 입장 자격 |
 | Minecraft | 친구용 계정 안전 projection |
 | Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, FRIEND_DECLINED, PARTY_INVITATION, CHAT_ROOM_INVITATION |
-| Support | Friend가 내부 Member로 해석한 기존 MEMBER 신고 저장·중복·운영 처리 |
+| Support | 기존 MEMBER 신고 저장·중복·운영 처리 |
 
 #### 14-3. 완료 이력
 
@@ -1095,7 +1095,6 @@ SSE 운영 제약:
    - 미완료 회원 Friend 데이터 운영 cleanup과 관계 Core 모바일 QA 보완
 2. [ ] 친구 화면 완성
    - QR 생성·스캔과 카메라 권한
-   - friendPublicId 신고 진입
    - Minecraft 친구 계정 안전 projection과 SELF·FRIEND 계층
 3. [ ] 시간표 공유
    - 시간표 공유 설정·친구별 예외·친구 시간표 조회
@@ -1129,7 +1128,6 @@ SSE 운영 제약:
 - [ ] 요청·초대 accept와 decline·cancel·expire 경쟁의 단일 terminal 부수효과 검증
 - [ ] 닉네임 cursor 검색과 PENDING 요청 20건 cursor 목록 검증 (`privacy GET·PATCH` 완료)
 - [ ] 다중 초대 수신자별 부분 성공, outcome별 nullable invitationId와 immutable expiryReason 검증
-- [ ] friendPublicId 신고의 내부 ID 미노출과 기존 Support 중복·self 신고 정책 검증
 - [ ] 친구 즐겨찾기와 한글 정렬 검증
 - [ ] 시간표 PRIVATE, BUSY_ONLY, DETAILS 필드 미노출 Contract 검증
 - [ ] TaxiParty 마지막 좌석 동시 수락 검증
