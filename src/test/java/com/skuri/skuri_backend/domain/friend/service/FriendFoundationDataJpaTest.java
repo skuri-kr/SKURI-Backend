@@ -17,6 +17,7 @@ import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.minecraft.service.FriendMinecraftProjectionService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +49,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         FriendRequestExpiryService.class,
         FriendRelationshipService.class,
         FriendRelationshipQueryService.class,
+        FriendMinecraftProjectionService.class,
         FriendCodeService.class,
         FriendPrivacyService.class
 })

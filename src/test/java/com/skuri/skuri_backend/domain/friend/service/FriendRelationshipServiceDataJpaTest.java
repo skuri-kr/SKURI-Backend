@@ -17,6 +17,7 @@ import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.minecraft.service.FriendMinecraftProjectionService;
 import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -54,7 +55,8 @@ import static org.mockito.Mockito.verify;
         FriendRequestExpiryService.class,
         FriendRequestExpirationScheduler.class,
         FriendRelationshipService.class,
-        FriendRelationshipQueryService.class
+        FriendRelationshipQueryService.class,
+        FriendMinecraftProjectionService.class
 })
 class FriendRelationshipServiceDataJpaTest {
 

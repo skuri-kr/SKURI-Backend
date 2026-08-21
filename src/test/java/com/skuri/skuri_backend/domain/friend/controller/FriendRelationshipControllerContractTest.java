@@ -6,10 +6,15 @@ import com.skuri.skuri_backend.domain.friend.dto.response.FriendInboxCountsRespo
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRequestPageResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendSearchPageResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendSummaryResponse;
+import com.skuri.skuri_backend.domain.friend.service.FriendMinecraftAccountQueryService;
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService;
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipService;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.minecraft.config.MinecraftInternalSecretFilter;
+import com.skuri.skuri_backend.domain.minecraft.dto.response.FriendMinecraftAccountResponse;
+import com.skuri.skuri_backend.domain.minecraft.dto.response.FriendMinecraftAccountsResponse;
+import com.skuri.skuri_backend.domain.minecraft.dto.response.FriendMinecraftSelfAccountResponse;
+import com.skuri.skuri_backend.domain.minecraft.entity.MinecraftEdition;
 import com.skuri.skuri_backend.infra.auth.config.ApiAccessDeniedHandler;
 import com.skuri.skuri_backend.infra.auth.config.ApiAuthenticationEntryPoint;
 import com.skuri.skuri_backend.infra.auth.config.SecurityConfig;
@@ -59,20 +64,26 @@ class FriendRelationshipControllerContractTest {
     private FriendRelationshipQueryService friendRelationshipQueryService;
 
     @MockitoBean
+    private FriendMinecraftAccountQueryService friendMinecraftAccountQueryService;
+
+    @MockitoBean
     private FirebaseTokenVerifier firebaseTokenVerifier;
 
     @Test
-    void 친구목록은_공개식별자와_Core필드만_반환한다() throws Exception {
+    void 친구목록은_공개식별자와_마인크래프트요약을_반환한다() throws Exception {
         mockValidToken();
         when(friendRelationshipQueryService.getFriends("firebase-uid"))
-                .thenReturn(List.of(new FriendSummaryResponse("friend-public-id", "스쿠리", "컴퓨터공학과", null, true)));
+                .thenReturn(List.of(new FriendSummaryResponse(
+                        "friend-public-id", "스쿠리", "컴퓨터공학과", null, true, "skuriPlayer", 3
+                )));
 
         mockMvc.perform(get("/v1/friends").header(AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].friendPublicId").value("friend-public-id"))
                 .andExpect(jsonPath("$.data[0].favorite").value(true))
                 .andExpect(jsonPath("$.data[0].effectiveTimetableScope").doesNotExist())
-                .andExpect(jsonPath("$.data[0].minecraftAccountCount").doesNotExist());
+                .andExpect(jsonPath("$.data[0].primaryMinecraftGameName").value("skuriPlayer"))
+                .andExpect(jsonPath("$.data[0].minecraftAccountCount").value(3));
     }
 
     @Test
@@ -81,12 +92,18 @@ class FriendRelationshipControllerContractTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
 
-        verifyNoInteractions(friendRelationshipService, friendRelationshipQueryService);
+        verifyNoInteractions(
+                friendRelationshipService,
+                friendRelationshipQueryService,
+                friendMinecraftAccountQueryService
+        );
     }
 
     @Test
     void 친구관계Core의_모든경로는_토큰없으면_401이다() throws Exception {
         mockMvc.perform(get("/v1/friends/friend-public-id"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/v1/friends/friend-public-id/minecraft-accounts"))
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(delete("/v1/friends/friend-public-id"))
                 .andExpect(status().isUnauthorized());
@@ -119,7 +136,11 @@ class FriendRelationshipControllerContractTest {
         mockMvc.perform(get("/v1/friends/inbox-counts"))
                 .andExpect(status().isUnauthorized());
 
-        verifyNoInteractions(friendRelationshipService, friendRelationshipQueryService);
+        verifyNoInteractions(
+                friendRelationshipService,
+                friendRelationshipQueryService,
+                friendMinecraftAccountQueryService
+        );
     }
 
     @Test
@@ -154,6 +175,31 @@ class FriendRelationshipControllerContractTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("FRIENDSHIP_NOT_FOUND"));
     }
+
+    @Test
+    void 친구마인크래프트계정조회는_SELF와_FRIEND계층만_반환한다() throws Exception {
+        mockValidToken();
+        when(friendMinecraftAccountQueryService.getFriendAccounts("firebase-uid", "friend-public-id"))
+                .thenReturn(new FriendMinecraftAccountsResponse(List.of(
+                        new FriendMinecraftSelfAccountResponse(
+                                "skuriPlayer",
+                                MinecraftEdition.JAVA,
+                                "avatar-self",
+                                List.of(new FriendMinecraftAccountResponse(
+                                        "skuriBedrock", MinecraftEdition.BEDROCK, "avatar-friend"
+                                ))
+                        )
+                )));
+
+        mockMvc.perform(get("/v1/friends/friend-public-id/minecraft-accounts")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.selfAccounts[0].gameName").value("skuriPlayer"))
+                .andExpect(jsonPath("$.data.selfAccounts[0].friendAccounts[0].gameName").value("skuriBedrock"))
+                .andExpect(jsonPath("$.data.selfAccounts[0].id").doesNotExist())
+                .andExpect(jsonPath("$.data.selfAccounts[0].lastSeenAt").doesNotExist());
+    }
+
 
     @Test
     void 친구끊기는_204를_반환한다() throws Exception {
