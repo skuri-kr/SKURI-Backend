@@ -111,10 +111,12 @@ PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색�
 가입 완료 판정은 다음을 모두 만족하는 경우다.
 
 - Member 상태가 ACTIVE다.
-- nickname이 null·빈 문자열·공백 문자열이 아니며 예약어 정책을 통과한다.
-- studentId가 null·빈 문자열·공백 문자열이 아니다.
-- department가 null·빈 문자열·공백 문자열이 아니다.
+- nickname이 Java `String.isBlank()` 기준으로 null·빈 문자열·공백 문자열이 아니며 예약어 정책을 통과한다.
+- studentId가 Java `String.isBlank()` 기준으로 null·빈 문자열·공백 문자열이 아니다.
+- department가 Java `String.isBlank()` 기준으로 null·빈 문자열·공백 문자열이 아니다.
 - photoUrl은 선택값이므로 완료 판정에 포함하지 않는다.
+
+- 프로필 완료의 공백 판정은 Java `String.isBlank()` 의미를 기준으로 backfill·검색 repository query와 운영 preflight·cleanup·postcheck SQL에서 동일해야 한다.
 
 예약어 판정에 사용하는 Unicode 공백 제거 기준은 Java 정책, backfill·검색 repository query, 운영 preflight·cleanup·postcheck SQL에서 동일해야 한다.
 
@@ -975,6 +977,7 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-21 | FriendProfile·최초 코드는 프로필 완료 ACTIVE 회원에게만 발급하고 backfill·lazy ensure도 같은 eligibility를 사용 |
 | 2026-08-21 | 친구 FE 첫 배포 전에는 실제 사용 이력이 없는 테스트 데이터라는 전제에서 미완료 회원 FriendProfile·소유 ACTIVE 코드와 당시 모든 RETIRED 코드를 일회성 cleanup으로 삭제하고, 이후 RETIRED 코드는 영구 미재사용 유지 |
 | 2026-08-21 | nicknameSearchable 기본값을 true로 변경하고 닉네임 검색은 1글자부터 허용 |
+| 2026-08-21 | 프로필 완료 공백 판정을 Java `String.isBlank()`와 repository·운영 SQL에 동일하게 적용 |
 | 2026-08-21 | 스쿠리 유저·운영자 포함 닉네임을 금지하고 신규·변경 닉네임은 ACTIVE 회원 사이에서만 고유하며 탈퇴 후 재사용 허용 |
 | 2026-08-21 | 닉네임 중복 비교는 운영 MySQL `utf8mb4_unicode_ci` 규칙을 따라 대소문자·악센트 차이를 같은 닉네임으로 취급 |
 | 2026-08-21 | 기존 중복 닉네임은 임의 변경하지 않고 새 닉네임 확정 시에만 unique claim을 요구 |

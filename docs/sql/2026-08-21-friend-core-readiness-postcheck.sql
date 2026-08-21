@@ -1,5 +1,6 @@
 -- Friend Core 출시 준비 운영 DB 사후 점검
 -- cleanup과 신규 서버의 프로필 완료 회원 backfill이 끝난 뒤 실행한다.
+-- 프로필 완료의 공백 판정은 Java String.isBlank()와 동일하다.
 
 SELECT DATABASE() AS target_database, VERSION() AS mysql_version;
 
@@ -13,13 +14,13 @@ FROM members m
 WHERE m.status = 'ACTIVE'
   AND (
     m.nickname IS NULL
-    OR TRIM(m.nickname) = ''
+    OR REGEXP_REPLACE(m.nickname, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
     OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%스쿠리유저%'
     OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%운영자%'
     OR m.student_id IS NULL
-    OR TRIM(m.student_id) = ''
+    OR REGEXP_REPLACE(m.student_id, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
     OR m.department IS NULL
-    OR TRIM(m.department) = ''
+    OR REGEXP_REPLACE(m.department, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
   );
 
 SELECT
@@ -37,13 +38,13 @@ FROM members m
 LEFT JOIN friend_profiles p ON p.member_id = m.id
 WHERE m.status = 'ACTIVE'
   AND m.nickname IS NOT NULL
-  AND TRIM(m.nickname) <> ''
+  AND REGEXP_REPLACE(m.nickname, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') <> ''
   AND REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') NOT LIKE '%스쿠리유저%'
   AND REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') NOT LIKE '%운영자%'
   AND m.student_id IS NOT NULL
-  AND TRIM(m.student_id) <> ''
+  AND REGEXP_REPLACE(m.student_id, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') <> ''
   AND m.department IS NOT NULL
-  AND TRIM(m.department) <> ''
+  AND REGEXP_REPLACE(m.department, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') <> ''
   AND p.member_id IS NULL;
 
 -- 모든 FriendProfile은 완료 ACTIVE 회원과 자기 소유 ACTIVE 코드를 참조해야 한다.
@@ -54,13 +55,13 @@ LEFT JOIN friend_code_registry c ON c.id = p.active_friend_code_id
 WHERE m.id IS NULL
    OR m.status <> 'ACTIVE'
    OR m.nickname IS NULL
-   OR TRIM(m.nickname) = ''
+   OR REGEXP_REPLACE(m.nickname, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
    OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%스쿠리유저%'
    OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%운영자%'
    OR m.student_id IS NULL
-   OR TRIM(m.student_id) = ''
+   OR REGEXP_REPLACE(m.student_id, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
    OR m.department IS NULL
-   OR TRIM(m.department) = ''
+   OR REGEXP_REPLACE(m.department, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
    OR c.id IS NULL
    OR c.status <> 'ACTIVE'
    OR c.owner_member_id <> p.member_id;

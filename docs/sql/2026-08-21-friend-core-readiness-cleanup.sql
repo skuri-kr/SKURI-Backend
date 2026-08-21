@@ -2,6 +2,7 @@
 -- 이 파일은 procedure만 정의하며 자동 실행하지 않는다.
 -- 신규 서버 배포 후, preflight의 정확한 7개 건수를 인자로 전달해 직접 CALL한다.
 -- 친구 코드 건수에는 미완료 회원의 소유 ACTIVE 코드와 첫 출시 전 전체 RETIRED 코드가 함께 포함된다.
+-- 프로필 완료의 공백 판정은 Java String.isBlank()와 동일하다.
 -- 예: CALL cleanup_incomplete_friend_data(10, 8, 8, 2, 1, 2, 1);
 
 DROP PROCEDURE IF EXISTS cleanup_incomplete_friend_data;
@@ -71,13 +72,13 @@ main: BEGIN
     WHERE m.status = 'ACTIVE'
       AND (
         m.nickname IS NULL
-        OR TRIM(m.nickname) = ''
+        OR REGEXP_REPLACE(m.nickname, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
         OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%스쿠리유저%'
         OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%운영자%'
         OR m.student_id IS NULL
-        OR TRIM(m.student_id) = ''
+        OR REGEXP_REPLACE(m.student_id, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
         OR m.department IS NULL
-        OR TRIM(m.department) = ''
+        OR REGEXP_REPLACE(m.department, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
       );
 
     SELECT COUNT(*) INTO v_count FROM skuri_incomplete_friend_members_cleanup;

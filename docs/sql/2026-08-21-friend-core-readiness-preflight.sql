@@ -1,6 +1,6 @@
 -- Friend Core 출시 준비 운영 DB 사전 점검
 -- 읽기 전용 SELECT만 포함한다. cleanup 실행 전에 결과 건수를 기록한다.
--- 프로필 완료 기준: ACTIVE + 예약어가 아닌 비어 있지 않은 nickname + student_id + department.
+-- 프로필 완료의 공백 판정은 Java String.isBlank()와 동일하다.
 -- 친구 코드 건수는 미완료 회원의 소유 ACTIVE 코드와 첫 출시 전 전체 RETIRED 코드를 합산한다.
 
 SELECT DATABASE() AS target_database, VERSION() AS mysql_version;
@@ -36,13 +36,13 @@ WITH incomplete AS (
     WHERE m.status = 'ACTIVE'
       AND (
         m.nickname IS NULL
-        OR TRIM(m.nickname) = ''
+        OR REGEXP_REPLACE(m.nickname, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
         OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%스쿠리유저%'
         OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%운영자%'
         OR m.student_id IS NULL
-        OR TRIM(m.student_id) = ''
+        OR REGEXP_REPLACE(m.student_id, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
         OR m.department IS NULL
-        OR TRIM(m.department) = ''
+        OR REGEXP_REPLACE(m.department, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
       )
 )
 SELECT
@@ -61,13 +61,13 @@ WITH incomplete AS (
     WHERE m.status = 'ACTIVE'
       AND (
         m.nickname IS NULL
-        OR TRIM(m.nickname) = ''
+        OR REGEXP_REPLACE(m.nickname, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
         OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%스쿠리유저%'
         OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%운영자%'
         OR m.student_id IS NULL
-        OR TRIM(m.student_id) = ''
+        OR REGEXP_REPLACE(m.student_id, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
         OR m.department IS NULL
-        OR TRIM(m.department) = ''
+        OR REGEXP_REPLACE(m.department, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
       )
 )
 SELECT m.id, m.nickname, m.student_id, m.department,
