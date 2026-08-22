@@ -14,7 +14,7 @@
 | Java | 21 |
 | 빌드 도구 | Gradle |
 | 현재 의존성 | JPA, Web MVC, Validation, Security, Firebase Admin, Springdoc OpenAPI(Swagger UI/Scalar), Thumbnailator, TwelveMonkeys WebP, Lombok, MySQL Connector |
-| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation·관계 Core·출시 준비·친구 화면 완성 완료, 시간표 공유 백엔드 구현 진행, 친구 초대·알림/탈퇴 정리 후속 예정 |
+| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation·관계 Core·출시 준비·친구 화면 완성 완료, 시간표 공유 Backend·Frontend 구현 PR 검토 대기, 친구 초대·알림/탈퇴 정리 후속 예정 |
 
 ---
 
@@ -1041,7 +1041,7 @@ SSE 운영 제약:
 
 ### Phase 14: 친구·시간표 공유·친구 초대
 
-> 상태: Backend #78·#79·#80·#81·#82·#83과 Frontend #22·#23·#24·#25 완료, 시간표 공유 백엔드 구현 진행, 친구 초대·알림·탈퇴 정리의 후속 단계 구현 계획 승인
+> 상태: Backend #78·#79·#80·#81·#82·#83과 Frontend #22·#23·#24·#25 완료, 시간표 공유 Backend·Frontend 구현 PR 검토 대기, 친구 초대·알림·탈퇴 정리의 후속 단계 구현 계획 승인
 > 상세 기준: docs/features/friends.md
 > 후속 구현 시작 조건: 해당 기능 기준 문서 검토 후 사용자의 별도 코드 구현 승인
 
@@ -1088,11 +1088,11 @@ SSE 운영 제약:
 | Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX와 수동 QA 보완 |
 | Frontend | [#25](https://github.com/skuri-kr/SKURI-Frontend/pull/25) | 친구 QR 생성·스캔과 Minecraft 계정 표시 |
 
-#### 14-4. 남은 3단계 구현 단위
+#### 14-4. 시간표 공유 후 남은 2단계 구현 단위
 
-한 단계에서는 저장소당 최대 1개 PR만 만들고 런타임·테스트·문서는 같은 PR의 목적별 커밋으로 나눈다. 승인된 남은 계획은 Backend 3개, Frontend 3개 PR이며 Admin 친구 관계망 UI는 V1에서 제외한다.
+한 단계에서는 저장소당 최대 1개 PR만 만들고 런타임·테스트·문서는 같은 PR의 목적별 커밋으로 나눈다. 시간표 공유 현재 PR 이후 승인된 남은 계획은 Backend 2개, Frontend 2개 PR이며 Admin 친구 관계망 UI는 V1에서 제외한다.
 
-1. [ ] 시간표 공유
+1. [x] 시간표 공유 (구현 완료·PR 검토 대기)
    - 시간표 공유 설정·친구별 예외·친구 시간표 조회
    - 모바일 accordion·공통 공강·같이 듣는 수업
 2. [ ] 친구 초대
@@ -1206,6 +1206,7 @@ Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 > - 2026-08-18: Phase 14 리뷰 보완 — 영구 코드 registry, privacy·PENDING cursor 계약, invitationId·expiryReason과 탈퇴 경쟁 검증을 추가
 > - 2026-08-18: Phase 14 친구·시간표 공유·친구 초대 계획 추가 — 정책 기준 문서, 도메인 분리, 구현 중지선과 완료 기준을 문서화
 > - 2026-08-22: Phase 14 1·2단계 완료 반영 — Backend #81·#82·#83과 Frontend #24·#25 완료 범위, Friend 전용 신고 제외, 저장소별 남은 3단계 PR 계획을 동기화
+> - 2026-08-22: Phase 14 시간표 공유 구현 반영 — Backend·Frontend 각각 한 PR의 구현·테스트·문서 정합성 점검을 반영하고, 남은 2단계 PR 계획으로 전환
 > - 2026-08-21: Phase 14 전달 이력·출시 준비 계획 갱신 — Backend #78·#79·#80과 Frontend #22·#23 완료 범위, 프로필 완료 eligibility와 저장소별 5단계 후속 PR 계획을 반영
 > - 2026-04-06: Admin Chat read API 구현 반영 — 공개 채팅방 관리자 목록/상세/메시지 조회와 관리자 파티 메시지 조회를 Phase 3/Phase 2 운영 API 및 완료 기준에 추가
 > - 2026-04-01: Phase 13 구현 반영 완료 상태로 갱신 — 마인크래프트 public/internal API, public SSE, bridge outbox, IMAGE placeholder, notification policy, 테스트/문서 완료 기준을 체크 상태로 동기화

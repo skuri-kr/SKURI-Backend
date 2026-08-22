@@ -1,8 +1,8 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성 구현 완료. 시간표 공유 백엔드 API 구현 진행 중이며, 친구 초대·알림·회원 탈퇴 cleanup은 후속 단계다.
+> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성 구현 완료. 시간표 공유 Backend·Frontend 구현은 PR 검토 대기이며, 친구 초대·알림·회원 탈퇴 cleanup은 후속 단계다.
 > 기준일: 2026-08-22
-> 다음 구현 단위: 시간표 공유 모바일 UI를 완료한 뒤 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
+> 다음 구현 단위: 시간표 공유 PR 병합·실기기 QA 후 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
 ---
@@ -805,19 +805,16 @@ batch 요청과 응답:
 9. Frontend #24 Core 출시 준비 UX
 10. Frontend #25 친구 화면 완성 UX
 
-남은 승인 구현은 다음 3단계다.
+남은 승인 구현은 다음 2단계다. 시간표 공유는 Backend·Frontend 각각 현재 PR 하나에서 구현·테스트·문서 정합성 점검을 마쳤고, PR 검토·병합과 실기기 QA만 남아 있다.
 
-1. 시간표 공유
-   - Academic 공개 범위·친구별 예외·친구 시간표 projection
-   - 모바일 아코디언·공통 공강·같이 듣는 수업
-2. 친구 초대
+1. 친구 초대
    - TaxiParty와 공개 Chat 수신자별 부분 성공 초대
    - FriendHub 초대 탭과 공통 친구 선택 UX
-3. 알림·탈퇴 정리
+2. 알림·탈퇴 정리
    - 친구 요청·수락·거절과 초대 인박스·FCM·SSE·화면 이동
    - 모든 Friend·공유·초대 파생 데이터의 회원 탈퇴 cleanup
 
-각 단계는 저장소당 최대 1개 PR로 진행한다. Backend와 Frontend에 각각 3개의 후속 PR을 만들며 Admin 친구 관계망 UI는 V1 제외 범위라 PR을 만들지 않는다. 단계 내부에서 서로 다른 도메인·테스트·문서는 작은 Conventional Commit으로 구분하고, 변경량 때문에 PR 분리가 필요하면 먼저 사용자 승인을 받는다.
+각 단계는 저장소당 최대 1개 PR로 진행한다. 시간표 공유 현재 PR 이후 Backend와 Frontend에 각각 2개의 후속 PR을 만들며 Admin 친구 관계망 UI는 V1 제외 범위라 PR을 만들지 않는다. 단계 내부에서 서로 다른 도메인·테스트·문서는 작은 Conventional Commit으로 구분하고, 변경량 때문에 PR 분리가 필요하면 먼저 사용자 승인을 받는다.
 
 Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 친구 FE가 아직 배포되지 않았으므로 구버전 호환 field를 유지하지 않는다. 이후 단계는 가능한 한 additive API로 Backend를 먼저 배포하고, 모바일 노출은 필요한 API 배포 확인 후 진행한다.
 
@@ -897,7 +894,7 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 검토일: 2026-08-22
 
 - [x] Backend #78·#79·#80·#81·#82·#83과 Frontend #22·#23·#24·#25의 완료 범위가 후속 단계와 구분되어 있다.
-- [x] 승인 V1의 1·2단계 완료와 남은 3단계·저장소별 단계당 최대 1개 PR 계획이 구분되어 있다.
+- [x] 승인 V1의 1·2단계 병합 완료, 시간표 공유 구현 완료·PR 검토 대기, 남은 2단계와 저장소별 단계당 최대 1개 PR 계획이 구분되어 있다.
 - [x] 가입 완료 판정과 미완료 회원 Friend 데이터 비생성·일회성 cleanup이 명시되어 있다.
 - [x] ACTIVE 닉네임 예약·중복·탈퇴 후 재사용과 기존 중복 grandfathering이 명시되어 있다.
 - [x] 검색 기본 true·1글자와 관계 상태 enum 계약이 명시되어 있다.
@@ -929,7 +926,7 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 - [x] 예정 API가 현재 운영 API와 구분되어 있다.
 - [x] Foundation과 관계 Core의 실제 코드 구현 범위가 현재 런타임 상태로 전환되어 있다.
 
-docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 런타임 도메인으로 표시하고 Foundation·관계 Core와 후속 Phase 14 협력 책임을 구분한다. Foundation·관계 Core의 런타임 엔티티와 API는 docs/api-specification.md·docs/erd.md에 동기화했으며, 아직 구현하지 않은 친구 기능은 각 런타임 PR에서 실제 구현과 함께 현재형으로 전환한다.
+docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 런타임 도메인으로 표시하고 Foundation·관계 Core와 후속 Phase 14 협력 책임을 구분한다. Foundation·관계 Core와 시간표 공유의 런타임 엔티티·API는 docs/api-specification.md·docs/erd.md에 동기화했으며, 아직 구현하지 않은 친구 기능은 각 런타임 PR에서 실제 구현과 함께 현재형으로 전환한다.
 
 ---
 
@@ -976,3 +973,4 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-21 | 친구 요청 거절 알림은 알림 단계에서 원 요청자에게 제공하고 FriendHub 요청 탭으로 이동 |
 | 2026-08-21 | 각 구현 단계의 최종 PR 전에는 런타임·친구 명세·모바일 계획·OpenAPI·ERD·운영 문서를 대조하고 drift를 같은 PR에서 해소 |
 | 2026-08-22 | Core 출시 준비(#81·#24)와 친구 화면 완성(#83·#25)을 완료 이력으로 고정하고, 다음 구현 단위를 시간표 공유로 전환 |
+| 2026-08-22 | 시간표 공유 Backend·Frontend 구현과 문서 정합성 점검을 현재 PR 범위에서 완료하고, 친구 초대를 다음 승인 구현 단위로 전환 |

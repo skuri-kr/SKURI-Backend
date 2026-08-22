@@ -54,7 +54,7 @@
 
 ### 2.1 승인된 목표 도메인 (9개 + 인프라)
 
-> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정), 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), Minecraft 안전 projection과 시간표 공유 백엔드 계약은 현재 런타임에 구현되어 있다. 택시파티·공개방 초대·알림의 도메인 협력과 시간표 공유 모바일 UI는 후속 구현 계획이다.
+> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정), 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), Minecraft 안전 projection과 시간표 공유 Backend·Frontend 구현은 현재 PR 검토 대기 상태다. 택시파티·공개방 초대·알림의 도메인 협력은 후속 구현 계획이다.
 
 | # | 도메인 | 유형 | 핵심 책임 | 주요 엔티티 |
 |---|--------|------|----------|------------|
@@ -808,7 +808,7 @@ Hooks:
 
 ### 3.9 Friend (친구, Phase 14 관계 Core 구현)
 
-> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유 백엔드 계약 구현 완료. 시간표 공유 모바일 UI·초대·알림은 후속 구현 예정
+> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유 Backend·Frontend 구현 완료(각 PR 검토 대기). 초대·알림은 후속 구현 예정
 > 상세 기준: `docs/features/friends.md`
 
 ```

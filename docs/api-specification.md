@@ -7581,10 +7581,10 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 `semester`는 필수 `YYYY-N` 형식이다. 응답은 항상 `semester`, `effectiveScope`, `hasTimetable`, `courses`, `slots`를 포함한다.
 
 - `PRIVATE`: `hasTimetable`은 항상 false이고 `courses`와 `slots`는 빈 배열이다. 상대의 시간표 존재 여부도 노출하지 않는다.
-- `BUSY_ONLY`: `hasTimetable`과 월~금 교시 단위 점유 시간 `slots`만 제공한다. 강의 ID·이름·교수·강의실 등 상세는 제공하지 않는다.
+- `BUSY_ONLY`: `hasTimetable`과 월~토 교시 단위 점유 시간 `slots`만 제공한다. 강의 ID·이름·교수·강의실 등 상세는 제공하지 않는다.
 - `DETAILS`: `slots`와 강의 상세 `courses`를 제공한다. 공식 강의의 `courseId`만 제공하며, 직접 입력 강의는 `courseId: null`이다. 온라인 또는 시간 미정 강의는 `courses`에는 포함될 수 있지만 `slots`에는 포함되지 않는다.
 
-`slots`의 `dayOfWeek`는 월=1, `startPeriod`/`endPeriod`는 1~15 교시다. 친구 목록 응답의 `effectiveTimetableScope`와 이 조회 응답의 `effectiveScope`는 모두 친구가 나에게 적용한 설정 관점이다.
+`slots`의 `dayOfWeek`는 월=1·토=6, `startPeriod`/`endPeriod`는 1~15 교시다. 친구 목록 응답의 `effectiveTimetableScope`와 이 조회 응답의 `effectiveScope`는 모두 친구가 나에게 적용한 설정 관점이다.
 
 #### `GET /v1/friends/search`
 
