@@ -123,7 +123,7 @@ Hooks:
   - 인증 필터에서 `email` 도메인(`@sungkyul.ac.kr`)을 강제 검증
   - 보호 API는 활성 회원(`members.status = ACTIVE`)만 접근 가능하며, 탈퇴 회원은 `403 MEMBER_WITHDRAWN`으로 차단
   - 회원 생성 시 `nickname`은 기본값 `스쿠리 유저`로 저장
-  - 기본 닉네임은 가입 진행 중 placeholder이며, 예약어가 아닌 닉네임·학번·학과가 Java `String.isBlank()` 기준으로 모두 채워져야 프로필 완료로 본다. 프로필 사진은 완료 조건이 아니다.
+  - 기본 닉네임은 가입 진행 중 placeholder이며, 닉네임·학번·학과가 Java `String.isBlank()` 기준으로 모두 채워져야 프로필 완료로 본다. 프로필 사진은 완료 조건이 아니다. 예약어 검사는 신규 가입·프로필 편집의 닉네임 입력 검증에만 적용하고, 기존 회원의 완료 판정에는 사용하지 않는다.
   - 신규·변경 닉네임은 trim·Unicode NFC 정규화 후 ACTIVE 회원 사이에서만 고유해야 하며, 운영 MySQL `utf8mb4_unicode_ci` 비교에 따라 대소문자·악센트 차이도 중복으로 취급한다. `스쿠리 유저`·`운영자` 포함 닉네임은 중간 공백 우회까지 차단한다. 탈퇴 시 고유 키를 해제해 재사용을 허용하고 기존 중복 닉네임은 임의 변경하지 않는다.
   - 회원 생성 시 `realname`은 provider 프로필 이름(`linked_accounts.provider_display_name`)으로 초기화
   - 회원 생성 시 `members.photo_url`은 `null`, 소셜 프로필 이미지(`picture`)는 `linked_accounts.photo_url`에만 저장
