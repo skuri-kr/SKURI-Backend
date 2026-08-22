@@ -53,6 +53,8 @@ public class TimetableSharingController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiAcademicSchemas.TimetableSharingSettingsApiResponse.class), examples = @ExampleObject(value = OpenApiAcademicExamples.SUCCESS_TIMETABLE_SHARING_SETTINGS))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "회원가입 프로필 미완료",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_PROFILE_INCOMPLETE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "회원 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
     })
@@ -73,6 +75,8 @@ public class TimetableSharingController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiAcademicSchemas.TimetableSharingSettingsApiResponse.class), examples = @ExampleObject(value = OpenApiAcademicExamples.SUCCESS_TIMETABLE_SHARING_SETTINGS))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "회원가입 프로필 미완료",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_PROFILE_INCOMPLETE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "회원 없음",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "요청 검증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
@@ -96,8 +100,9 @@ public class TimetableSharingController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiAcademicSchemas.TimetableShareOverrideApiResponse.class), examples = @ExampleObject(value = OpenApiAcademicExamples.SUCCESS_TIMETABLE_SHARE_OVERRIDE))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "회원가입 프로필 미완료",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_PROFILE_INCOMPLETE))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상 없음 또는 친구 관계가 아님",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "회원, 대상 없음 또는 친구 관계가 아님",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
                             @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND),
                             @ExampleObject(name = "FRIENDSHIP_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIENDSHIP_NOT_FOUND)
                     })),
@@ -122,8 +127,9 @@ public class TimetableSharingController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "제거 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "회원가입 프로필 미완료",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_PROFILE_INCOMPLETE))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상 없음 또는 친구 관계가 아님",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "회원, 대상 없음 또는 친구 관계가 아님",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
                             @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND),
                             @ExampleObject(name = "FRIENDSHIP_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIENDSHIP_NOT_FOUND)
                     })),
@@ -149,8 +155,9 @@ public class TimetableSharingController {
                     })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "회원가입 프로필 미완료",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_PROFILE_INCOMPLETE))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "대상 없음 또는 친구 관계가 아님",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "회원, 대상 없음 또는 친구 관계가 아님",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
                             @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND),
                             @ExampleObject(name = "FRIENDSHIP_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIENDSHIP_NOT_FOUND)
                     })),
