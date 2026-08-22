@@ -7494,7 +7494,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 목록은 즐겨찾기 내림차순, 닉네임 가나다순, 내부 member ID 오름차순으로 안정 정렬한다. 상세·목록은 상호 friendship이 있어야 하며, 차단 대상은 일반 대상 없음으로 숨긴다.
 
-`primaryMinecraftGameName`은 대표 SELF 계정의 게임명이며 없으면 null이다. `minecraftAccountCount`는 등록된 SELF·FRIEND 계정 전체 수다.
+`primaryMinecraftGameName`은 대표 SELF 계정의 게임명이며 없으면 null이다. `minecraftAccountCount`는 등록된 SELF·FRIEND 계정 전체 수다. 친구 요청 수락·역방향 자동 수락의 `friend` 요약도 같은 두 필드를 포함한다.
 
 #### `GET /v1/friends/{friendPublicId}/minecraft-accounts`
 

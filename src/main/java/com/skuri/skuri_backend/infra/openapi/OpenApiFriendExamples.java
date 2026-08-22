@@ -142,7 +142,9 @@ public final class OpenApiFriendExamples {
                   "nickname": "스쿠리",
                   "department": "컴퓨터공학과",
                   "photoUrl": null,
-                  "favorite": false
+                  "favorite": false,
+                  "primaryMinecraftGameName": "skuriPlayer",
+                  "minecraftAccountCount": 3
                 }
               }
             }

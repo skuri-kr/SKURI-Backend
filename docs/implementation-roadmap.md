@@ -1059,7 +1059,6 @@ SSE 운영 제약:
 - 공개 non-PARTY 채팅방의 친구 초대
 - 친구의 Minecraft SELF와 모든 FRIEND 계정 안전 projection
 - 기존 Notification 인프라를 이용한 친구·초대 인박스, FCM, SSE
-- friendPublicId 전용 진입에서 기존 Support MEMBER 신고 처리 위임
 - 모든 Friend mutation·lazy provisioning에서 Member 잠금 후 양쪽 ACTIVE 상태 재확인
 
 #### 14-2. 도메인 분리
