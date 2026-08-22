@@ -17,6 +17,10 @@ import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.minecraft.entity.MinecraftAccount;
+import com.skuri.skuri_backend.domain.minecraft.entity.MinecraftAccountRole;
+import com.skuri.skuri_backend.domain.minecraft.entity.MinecraftEdition;
+import com.skuri.skuri_backend.domain.minecraft.repository.MinecraftAccountRepository;
 import com.skuri.skuri_backend.domain.minecraft.service.FriendMinecraftProjectionService;
 import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.AfterEach;
@@ -56,6 +60,7 @@ import static org.mockito.Mockito.verify;
         FriendRequestExpirationScheduler.class,
         FriendRelationshipService.class,
         FriendRelationshipQueryService.class,
+        FriendMinecraftAccountQueryService.class,
         FriendMinecraftProjectionService.class
 })
 class FriendRelationshipServiceDataJpaTest {
@@ -85,10 +90,16 @@ class FriendRelationshipServiceDataJpaTest {
     private MemberBlockRepository memberBlockRepository;
 
     @Autowired
+    private MinecraftAccountRepository minecraftAccountRepository;
+
+    @Autowired
     private FriendRelationshipService friendRelationshipService;
 
     @Autowired
     private FriendRelationshipQueryService friendRelationshipQueryService;
+
+    @Autowired
+    private FriendMinecraftAccountQueryService friendMinecraftAccountQueryService;
 
     @Autowired
     private FriendRequestExpirationScheduler friendRequestExpirationScheduler;
@@ -99,6 +110,7 @@ class FriendRelationshipServiceDataJpaTest {
         friendPreferenceRepository.deleteAll();
         friendshipRepository.deleteAll();
         friendRequestRepository.deleteAll();
+        minecraftAccountRepository.deleteAll();
         friendProfileRepository.deleteAll();
         friendCodeRegistryRepository.deleteAll();
         memberRepository.deleteAll();
@@ -138,6 +150,50 @@ class FriendRelationshipServiceDataJpaTest {
         assertThat(friendRequestRepository.findById(first.requestId()).orElseThrow().getStatus())
                 .isEqualTo(FriendRequestStatus.ACCEPTED);
         assertThat(friendshipRepository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void 친구요청수락응답은_마인크래프트요약을_포함한다() {
+        FriendPair pair = createPair();
+        minecraftAccountRepository.saveAndFlush(MinecraftAccount.create(
+                pair.firstMemberId(),
+                null,
+                MinecraftAccountRole.SELF,
+                MinecraftEdition.JAVA,
+                "skuriPlayer",
+                null,
+                "member-1-skuri-player",
+                "avatar-self"
+        ));
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+
+        var result = friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId).friend();
+
+        assertThat(result.primaryMinecraftGameName()).isEqualTo("skuriPlayer");
+        assertThat(result.minecraftAccountCount()).isEqualTo(1);
+    }
+
+    @Test
+    void 친구마인크래프트계정조회는_친구관계와_차단경계를_강제한다() {
+        FriendPair pair = createPair();
+        saveMember("member-3", "three@sungkyul.ac.kr", "회원3");
+        String thirdPublicId = provisioningService.ensureForActiveMember("member-3").getPublicId();
+
+        assertThatThrownBy(() -> friendMinecraftAccountQueryService.getFriendAccounts(
+                pair.firstMemberId(), thirdPublicId
+        )).isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIENDSHIP_NOT_FOUND);
+
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId);
+        friendRelationshipService.blockMember(pair.secondMemberId(), pair.firstPublicId());
+
+        assertThatThrownBy(() -> friendMinecraftAccountQueryService.getFriendAccounts(
+                pair.firstMemberId(), pair.secondPublicId()
+        )).isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_TARGET_NOT_FOUND);
     }
 
     @Test

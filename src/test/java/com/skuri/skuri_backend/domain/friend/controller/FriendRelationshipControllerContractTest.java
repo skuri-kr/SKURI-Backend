@@ -200,6 +200,18 @@ class FriendRelationshipControllerContractTest {
                 .andExpect(jsonPath("$.data.selfAccounts[0].lastSeenAt").doesNotExist());
     }
 
+    @Test
+    void 친구마인크래프트계정조회는_친구관계가없으면_404이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.FRIENDSHIP_NOT_FOUND))
+                .when(friendMinecraftAccountQueryService).getFriendAccounts("firebase-uid", "friend-public-id");
+
+        mockMvc.perform(get("/v1/friends/friend-public-id/minecraft-accounts")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("FRIENDSHIP_NOT_FOUND"));
+    }
+
 
     @Test
     void 친구끊기는_204를_반환한다() throws Exception {
