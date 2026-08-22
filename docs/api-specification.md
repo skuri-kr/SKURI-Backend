@@ -7407,7 +7407,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 ## 14. Friend API
 
-> Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록)는 현재 운영 API다. 시간표 공유·Minecraft projection·택시·공개방 초대·알림·신고 진입은 아직 구현되지 않았다.
+> Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록) 및 친구 Minecraft projection은 현재 운영 API다. 시간표 공유·택시·공개방 초대·알림은 아직 구현되지 않았다.
 
 모든 Friend 런타임 API(Foundation·관계 Core)는 인증된 프로필 완료 ACTIVE 회원만 호출할 수 있다. 완료 기준은 예약어가 아닌 비어 있지 않은 닉네임, 학번, 학과이며 프로필 사진은 선택이다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`, 프로필 미완료 회원은 `409 MEMBER_PROFILE_INCOMPLETE`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
 
@@ -7475,7 +7475,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 #### `GET /v1/friends` / `GET /v1/friends/{friendPublicId}`
 
-목록과 상세는 다음 공개 필드만 반환한다. 아직 시간표·Minecraft 필드는 포함하지 않는다.
+목록과 상세는 다음 공개 필드와 Minecraft 요약 필드를 반환한다. 시간표 공개 범위는 아직 포함하지 않는다.
 
 ```json
 {
@@ -7485,12 +7485,40 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
     "nickname": "스쿠리",
     "department": "컴퓨터공학과",
     "photoUrl": null,
-    "favorite": true
+    "favorite": true,
+    "primaryMinecraftGameName": "skuriPlayer",
+    "minecraftAccountCount": 3
   }
 }
 ```
 
 목록은 즐겨찾기 내림차순, 닉네임 가나다순, 내부 member ID 오름차순으로 안정 정렬한다. 상세·목록은 상호 friendship이 있어야 하며, 차단 대상은 일반 대상 없음으로 숨긴다.
+
+`primaryMinecraftGameName`은 대표 SELF 계정의 게임명이며 없으면 null이다. `minecraftAccountCount`는 등록된 SELF·FRIEND 계정 전체 수다. 친구 요청 수락·역방향 자동 수락의 `friend` 요약도 같은 두 필드를 포함한다.
+
+#### `GET /v1/friends/{friendPublicId}/minecraft-accounts`
+
+상호 친구이고 차단 관계가 아닐 때만 친구의 계정을 SELF 부모와 FRIEND 자식으로 중첩해 반환한다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "selfAccounts": [{
+      "gameName": "skuriPlayer",
+      "edition": "JAVA",
+      "avatarUuid": "8667ba71b85a4004af54457a9734eed7",
+      "friendAccounts": [{
+        "gameName": "skuriBedrock",
+        "edition": "BEDROCK",
+        "avatarUuid": "b876ec32e396476ba1158438d83c67d4"
+      }]
+    }]
+  }
+}
+```
+
+응답에는 내부 회원·계정 식별자, 부모 계정 ID, normalized key, linkedAt, lastSeenAt, 온라인 상태를 포함하지 않는다.
 
 #### `PATCH /v1/friends/{friendPublicId}/favorite`
 
@@ -7612,6 +7640,7 @@ cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형�
 ---
 
 > 변경 이력
+> - 2026-08-21: Friend Minecraft projection 반영 — 친구 목록·상세 Minecraft 요약과 SELF·FRIEND 계층 조회 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-21: Friend Core 출시 준비 계약 반영 — 프로필 완료 회원만 FriendProfile·코드 발급, 검색 기본 공개·1자 검색, `relationshipState` enum, ACTIVE 닉네임 중복·예약어 오류를 동기화
 > - 2026-08-18: Friend 관계 Core 구현 반영 — 요청·friendship·즐겨찾기·친구 끊기·차단·검색·PENDING cursor 목록 및 차단 마스킹 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-18: Friend Foundation 구현 반영 — 친구 공개 프로필·영구 코드 registry, 코드 조회/재발급/preview, 닉네임 검색 공개 설정과 429 `Retry-After` 계약을 `/v3/api-docs` 기준으로 추가

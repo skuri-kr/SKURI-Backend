@@ -22,6 +22,7 @@ import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.minecraft.service.FriendMinecraftProjectionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -58,6 +59,7 @@ public class FriendRelationshipQueryService {
     private final MemberBlockRepository memberBlockRepository;
     private final MemberRepository memberRepository;
     private final FriendRequestExpiryService friendRequestExpiryService;
+    private final FriendMinecraftProjectionService friendMinecraftProjectionService;
 
     @Transactional
     public List<FriendSummaryResponse> getFriends(String ownerMemberId) {
@@ -67,6 +69,8 @@ public class FriendRelationshipQueryService {
                 .map(friendship -> friendship.otherMemberId(ownerMemberId))
                 .collect(Collectors.toSet());
         Map<String, PublicMember> members = getPublicMembers(friendMemberIds);
+        Map<String, FriendMinecraftProjectionService.FriendMinecraftSummary> minecraftSummaries =
+                friendMinecraftProjectionService.summarizeByOwnerMemberIds(friendMemberIds);
         Set<String> favorites = friendPreferenceRepository
                 .findAllByOwnerMemberIdAndFriendMemberIdIn(ownerMemberId, friendMemberIds)
                 .stream()
@@ -89,7 +93,10 @@ public class FriendRelationshipQueryService {
                 .sorted(Comparator.<PublicMember, Boolean>comparing(member -> favorites.contains(member.memberId())).reversed()
                         .thenComparing(PublicMember::nickname, koreanCollator)
                         .thenComparing(PublicMember::memberId))
-                .map(member -> member.toSummary(favorites.contains(member.memberId())))
+                .map(member -> member.toSummary(
+                        favorites.contains(member.memberId()),
+                        minecraftSummaries.get(member.memberId())
+                ))
                 .toList();
     }
 
@@ -110,7 +117,27 @@ public class FriendRelationshipQueryService {
         return getFriendSummary(ownerMemberId, friend);
     }
 
+    @Transactional
+    public String requireFriendMemberId(String ownerMemberId, String friendPublicId) {
+        provisioningService.ensureForActiveMember(ownerMemberId);
+        PublicMember friend = resolvePublicMember(friendPublicId);
+        requireFriendship(ownerMemberId, friend);
+        return friend.memberId();
+    }
+
     private FriendSummaryResponse getFriendSummary(String ownerMemberId, PublicMember friend) {
+        requireFriendship(ownerMemberId, friend);
+        boolean favorite = friendPreferenceRepository
+                .findByOwnerMemberIdAndFriendMemberId(ownerMemberId, friend.memberId())
+                .map(FriendPreference::isFavorite)
+                .orElse(false);
+        FriendMinecraftProjectionService.FriendMinecraftSummary minecraftSummary = friendMinecraftProjectionService
+                .summarizeByOwnerMemberIds(Set.of(friend.memberId()))
+                .get(friend.memberId());
+        return friend.toSummary(favorite, minecraftSummary);
+    }
+
+    private void requireFriendship(String ownerMemberId, PublicMember friend) {
         if (isBlockedPair(ownerMemberId, friend.memberId())) {
             throw new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND);
         }
@@ -118,11 +145,6 @@ public class FriendRelationshipQueryService {
         if (friendshipRepository.findByMemberPair(pair.lowMemberId(), pair.highMemberId()).isEmpty()) {
             throw new BusinessException(ErrorCode.FRIENDSHIP_NOT_FOUND);
         }
-        boolean favorite = friendPreferenceRepository
-                .findByOwnerMemberIdAndFriendMemberId(ownerMemberId, friend.memberId())
-                .map(FriendPreference::isFavorite)
-                .orElse(false);
-        return friend.toSummary(favorite);
     }
 
     public FriendSearchPageResponse search(String requesterMemberId, String query, String cursor, Integer size) {
@@ -471,8 +493,19 @@ public class FriendRelationshipQueryService {
     }
 
     private record PublicMember(String memberId, String publicId, String nickname, String department, String photoUrl) {
-        private FriendSummaryResponse toSummary(boolean favorite) {
-            return new FriendSummaryResponse(publicId, nickname, department, photoUrl, favorite);
+        private FriendSummaryResponse toSummary(
+                boolean favorite,
+                FriendMinecraftProjectionService.FriendMinecraftSummary minecraftSummary
+        ) {
+            return new FriendSummaryResponse(
+                    publicId,
+                    nickname,
+                    department,
+                    photoUrl,
+                    favorite,
+                    minecraftSummary == null ? null : minecraftSummary.primaryMinecraftGameName(),
+                    minecraftSummary == null ? 0 : minecraftSummary.minecraftAccountCount()
+            );
         }
     }
 

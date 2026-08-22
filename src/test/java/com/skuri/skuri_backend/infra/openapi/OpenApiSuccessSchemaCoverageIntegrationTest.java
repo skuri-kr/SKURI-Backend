@@ -144,6 +144,12 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
                 .path("examples");
         assertTrue(requestMutationExamples.has("PENDING"));
         assertTrue(requestMutationExamples.has("ACCEPTED"));
+        JsonNode acceptedFriend = requestMutationExamples.path("ACCEPTED")
+                .path("value")
+                .path("data")
+                .path("friend");
+        assertTrue(acceptedFriend.has("primaryMinecraftGameName"));
+        assertTrue(acceptedFriend.has("minecraftAccountCount"));
 
         JsonNode accept404Examples = paths.path("/v1/friend-requests/{requestId}/accept")
                 .path("post")

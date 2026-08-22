@@ -10,9 +10,11 @@ import com.skuri.skuri_backend.domain.friend.dto.response.FriendRequestMutationR
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRequestPageResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendSearchPageResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendSummaryResponse;
+import com.skuri.skuri_backend.domain.friend.service.FriendMinecraftAccountQueryService;
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService;
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService.FriendRequestDirection;
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipService;
+import com.skuri.skuri_backend.domain.minecraft.dto.response.FriendMinecraftAccountsResponse;
 import com.skuri.skuri_backend.infra.auth.firebase.AuthenticatedMember;
 import com.skuri.skuri_backend.infra.openapi.OpenApiCommonExamples;
 import com.skuri.skuri_backend.infra.openapi.OpenApiConfig;
@@ -57,6 +59,7 @@ public class FriendRelationshipController {
 
     private final FriendRelationshipService friendRelationshipService;
     private final FriendRelationshipQueryService friendRelationshipQueryService;
+    private final FriendMinecraftAccountQueryService friendMinecraftAccountQueryService;
 
     @GetMapping("/v1/friends")
     @Operation(summary = "내 친구 목록 조회", description = "즐겨찾기 우선, 닉네임 가나다순으로 현재 친구를 조회합니다.")
@@ -98,6 +101,31 @@ public class FriendRelationshipController {
             @PathVariable String friendPublicId
     ) {
         return ResponseEntity.ok(ApiResponse.success(friendRelationshipQueryService.getFriend(memberId(authenticatedMember), friendPublicId)));
+    }
+
+    @GetMapping("/v1/friends/{friendPublicId}/minecraft-accounts")
+    @Operation(summary = "친구 마인크래프트 계정 조회", description = "상호 친구의 SELF 부모 계정과 연결된 FRIEND 자식 계정을 안전한 공개 필드로 반환합니다.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiFriendSchemas.FriendMinecraftAccountsApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.SUCCESS_FRIEND_MINECRAFT_ACCOUNTS))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "회원가입 프로필 미완료",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_PROFILE_INCOMPLETE))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "가입한 활성 회원 없음, 대상 없음 또는 친구 관계가 아님",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND),
+                            @ExampleObject(name = "FRIEND_TARGET_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIEND_TARGET_NOT_FOUND),
+                            @ExampleObject(name = "FRIENDSHIP_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIENDSHIP_NOT_FOUND)
+                    })),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
+    })
+    public ResponseEntity<ApiResponse<FriendMinecraftAccountsResponse>> getFriendMinecraftAccounts(
+            @Parameter(hidden = true) @AuthenticationPrincipal AuthenticatedMember authenticatedMember,
+            @PathVariable String friendPublicId
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                friendMinecraftAccountQueryService.getFriendAccounts(memberId(authenticatedMember), friendPublicId)
+        ));
     }
 
     @DeleteMapping("/v1/friends/{friendPublicId}")

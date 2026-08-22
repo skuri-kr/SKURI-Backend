@@ -9,6 +9,7 @@ import com.skuri.skuri_backend.domain.friend.dto.response.FriendRequestPageRespo
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRequestMutationResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendInboxCountsResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendBlockResponse;
+import com.skuri.skuri_backend.domain.minecraft.dto.response.FriendMinecraftAccountsResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
@@ -62,6 +63,16 @@ public final class OpenApiFriendSchemas {
     public record FriendSummaryListApiResponse(
             boolean success,
             java.util.List<FriendSummaryResponse> data,
+            String message,
+            String errorCode,
+            LocalDateTime timestamp
+    ) {
+    }
+
+    @Schema(name = "FriendMinecraftAccountsApiResponse", description = "공통 API 응답 포맷")
+    public record FriendMinecraftAccountsApiResponse(
+            boolean success,
+            FriendMinecraftAccountsResponse data,
             String message,
             String errorCode,
             LocalDateTime timestamp

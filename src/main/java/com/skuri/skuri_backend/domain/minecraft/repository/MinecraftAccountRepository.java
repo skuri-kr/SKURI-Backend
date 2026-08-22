@@ -5,11 +5,14 @@ import com.skuri.skuri_backend.domain.minecraft.entity.MinecraftAccountRole;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 
 public interface MinecraftAccountRepository extends JpaRepository<MinecraftAccount, String> {
 
     List<MinecraftAccount> findByOwnerMemberIdOrderByCreatedAtAsc(String ownerMemberId);
+
+    List<MinecraftAccount> findByOwnerMemberIdInOrderByCreatedAtAsc(Collection<String> ownerMemberIds);
 
     List<MinecraftAccount> findAllByOrderByCreatedAtAsc();
 

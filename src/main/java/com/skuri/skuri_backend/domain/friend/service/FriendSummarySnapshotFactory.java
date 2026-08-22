@@ -8,8 +8,11 @@ import com.skuri.skuri_backend.domain.friend.repository.FriendPreferenceReposito
 import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.minecraft.service.FriendMinecraftProjectionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
@@ -18,6 +21,7 @@ public class FriendSummarySnapshotFactory {
     private final FriendProfileRepository friendProfileRepository;
     private final FriendPreferenceRepository friendPreferenceRepository;
     private final MemberRepository memberRepository;
+    private final FriendMinecraftProjectionService friendMinecraftProjectionService;
 
     public FriendSummaryResponse create(String ownerMemberId, String friendMemberId) {
         Member friend = memberRepository.findActiveById(friendMemberId)
@@ -29,12 +33,17 @@ public class FriendSummarySnapshotFactory {
                 .findByOwnerMemberIdAndFriendMemberId(ownerMemberId, friendMemberId)
                 .map(FriendPreference::isFavorite)
                 .orElse(false);
+        FriendMinecraftProjectionService.FriendMinecraftSummary minecraftSummary = friendMinecraftProjectionService
+                .summarizeByOwnerMemberIds(Set.of(friendMemberId))
+                .get(friendMemberId);
         return new FriendSummaryResponse(
                 friendPublicId,
                 friend.getNickname(),
                 friend.getDepartment(),
                 friend.getPhotoUrl(),
-                favorite
+                favorite,
+                minecraftSummary == null ? null : minecraftSummary.primaryMinecraftGameName(),
+                minecraftSummary == null ? 0 : minecraftSummary.minecraftAccountCount()
         );
     }
 }
