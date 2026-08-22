@@ -15,5 +15,10 @@ public interface TimetableShareOverrideRepository extends JpaRepository<Timetabl
             Collection<String> friendMemberIds
     );
 
+    List<TimetableShareOverride> findAllByFriendMemberIdAndOwnerMemberIdIn(
+            String friendMemberId,
+            Collection<String> ownerMemberIds
+    );
+
     void deleteByOwnerMemberIdAndFriendMemberId(String ownerMemberId, String friendMemberId);
 }

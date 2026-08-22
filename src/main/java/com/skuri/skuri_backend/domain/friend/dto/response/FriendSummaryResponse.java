@@ -19,7 +19,7 @@ public record FriendSummaryResponse(
         String primaryMinecraftGameName,
         @Schema(description = "등록된 SELF·FRIEND 마인크래프트 계정 수", nullable = true, example = "3")
         Integer minecraftAccountCount,
-        @Schema(description = "내 시간표를 이 친구에게 공개하는 실제 범위", example = "PRIVATE")
+        @Schema(description = "이 친구가 내게 공개하는 실제 시간표 범위", example = "PRIVATE")
         TimetableShareScope effectiveTimetableScope
 ) {
 

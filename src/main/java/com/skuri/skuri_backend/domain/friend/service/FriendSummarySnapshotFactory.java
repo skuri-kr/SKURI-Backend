@@ -46,7 +46,7 @@ public class FriendSummarySnapshotFactory {
                 favorite,
                 minecraftSummary == null ? null : minecraftSummary.primaryMinecraftGameName(),
                 minecraftSummary == null ? 0 : minecraftSummary.minecraftAccountCount(),
-                timetableSharingScopeResolver.resolveScope(ownerMemberId, friendMemberId)
+                timetableSharingScopeResolver.resolveScope(friendMemberId, ownerMemberId)
         );
     }
 }

@@ -75,7 +75,7 @@ public class FriendRelationshipQueryService {
         Map<String, FriendMinecraftProjectionService.FriendMinecraftSummary> minecraftSummaries =
                 friendMinecraftProjectionService.summarizeByOwnerMemberIds(friendMemberIds);
         Map<String, TimetableShareScope> effectiveTimetableScopes = timetableSharingScopeResolver
-                .resolveScopes(ownerMemberId, friendMemberIds);
+                .resolveScopesForViewer(friendMemberIds, ownerMemberId);
         Set<String> favorites = friendPreferenceRepository
                 .findAllByOwnerMemberIdAndFriendMemberIdIn(ownerMemberId, friendMemberIds)
                 .stream()
@@ -143,7 +143,7 @@ public class FriendRelationshipQueryService {
         return friend.toSummary(
                 favorite,
                 minecraftSummary,
-                timetableSharingScopeResolver.resolveScope(ownerMemberId, friend.memberId())
+                timetableSharingScopeResolver.resolveScope(friend.memberId(), ownerMemberId)
         );
     }
 

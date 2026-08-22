@@ -592,7 +592,7 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 - photoUrl
 - favorite
 
-친구 목록·상세는 위 다섯 필드와 nullable `primaryMinecraftGameName`, `minecraftAccountCount`, `effectiveTimetableScope`를 반환한다. 대표 SELF 계정이 없으면 게임명은 null이고, 계정 수는 등록된 SELF·FRIEND 전체 수다. `effectiveTimetableScope`는 **내 시간표를 해당 친구에게 공개하는 실제 범위**이며, 친구별 예외가 있으면 예외가 기본값보다 우선한다.
+친구 목록·상세는 위 다섯 필드와 nullable `primaryMinecraftGameName`, `minecraftAccountCount`, `effectiveTimetableScope`를 반환한다. 대표 SELF 계정이 없으면 게임명은 null이고, 계정 수는 등록된 SELF·FRIEND 전체 수다. `effectiveTimetableScope`는 **해당 친구가 나에게 공개하는 실제 범위**이며, 친구별 예외가 있으면 예외가 기본값보다 우선한다.
 
 관계 Core의 HTTP 응답은 다음처럼 고정한다.
 

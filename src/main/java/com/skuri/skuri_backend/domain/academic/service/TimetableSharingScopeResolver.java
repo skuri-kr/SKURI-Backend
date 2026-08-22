@@ -2,6 +2,7 @@ package com.skuri.skuri_backend.domain.academic.service;
 
 import com.skuri.skuri_backend.domain.academic.entity.TimetableShareOverride;
 import com.skuri.skuri_backend.domain.academic.entity.TimetableShareScope;
+import com.skuri.skuri_backend.domain.academic.entity.TimetableSharingSetting;
 import com.skuri.skuri_backend.domain.academic.repository.TimetableShareOverrideRepository;
 import com.skuri.skuri_backend.domain.academic.repository.TimetableSharingSettingRepository;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -47,6 +47,32 @@ public class TimetableSharingScopeResolver {
                 .collect(Collectors.toMap(
                         Function.identity(),
                         friendMemberId -> overrideScopes.getOrDefault(friendMemberId, defaultScope)
+                ));
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, TimetableShareScope> resolveScopesForViewer(
+            Collection<String> ownerMemberIds,
+            String viewerMemberId
+    ) {
+        if (ownerMemberIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, TimetableShareScope> defaultScopes = timetableSharingSettingRepository
+                .findAllById(ownerMemberIds)
+                .stream()
+                .collect(Collectors.toMap(TimetableSharingSetting::getOwnerMemberId, TimetableSharingSetting::getDefaultScope));
+        Map<String, TimetableShareScope> overrideScopes = timetableShareOverrideRepository
+                .findAllByFriendMemberIdAndOwnerMemberIdIn(viewerMemberId, ownerMemberIds)
+                .stream()
+                .collect(Collectors.toMap(TimetableShareOverride::getOwnerMemberId, TimetableShareOverride::getScope));
+        return ownerMemberIds.stream()
+                .collect(Collectors.toMap(
+                        Function.identity(),
+                        ownerMemberId -> overrideScopes.getOrDefault(
+                                ownerMemberId,
+                                defaultScopes.getOrDefault(ownerMemberId, TimetableShareScope.PRIVATE)
+                        )
                 ));
     }
 

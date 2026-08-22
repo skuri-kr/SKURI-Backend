@@ -7475,7 +7475,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 #### `GET /v1/friends` / `GET /v1/friends/{friendPublicId}`
 
-목록과 상세는 다음 공개 필드, Minecraft 요약 필드, 그리고 **내 시간표를 이 친구에게 공개하는 실제 범위**를 반환한다. `effectiveTimetableScope`는 친구별 예외가 있으면 그 예외를, 없으면 내 기본 공개 범위를 반환한다.
+목록과 상세는 다음 공개 필드, Minecraft 요약 필드, 그리고 **이 친구가 나에게 공개하는 실제 시간표 범위**를 반환한다. `effectiveTimetableScope`는 친구별 예외가 있으면 그 예외를, 없으면 친구의 기본 공개 범위를 반환한다.
 
 ```json
 {
@@ -7497,7 +7497,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 `primaryMinecraftGameName`은 대표 SELF 계정의 게임명이며 없으면 null이다. `minecraftAccountCount`는 등록된 SELF·FRIEND 계정 전체 수다. 친구 요청 수락·역방향 자동 수락의 `friend` 요약도 같은 두 필드를 포함한다.
 
-`effectiveTimetableScope`는 현재 로그인한 회원이 해당 친구에게 적용하는 값이므로, 상대방이 나에게 공개하는 범위가 아니다. 값은 `PRIVATE`, `BUSY_ONLY`, `DETAILS` 중 하나다.
+`effectiveTimetableScope`는 해당 친구가 현재 로그인한 회원에게 적용하는 값이다. 내 시간표를 이 친구에게 공개하는 범위는 시간표 공유 설정 API의 기본값·예외 목록으로 관리한다. 값은 `PRIVATE`, `BUSY_ONLY`, `DETAILS` 중 하나다.
 
 #### `GET /v1/friends/{friendPublicId}/minecraft-accounts`
 
@@ -7584,7 +7584,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 - `BUSY_ONLY`: `hasTimetable`과 월~금 교시 단위 점유 시간 `slots`만 제공한다. 강의 ID·이름·교수·강의실 등 상세는 제공하지 않는다.
 - `DETAILS`: `slots`와 강의 상세 `courses`를 제공한다. 공식 강의의 `courseId`만 제공하며, 직접 입력 강의는 `courseId: null`이다. 온라인 또는 시간 미정 강의는 `courses`에는 포함될 수 있지만 `slots`에는 포함되지 않는다.
 
-`slots`의 `dayOfWeek`는 월=1, `startPeriod`/`endPeriod`는 1~15 교시다. 친구 목록 응답의 `effectiveTimetableScope`는 내 설정 관점이고, 이 조회 응답의 `effectiveScope`는 친구가 나에게 적용한 설정 관점이다.
+`slots`의 `dayOfWeek`는 월=1, `startPeriod`/`endPeriod`는 1~15 교시다. 친구 목록 응답의 `effectiveTimetableScope`와 이 조회 응답의 `effectiveScope`는 모두 친구가 나에게 적용한 설정 관점이다.
 
 #### `GET /v1/friends/search`
 
