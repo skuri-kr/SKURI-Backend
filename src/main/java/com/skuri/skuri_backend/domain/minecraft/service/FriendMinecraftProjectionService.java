@@ -48,6 +48,7 @@ public class FriendMinecraftProjectionService {
                 .findByOwnerMemberIdOrderByCreatedAtAsc(ownerMemberId);
         Map<String, List<MinecraftAccount>> friendAccountsByParentId = accounts.stream()
                 .filter(account -> account.getAccountRole() == MinecraftAccountRole.FRIEND)
+                .filter(account -> account.getParentAccountId() != null)
                 .collect(Collectors.groupingBy(MinecraftAccount::getParentAccountId));
 
         List<FriendMinecraftSelfAccountResponse> selfAccounts = accounts.stream()
