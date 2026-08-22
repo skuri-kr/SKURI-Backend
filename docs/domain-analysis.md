@@ -54,7 +54,7 @@
 
 ### 2.1 승인된 목표 도메인 (9개 + 인프라)
 
-> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정)과 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), Minecraft 안전 projection은 현재 런타임에 구현되어 있다. 시간표 공유·택시파티·공개방 초대·알림의 도메인 협력은 후속 구현 계획이다.
+> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정), 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), Minecraft 안전 projection과 시간표 공유 Backend·Frontend 구현은 현재 PR 검토 대기 상태다. 택시파티·공개방 초대·알림의 도메인 협력은 후속 구현 계획이다.
 
 | # | 도메인 | 유형 | 핵심 책임 | 주요 엔티티 |
 |---|--------|------|----------|------------|
@@ -123,7 +123,7 @@ Hooks:
   - 인증 필터에서 `email` 도메인(`@sungkyul.ac.kr`)을 강제 검증
   - 보호 API는 활성 회원(`members.status = ACTIVE`)만 접근 가능하며, 탈퇴 회원은 `403 MEMBER_WITHDRAWN`으로 차단
   - 회원 생성 시 `nickname`은 기본값 `스쿠리 유저`로 저장
-  - 기본 닉네임은 가입 진행 중 placeholder이며, 예약어가 아닌 닉네임·학번·학과가 Java `String.isBlank()` 기준으로 모두 채워져야 프로필 완료로 본다. 프로필 사진은 완료 조건이 아니다.
+  - 기본 닉네임은 가입 진행 중 placeholder이며, 닉네임·학번·학과가 Java `String.isBlank()` 기준으로 모두 채워져야 프로필 완료로 본다. 프로필 사진은 완료 조건이 아니다. 예약어 검사는 신규 가입·프로필 편집의 닉네임 입력 검증에만 적용하고, 기존 회원의 완료 판정에는 사용하지 않는다.
   - 신규·변경 닉네임은 trim·Unicode NFC 정규화 후 ACTIVE 회원 사이에서만 고유해야 하며, 운영 MySQL `utf8mb4_unicode_ci` 비교에 따라 대소문자·악센트 차이도 중복으로 취급한다. `스쿠리 유저`·`운영자` 포함 닉네임은 중간 공백 우회까지 차단한다. 탈퇴 시 고유 키를 해제해 재사용을 허용하고 기존 중복 닉네임은 임의 변경하지 않는다.
   - 회원 생성 시 `realname`은 provider 프로필 이름(`linked_accounts.provider_display_name`)으로 초기화
   - 회원 생성 시 `members.photo_url`은 `null`, 소셜 프로필 이미지(`picture`)는 `linked_accounts.photo_url`에만 저장
@@ -808,7 +808,7 @@ Hooks:
 
 ### 3.9 Friend (친구, Phase 14 관계 Core 구현)
 
-> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection 구현 완료. 시간표 공유·초대·알림은 후속 구현 예정
+> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유 Backend·Frontend 구현 완료(각 PR 검토 대기). 초대·알림은 후속 구현 예정
 > 상세 기준: `docs/features/friends.md`
 
 ```

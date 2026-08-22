@@ -37,8 +37,6 @@ WITH incomplete AS (
       AND (
         m.nickname IS NULL
         OR REGEXP_REPLACE(m.nickname, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
-        OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%스쿠리유저%'
-        OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%운영자%'
         OR m.student_id IS NULL
         OR REGEXP_REPLACE(m.student_id, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
         OR m.department IS NULL
@@ -62,8 +60,6 @@ WITH incomplete AS (
       AND (
         m.nickname IS NULL
         OR REGEXP_REPLACE(m.nickname, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
-        OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%스쿠리유저%'
-        OR REGEXP_REPLACE(LOWER(TRIM(m.nickname)), '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{00A0}\\x{1680}\\x{2000}-\\x{200A}\\x{2028}\\x{2029}\\x{202F}\\x{205F}\\x{3000}]', '') LIKE '%운영자%'
         OR m.student_id IS NULL
         OR REGEXP_REPLACE(m.student_id, '[\\x{0009}-\\x{000D}\\x{001C}-\\x{001F}\\x{0020}\\x{1680}\\x{2000}-\\x{2006}\\x{2008}-\\x{200A}\\x{2028}\\x{2029}\\x{205F}\\x{3000}]', '') = ''
         OR m.department IS NULL

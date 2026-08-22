@@ -230,7 +230,7 @@ Spring 서버 처리:
 > 정책: 회원 생성 시 `members.photoUrl`은 `null`로 저장한다.  
 > 소셜 계정 프로필 이미지(`picture`)는 `linked_accounts.photo_url`에만 저장한다.
 > 회원 생성 시 `members.realname`은 provider 프로필 이름(`linked_accounts.provider_display_name`)으로 초기화한다.
-> 이 시점의 `스쿠리 유저`는 가입 진행 중 placeholder이며, `nickname`·`studentId`·`department`가 유효하게 채워지기 전에는 FriendProfile과 친구 코드를 발급하지 않는다.
+> 이 시점의 `스쿠리 유저`는 가입 진행 중 placeholder이며, `nickname`·`studentId`·`department`가 `String.isBlank()` 기준으로 모두 채워지기 전에는 FriendProfile과 친구 코드를 발급하지 않는다.
 >
 > 용어 구분:
 > - API 요청/응답의 `nickname` = `members.nickname` (앱 내 닉네임)
@@ -7407,9 +7407,9 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 ## 14. Friend API
 
-> Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록) 및 친구 Minecraft projection은 현재 운영 API다. 시간표 공유·택시·공개방 초대·알림은 아직 구현되지 않았다.
+> Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), 친구 Minecraft projection 및 시간표 공유는 현재 운영 API다. 택시·공개방 초대·알림은 아직 구현되지 않았다.
 
-모든 Friend 런타임 API(Foundation·관계 Core)는 인증된 프로필 완료 ACTIVE 회원만 호출할 수 있다. 완료 기준은 예약어가 아닌 비어 있지 않은 닉네임, 학번, 학과이며 프로필 사진은 선택이다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`, 프로필 미완료 회원은 `409 MEMBER_PROFILE_INCOMPLETE`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
+모든 Friend 런타임 API(Foundation·관계 Core)는 인증된 프로필 완료 ACTIVE 회원만 호출할 수 있다. 완료 기준은 비어 있지 않은 닉네임, 학번, 학과이며 프로필 사진은 선택이다. 예약어 검사는 신규 가입·프로필 편집에서만 적용하므로, 기존 예약어 닉네임 회원은 다른 완료 조건을 만족하면 Friend 기능을 사용할 수 있다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`, 프로필 미완료 회원은 `409 MEMBER_PROFILE_INCOMPLETE`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
 
 ### 14.1 내 친구 코드
 
@@ -7475,7 +7475,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 #### `GET /v1/friends` / `GET /v1/friends/{friendPublicId}`
 
-목록과 상세는 다음 공개 필드와 Minecraft 요약 필드를 반환한다. 시간표 공개 범위는 아직 포함하지 않는다.
+목록과 상세는 다음 공개 필드, Minecraft 요약 필드, 그리고 **이 친구가 나에게 공개하는 실제 시간표 범위**를 반환한다. `effectiveTimetableScope`는 친구별 예외가 있으면 그 예외를, 없으면 친구의 기본 공개 범위를 반환한다.
 
 ```json
 {
@@ -7487,7 +7487,8 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
     "photoUrl": null,
     "favorite": true,
     "primaryMinecraftGameName": "skuriPlayer",
-    "minecraftAccountCount": 3
+    "minecraftAccountCount": 3,
+    "effectiveTimetableScope": "PRIVATE"
   }
 }
 ```
@@ -7495,6 +7496,8 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 목록은 즐겨찾기 내림차순, 닉네임 가나다순, 내부 member ID 오름차순으로 안정 정렬한다. 상세·목록은 상호 friendship이 있어야 하며, 차단 대상은 일반 대상 없음으로 숨긴다.
 
 `primaryMinecraftGameName`은 대표 SELF 계정의 게임명이며 없으면 null이다. `minecraftAccountCount`는 등록된 SELF·FRIEND 계정 전체 수다. 친구 요청 수락·역방향 자동 수락의 `friend` 요약도 같은 두 필드를 포함한다.
+
+`effectiveTimetableScope`는 해당 친구가 현재 로그인한 회원에게 적용하는 값이다. 내 시간표를 이 친구에게 공개하는 범위는 시간표 공유 설정 API의 기본값·예외 목록으로 관리한다. 값은 `PRIVATE`, `BUSY_ONLY`, `DETAILS` 중 하나다.
 
 #### `GET /v1/friends/{friendPublicId}/minecraft-accounts`
 
@@ -7530,7 +7533,59 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 #### `DELETE /v1/friends/{friendPublicId}`
 
-한쪽이 호출하면 friendship과 양방향 즐겨찾기를 제거한다. 성공은 `204 No Content`이며 친구 끊기 알림은 없다.
+한쪽이 호출하면 friendship, 양방향 즐겨찾기, 양방향 시간표 공유 예외를 제거한다. 성공은 `204 No Content`이며 친구 끊기 알림은 없다.
+
+### 14.5 시간표 공유
+
+시간표 공유 API는 상호 친구이고 양방향 차단 관계가 아닌 프로필 완료 ACTIVE 회원만 사용할 수 있다. 공개 범위는 `PRIVATE`(기본값), `BUSY_ONLY`, `DETAILS`다. 친구 관계가 끝나거나 차단되면 양방향 친구별 예외는 즉시 삭제된다.
+호출자 회원이 없으면 모든 시간표 공유 endpoint는 `404 MEMBER_NOT_FOUND`를 반환한다.
+
+#### `GET /v1/timetables/my/sharing-settings`
+
+내 기본 공개 범위와 현재 친구에게 적용되는 친구별 예외를 조회한다. 이미 친구가 아닌 대상의 오래된 예외는 응답에 포함하지 않는다.
+
+```json
+{
+  "success": true,
+  "data": {
+    "defaultScope": "BUSY_ONLY",
+    "overrides": [{
+      "friendPublicId": "2fdbf426-a778-4b6a-8261-9c0549a8b2b4",
+      "scope": "DETAILS"
+    }]
+  }
+}
+```
+
+#### `PATCH /v1/timetables/my/sharing-settings`
+
+```json
+{ "defaultScope": "BUSY_ONLY" }
+```
+
+기본값을 변경하고 최신 설정 전체를 `200 OK`로 반환한다. 친구별 예외는 유지되며 기본값보다 우선한다. 변경 트랜잭션은 먼저 커밋한 뒤 친구 프로필 lazy provisioning을 포함할 수 있는 최신 설정 조회를 수행한다.
+
+#### `PUT /v1/timetables/my/sharing-overrides/{friendPublicId}`
+
+```json
+{ "scope": "DETAILS" }
+```
+
+현재 친구에게만 예외를 upsert한다. 성공 시 `friendPublicId`, `scope`를 `200 OK`로 반환하며, 호출자 회원이 없으면 `404 MEMBER_NOT_FOUND`, 대상이 없거나 더 이상 친구가 아니면 각각 `404 FRIEND_TARGET_NOT_FOUND` 또는 `404 FRIENDSHIP_NOT_FOUND`다.
+
+#### `DELETE /v1/timetables/my/sharing-overrides/{friendPublicId}`
+
+현재 친구의 예외를 삭제해 기본 범위로 되돌린다. 성공은 `204 No Content`다.
+
+#### `GET /v1/timetables/friends/{friendPublicId}?semester=2026-1`
+
+`semester`는 필수 `YYYY-N` 형식이다. 응답은 항상 `semester`, `effectiveScope`, `hasTimetable`, `courses`, `slots`를 포함한다.
+
+- `PRIVATE`: `hasTimetable`은 항상 false이고 `courses`와 `slots`는 빈 배열이다. 상대의 시간표 존재 여부도 노출하지 않는다.
+- `BUSY_ONLY`: `hasTimetable`과 월~토 교시 단위 점유 시간 `slots`만 제공한다. 강의 ID·이름·교수·강의실 등 상세는 제공하지 않는다.
+- `DETAILS`: `slots`와 강의 상세 `courses`를 제공한다. 공식 강의의 `courseId`만 제공하며, 직접 입력 강의는 `courseId: null`이다. 공식 강의의 `professor`는 정보가 없으면 null일 수 있고, 직접 입력 강의의 빈 교수명 표시는 `직접 입력`으로 보정한다. 온라인 또는 시간 미정 강의는 `courses`에는 포함될 수 있지만 `slots`에는 포함되지 않는다.
+
+`slots`의 `dayOfWeek`는 월=1·토=6, `startPeriod`/`endPeriod`는 1~15 교시다. 친구 목록 응답의 `effectiveTimetableScope`와 이 조회 응답의 `effectiveScope`는 모두 친구가 나에게 적용한 설정 관점이다.
 
 #### `GET /v1/friends/search`
 

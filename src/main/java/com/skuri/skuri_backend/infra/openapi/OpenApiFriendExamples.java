@@ -83,7 +83,8 @@ public final class OpenApiFriendExamples {
                 "photoUrl": null,
                 "favorite": true,
                 "primaryMinecraftGameName": "skuriPlayer",
-                "minecraftAccountCount": 3
+                "minecraftAccountCount": 3,
+                "effectiveTimetableScope": "PRIVATE"
               }]
             }
             """;
@@ -98,7 +99,8 @@ public final class OpenApiFriendExamples {
                 "photoUrl": null,
                 "favorite": true,
                 "primaryMinecraftGameName": "skuriPlayer",
-                "minecraftAccountCount": 3
+                "minecraftAccountCount": 3,
+                "effectiveTimetableScope": "PRIVATE"
               }
             }
             """;
@@ -144,7 +146,8 @@ public final class OpenApiFriendExamples {
                   "photoUrl": null,
                   "favorite": false,
                   "primaryMinecraftGameName": "skuriPlayer",
-                  "minecraftAccountCount": 3
+                  "minecraftAccountCount": 3,
+                  "effectiveTimetableScope": "PRIVATE"
                 }
               }
             }
