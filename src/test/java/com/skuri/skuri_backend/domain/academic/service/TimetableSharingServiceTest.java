@@ -1,6 +1,7 @@
 package com.skuri.skuri_backend.domain.academic.service;
 
 import com.skuri.skuri_backend.domain.academic.dto.response.FriendTimetableResponse;
+import com.skuri.skuri_backend.domain.academic.dto.request.UpdateTimetableSharingSettingsRequest;
 import com.skuri.skuri_backend.domain.academic.entity.Course;
 import com.skuri.skuri_backend.domain.academic.entity.TimetableShareScope;
 import com.skuri.skuri_backend.domain.academic.entity.UserTimetable;
@@ -20,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,6 +40,9 @@ class TimetableSharingServiceTest {
 
     @Mock
     private TimetableSharingScopeResolver timetableSharingScopeResolver;
+
+    @Mock
+    private TimetableSharingSettingsMutationService timetableSharingSettingsMutationService;
 
     @Mock
     private UserTimetableRepository userTimetableRepository;
@@ -140,5 +145,45 @@ class TimetableSharingServiceTest {
                 .extracting(error -> ((BusinessException) error).getErrorCode())
                 .isEqualTo(ErrorCode.VALIDATION_ERROR);
         verify(friendRelationshipQueryService, never()).requireFriendMemberId("viewer", "friend-public-id");
+    }
+
+    @Test
+    void 기본공개범위변경은_쓰기트랜잭션이끝난후설정을조회한다() {
+        UpdateTimetableSharingSettingsRequest request = new UpdateTimetableSharingSettingsRequest(
+                TimetableShareScope.BUSY_ONLY
+        );
+        when(timetableSharingScopeResolver.defaultScope("owner"))
+                .thenReturn(TimetableShareScope.BUSY_ONLY);
+        when(friendRelationshipQueryService.getFriends("owner")).thenReturn(List.of());
+        when(timetableShareOverrideRepository.findAllByOwnerMemberId("owner")).thenReturn(List.of());
+
+        var response = timetableSharingService.updateMySharingSettings("owner", request);
+
+        verify(timetableSharingSettingsMutationService).updateDefaultScope("owner", request);
+        assertThat(response.defaultScope()).isEqualTo(TimetableShareScope.BUSY_ONLY);
+    }
+
+    @Test
+    void DETAILS_공식강의에교수정보가없으면null을그대로반환한다() {
+        UserTimetable timetable = UserTimetable.create("friend", "2026-1");
+        Course course = Course.create(
+                2, "전공선택", "01255", "001", "민법총칙", 3,
+                null, "영401", null, false, "2026-1", "법학과"
+        );
+        timetable.addCourse(course);
+        when(friendRelationshipQueryService.requireFriendMemberId("viewer", "friend-public-id"))
+                .thenReturn("friend");
+        when(timetableSharingScopeResolver.resolveScope("friend", "viewer"))
+                .thenReturn(TimetableShareScope.DETAILS);
+        when(userTimetableRepository.findDetailByUserIdAndSemester("friend", "2026-1"))
+                .thenReturn(Optional.of(timetable));
+
+        FriendTimetableResponse response = timetableSharingService.getFriendTimetable(
+                "viewer", "friend-public-id", "2026-1"
+        );
+
+        assertThat(response.courses()).singleElement()
+                .extracting(courseResponse -> courseResponse.professor())
+                .isNull();
     }
 }

@@ -15,7 +15,7 @@ public record FriendTimetableCourseResponse(
         @Schema(description = "과목명", example = "자료구조")
         String name,
 
-        @Schema(description = "담당 교수", example = "홍길동")
+        @Schema(description = "담당 교수. 공식 강의의 정보가 없으면 null", nullable = true, example = "홍길동")
         String professor,
 
         @Schema(description = "강의실", nullable = true, example = "공학관 502")

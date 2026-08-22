@@ -18,7 +18,6 @@ import com.skuri.skuri_backend.domain.academic.entity.UserTimetable;
 import com.skuri.skuri_backend.domain.academic.entity.UserTimetableCourse;
 import com.skuri.skuri_backend.domain.academic.entity.UserTimetableManualCourse;
 import com.skuri.skuri_backend.domain.academic.repository.TimetableShareOverrideRepository;
-import com.skuri.skuri_backend.domain.academic.repository.TimetableSharingSettingRepository;
 import com.skuri.skuri_backend.domain.academic.repository.UserTimetableRepository;
 import com.skuri.skuri_backend.domain.friend.entity.Friendship;
 import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
@@ -44,9 +43,9 @@ public class TimetableSharingService {
     private static final String MANUAL_COURSE_CODE = "직접 입력";
     private static final String MANUAL_COURSE_PROFESSOR_FALLBACK = "직접 입력";
 
-    private final TimetableSharingSettingRepository timetableSharingSettingRepository;
     private final TimetableShareOverrideRepository timetableShareOverrideRepository;
     private final TimetableSharingScopeResolver timetableSharingScopeResolver;
+    private final TimetableSharingSettingsMutationService timetableSharingSettingsMutationService;
     private final UserTimetableRepository userTimetableRepository;
     private final FriendRelationshipQueryService friendRelationshipQueryService;
     private final FriendProfileRepository friendProfileRepository;
@@ -79,19 +78,11 @@ public class TimetableSharingService {
         return new TimetableSharingSettingsResponse(defaultScope, overrides);
     }
 
-    @Transactional
     public TimetableSharingSettingsResponse updateMySharingSettings(
             String ownerMemberId,
             UpdateTimetableSharingSettingsRequest request
     ) {
-        pairLockService.lockActiveMember(ownerMemberId);
-        timetableSharingSettingRepository.findById(ownerMemberId)
-                .ifPresentOrElse(
-                        setting -> setting.updateDefaultScope(request.defaultScope()),
-                        () -> timetableSharingSettingRepository.save(
-                                TimetableSharingSetting.create(ownerMemberId, request.defaultScope())
-                        )
-                );
+        timetableSharingSettingsMutationService.updateDefaultScope(ownerMemberId, request);
         return getMySharingSettings(ownerMemberId);
     }
 
@@ -196,7 +187,7 @@ public class TimetableSharingService {
                 course.getId(),
                 course.getCode(),
                 course.getName(),
-                displayProfessor(course.getProfessor()),
+                course.getProfessor(),
                 course.getLocation(),
                 course.getCredits(),
                 course.isOnline(),
