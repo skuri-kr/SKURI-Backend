@@ -29,8 +29,9 @@ class FriendMinecraftProjectionServiceTest {
         MinecraftAccount friendSecond = account("member-1", self.getId(), MinecraftAccountRole.FRIEND, "beta", "avatar-beta");
         MinecraftAccount friendFirst = account("member-1", self.getId(), MinecraftAccountRole.FRIEND, "Alpha", "avatar-alpha");
         MinecraftAccount orphanFriend = account("member-1", "missing-parent", MinecraftAccountRole.FRIEND, "orphan", "avatar-orphan");
+        MinecraftAccount nullParentFriend = account("member-1", null, MinecraftAccountRole.FRIEND, "unlinked", "avatar-unlinked");
         when(minecraftAccountRepository.findByOwnerMemberIdOrderByCreatedAtAsc("member-1"))
-                .thenReturn(List.of(self, friendSecond, friendFirst, orphanFriend));
+                .thenReturn(List.of(self, friendSecond, friendFirst, orphanFriend, nullParentFriend));
 
         FriendMinecraftAccountsResponse result = new FriendMinecraftProjectionService(minecraftAccountRepository)
                 .getAccounts("member-1");
