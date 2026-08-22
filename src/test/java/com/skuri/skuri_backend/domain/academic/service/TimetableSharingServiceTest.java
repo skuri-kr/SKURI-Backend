@@ -17,6 +17,7 @@ import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryServ
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -26,6 +27,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -159,7 +161,14 @@ class TimetableSharingServiceTest {
 
         var response = timetableSharingService.updateMySharingSettings("owner", request);
 
-        verify(timetableSharingSettingsMutationService).updateDefaultScope("owner", request);
+        InOrder inOrder = inOrder(
+                timetableSharingSettingsMutationService,
+                timetableSharingScopeResolver,
+                friendRelationshipQueryService
+        );
+        inOrder.verify(timetableSharingSettingsMutationService).updateDefaultScope("owner", request);
+        inOrder.verify(timetableSharingScopeResolver).defaultScope("owner");
+        inOrder.verify(friendRelationshipQueryService).getFriends("owner");
         assertThat(response.defaultScope()).isEqualTo(TimetableShareScope.BUSY_ONLY);
     }
 
