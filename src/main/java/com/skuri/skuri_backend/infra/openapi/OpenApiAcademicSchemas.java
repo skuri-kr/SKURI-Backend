@@ -7,7 +7,10 @@ import com.skuri.skuri_backend.domain.academic.dto.response.AdminBulkCoursesResp
 import com.skuri.skuri_backend.domain.academic.dto.response.CourseSummaryResponse;
 import com.skuri.skuri_backend.domain.academic.dto.response.CourseFilterOptionsResponse;
 import com.skuri.skuri_backend.domain.academic.dto.response.TimetableSemesterOptionResponse;
+import com.skuri.skuri_backend.domain.academic.dto.response.TimetableShareOverrideResponse;
+import com.skuri.skuri_backend.domain.academic.dto.response.TimetableSharingSettingsResponse;
 import com.skuri.skuri_backend.domain.academic.dto.response.UserTimetableResponse;
+import com.skuri.skuri_backend.domain.academic.dto.response.FriendTimetableResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
@@ -119,6 +122,36 @@ public final class OpenApiAcademicSchemas {
             @Schema(description = "에러 코드", nullable = true)
             String errorCode,
             @Schema(description = "에러 발생 시각", nullable = true)
+            LocalDateTime timestamp
+    ) {
+    }
+
+    @Schema(name = "AcademicTimetableSharingSettingsApiResponse", description = "공통 API 응답 포맷")
+    public record TimetableSharingSettingsApiResponse(
+            boolean success,
+            TimetableSharingSettingsResponse data,
+            String message,
+            String errorCode,
+            LocalDateTime timestamp
+    ) {
+    }
+
+    @Schema(name = "AcademicTimetableShareOverrideApiResponse", description = "공통 API 응답 포맷")
+    public record TimetableShareOverrideApiResponse(
+            boolean success,
+            TimetableShareOverrideResponse data,
+            String message,
+            String errorCode,
+            LocalDateTime timestamp
+    ) {
+    }
+
+    @Schema(name = "AcademicFriendTimetableApiResponse", description = "공통 API 응답 포맷")
+    public record FriendTimetableApiResponse(
+            boolean success,
+            FriendTimetableResponse data,
+            String message,
+            String errorCode,
             LocalDateTime timestamp
     ) {
     }

@@ -2,6 +2,7 @@ package com.skuri.skuri_backend.domain.friend.service;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.domain.academic.service.TimetableSharingScopeResolver;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendSummaryResponse;
 import com.skuri.skuri_backend.domain.friend.entity.FriendPreference;
 import com.skuri.skuri_backend.domain.friend.repository.FriendPreferenceRepository;
@@ -22,6 +23,7 @@ public class FriendSummarySnapshotFactory {
     private final FriendPreferenceRepository friendPreferenceRepository;
     private final MemberRepository memberRepository;
     private final FriendMinecraftProjectionService friendMinecraftProjectionService;
+    private final TimetableSharingScopeResolver timetableSharingScopeResolver;
 
     public FriendSummaryResponse create(String ownerMemberId, String friendMemberId) {
         Member friend = memberRepository.findActiveById(friendMemberId)
@@ -43,7 +45,8 @@ public class FriendSummarySnapshotFactory {
                 friend.getPhotoUrl(),
                 favorite,
                 minecraftSummary == null ? null : minecraftSummary.primaryMinecraftGameName(),
-                minecraftSummary == null ? 0 : minecraftSummary.minecraftAccountCount()
+                minecraftSummary == null ? 0 : minecraftSummary.minecraftAccountCount(),
+                timetableSharingScopeResolver.resolveScope(ownerMemberId, friendMemberId)
         );
     }
 }

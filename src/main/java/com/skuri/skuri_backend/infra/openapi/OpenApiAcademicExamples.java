@@ -180,6 +180,95 @@ public final class OpenApiAcademicExamples {
             }
             """;
 
+    public static final String REQUEST_UPDATE_TIMETABLE_SHARING_SETTINGS = """
+            {
+              "defaultScope": "BUSY_ONLY"
+            }
+            """;
+
+    public static final String REQUEST_UPDATE_TIMETABLE_SHARE_OVERRIDE = """
+            {
+              "scope": "DETAILS"
+            }
+            """;
+
+    public static final String SUCCESS_TIMETABLE_SHARING_SETTINGS = """
+            {
+              "success": true,
+              "data": {
+                "defaultScope": "BUSY_ONLY",
+                "overrides": [
+                  {
+                    "friendPublicId": "2fdbf426-a778-4b6a-8261-9c0549a8b2b4",
+                    "scope": "DETAILS"
+                  }
+                ]
+              }
+            }
+            """;
+
+    public static final String SUCCESS_TIMETABLE_SHARE_OVERRIDE = """
+            {
+              "success": true,
+              "data": {
+                "friendPublicId": "2fdbf426-a778-4b6a-8261-9c0549a8b2b4",
+                "scope": "DETAILS"
+              }
+            }
+            """;
+
+    public static final String SUCCESS_FRIEND_TIMETABLE_PRIVATE = """
+            {
+              "success": true,
+              "data": {
+                "semester": "2026-1",
+                "effectiveScope": "PRIVATE",
+                "hasTimetable": false,
+                "courses": [],
+                "slots": []
+              }
+            }
+            """;
+
+    public static final String SUCCESS_FRIEND_TIMETABLE_BUSY_ONLY = """
+            {
+              "success": true,
+              "data": {
+                "semester": "2026-1",
+                "effectiveScope": "BUSY_ONLY",
+                "hasTimetable": true,
+                "courses": [],
+                "slots": [
+                  {"dayOfWeek": 1, "startPeriod": 3, "endPeriod": 4}
+                ]
+              }
+            }
+            """;
+
+    public static final String SUCCESS_FRIEND_TIMETABLE_DETAILS = """
+            {
+              "success": true,
+              "data": {
+                "semester": "2026-1",
+                "effectiveScope": "DETAILS",
+                "hasTimetable": true,
+                "courses": [
+                  {
+                    "courseId": "course_uuid",
+                    "code": "01255",
+                    "name": "민법총칙",
+                    "professor": "문상혁",
+                    "location": "영401",
+                    "credits": 3,
+                    "isOnline": false,
+                    "schedule": [{"dayOfWeek": 1, "startPeriod": 3, "endPeriod": 4}]
+                  }
+                ],
+                "slots": [{"dayOfWeek": 1, "startPeriod": 3, "endPeriod": 4}]
+              }
+            }
+            """;
+
     public static final String SUCCESS_TIMETABLE_WITH_MANUAL_ONLINE = """
             {
               "success": true,

@@ -2,6 +2,8 @@ package com.skuri.skuri_backend.domain.friend.service;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.domain.academic.entity.TimetableShareScope;
+import com.skuri.skuri_backend.domain.academic.service.TimetableSharingScopeResolver;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendBlockResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendInboxCountsResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRequestItemResponse;
@@ -60,6 +62,7 @@ public class FriendRelationshipQueryService {
     private final MemberRepository memberRepository;
     private final FriendRequestExpiryService friendRequestExpiryService;
     private final FriendMinecraftProjectionService friendMinecraftProjectionService;
+    private final TimetableSharingScopeResolver timetableSharingScopeResolver;
 
     @Transactional
     public List<FriendSummaryResponse> getFriends(String ownerMemberId) {
@@ -71,6 +74,8 @@ public class FriendRelationshipQueryService {
         Map<String, PublicMember> members = getPublicMembers(friendMemberIds);
         Map<String, FriendMinecraftProjectionService.FriendMinecraftSummary> minecraftSummaries =
                 friendMinecraftProjectionService.summarizeByOwnerMemberIds(friendMemberIds);
+        Map<String, TimetableShareScope> effectiveTimetableScopes = timetableSharingScopeResolver
+                .resolveScopes(ownerMemberId, friendMemberIds);
         Set<String> favorites = friendPreferenceRepository
                 .findAllByOwnerMemberIdAndFriendMemberIdIn(ownerMemberId, friendMemberIds)
                 .stream()
@@ -95,7 +100,8 @@ public class FriendRelationshipQueryService {
                         .thenComparing(PublicMember::memberId))
                 .map(member -> member.toSummary(
                         favorites.contains(member.memberId()),
-                        minecraftSummaries.get(member.memberId())
+                        minecraftSummaries.get(member.memberId()),
+                        effectiveTimetableScopes.get(member.memberId())
                 ))
                 .toList();
     }
@@ -134,7 +140,11 @@ public class FriendRelationshipQueryService {
         FriendMinecraftProjectionService.FriendMinecraftSummary minecraftSummary = friendMinecraftProjectionService
                 .summarizeByOwnerMemberIds(Set.of(friend.memberId()))
                 .get(friend.memberId());
-        return friend.toSummary(favorite, minecraftSummary);
+        return friend.toSummary(
+                favorite,
+                minecraftSummary,
+                timetableSharingScopeResolver.resolveScope(ownerMemberId, friend.memberId())
+        );
     }
 
     private void requireFriendship(String ownerMemberId, PublicMember friend) {
@@ -495,7 +505,8 @@ public class FriendRelationshipQueryService {
     private record PublicMember(String memberId, String publicId, String nickname, String department, String photoUrl) {
         private FriendSummaryResponse toSummary(
                 boolean favorite,
-                FriendMinecraftProjectionService.FriendMinecraftSummary minecraftSummary
+                FriendMinecraftProjectionService.FriendMinecraftSummary minecraftSummary,
+                TimetableShareScope effectiveTimetableScope
         ) {
             return new FriendSummaryResponse(
                     publicId,
@@ -504,7 +515,8 @@ public class FriendRelationshipQueryService {
                     photoUrl,
                     favorite,
                     minecraftSummary == null ? null : minecraftSummary.primaryMinecraftGameName(),
-                    minecraftSummary == null ? 0 : minecraftSummary.minecraftAccountCount()
+                    minecraftSummary == null ? 0 : minecraftSummary.minecraftAccountCount(),
+                    effectiveTimetableScope
             );
         }
     }
