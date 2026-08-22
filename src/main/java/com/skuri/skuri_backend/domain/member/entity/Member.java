@@ -1,7 +1,6 @@
 package com.skuri.skuri_backend.domain.member.entity;
 
 import com.skuri.skuri_backend.common.entity.BaseTimeEntity;
-import com.skuri.skuri_backend.domain.member.constant.MemberNicknamePolicy;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -196,7 +195,6 @@ public class Member extends BaseTimeEntity {
     public boolean isProfileComplete() {
         return isActive()
                 && hasText(nickname)
-                && !MemberNicknamePolicy.isReserved(nickname)
                 && hasText(studentId)
                 && hasText(department);
     }

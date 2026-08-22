@@ -213,7 +213,7 @@ class MemberRepositoryDataJpaTest {
     }
 
     @Test
-    void 프로필완료후보조회는_유니코드공백으로우회한예약닉네임을제외한다() {
+    void 프로필완료후보조회는_기존예약어닉네임도학번과학과가있으면포함한다() {
         Member reserved = Member.create("reserved", "reserved@sungkyul.ac.kr", null, LocalDateTime.now());
         reserved.updateProfile("스쿠리\u00a0유저", "스쿠리\u00a0유저", "20260004", "컴퓨터공학과", null);
         memberRepository.saveAndFlush(reserved);
@@ -224,16 +224,22 @@ class MemberRepositoryDataJpaTest {
                 FriendProfile.create("reserved-search", "reserved-search-public", "reserved-search-code")
         );
 
-        assertTrue(
-                memberRepository.findProfileCompleteActiveMemberIdsWithoutFriendProfile(PageRequest.of(0, 10)).isEmpty()
+        assertTrue(reserved.isProfileComplete());
+        assertTrue(reservedSearchable.isProfileComplete());
+        assertEquals(
+                List.of("reserved"),
+                memberRepository.findProfileCompleteActiveMemberIdsWithoutFriendProfile(PageRequest.of(0, 10))
         );
-        assertEquals(0, memberRepository.countProfileCompleteActiveMembers());
-        assertTrue(
+        assertEquals(2, memberRepository.countProfileCompleteActiveMembers());
+        assertEquals(
+                List.of("reserved-search-public"),
                 friendProfileRepository.findNicknameSearchResults(
-                        "requester", "", null, null, PageRequest.of(0, 10)
-                ).isEmpty()
+                                "requester", "", null, null, PageRequest.of(0, 10)
+                        ).stream()
+                        .map(projection -> projection.getFriendPublicId())
+                        .toList()
         );
-        assertEquals(0, friendProfileRepository.countForProfileCompleteActiveMembers());
+        assertEquals(1, friendProfileRepository.countForProfileCompleteActiveMembers());
     }
 
     @Test
