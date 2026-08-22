@@ -1,6 +1,6 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성 구현 완료. 시간표 공유 Backend·Frontend 구현은 PR 검토 대기이며, 친구 초대·알림·회원 탈퇴 cleanup은 후속 단계다.
+> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성 구현 완료. 시간표 공유 Backend [#84](https://github.com/skuri-kr/SKURI-Backend/pull/84)·Frontend [#26](https://github.com/skuri-kr/SKURI-Frontend/pull/26) 구현은 PR 검토 대기이며, 친구 초대·알림·회원 탈퇴 cleanup은 후속 단계다.
 > 기준일: 2026-08-22
 > 다음 구현 단위: 시간표 공유 PR 병합·실기기 QA 후 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
@@ -805,7 +805,7 @@ batch 요청과 응답:
 9. Frontend #24 Core 출시 준비 UX
 10. Frontend #25 친구 화면 완성 UX
 
-남은 승인 구현은 다음 2단계다. 시간표 공유는 Backend·Frontend 각각 현재 PR 하나에서 구현·테스트·문서 정합성 점검을 마쳤고, PR 검토·병합과 실기기 QA만 남아 있다.
+남은 승인 구현은 다음 2단계다. 시간표 공유는 Backend #84·Frontend #26에서 구현·테스트·문서 정합성 점검을 마쳤고, PR 검토·병합과 실기기 QA만 남아 있다.
 
 1. 친구 초대
    - TaxiParty와 공개 Chat 수신자별 부분 성공 초대
@@ -814,7 +814,7 @@ batch 요청과 응답:
    - 친구 요청·수락·거절과 초대 인박스·FCM·SSE·화면 이동
    - 모든 Friend·공유·초대 파생 데이터의 회원 탈퇴 cleanup
 
-각 단계는 저장소당 최대 1개 PR로 진행한다. 시간표 공유 현재 PR 이후 Backend와 Frontend에 각각 2개의 후속 PR을 만들며 Admin 친구 관계망 UI는 V1 제외 범위라 PR을 만들지 않는다. 단계 내부에서 서로 다른 도메인·테스트·문서는 작은 Conventional Commit으로 구분하고, 변경량 때문에 PR 분리가 필요하면 먼저 사용자 승인을 받는다.
+각 단계는 저장소당 최대 1개 PR로 진행한다. 시간표 공유 Backend #84·Frontend #26 이후 Backend와 Frontend에 각각 2개의 후속 PR을 만들며 Admin 친구 관계망 UI는 V1 제외 범위라 PR을 만들지 않는다. 단계 내부에서 서로 다른 도메인·테스트·문서는 작은 Conventional Commit으로 구분하고, 변경량 때문에 PR 분리가 필요하면 먼저 사용자 승인을 받는다.
 
 Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 친구 FE가 아직 배포되지 않았으므로 구버전 호환 field를 유지하지 않는다. 이후 단계는 가능한 한 additive API로 Backend를 먼저 배포하고, 모바일 노출은 필요한 API 배포 확인 후 진행한다.
 
