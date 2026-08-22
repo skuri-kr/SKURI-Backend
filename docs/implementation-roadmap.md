@@ -14,7 +14,7 @@
 | Java | 21 |
 | 빌드 도구 | Gradle |
 | 현재 의존성 | JPA, Web MVC, Validation, Security, Firebase Admin, Springdoc OpenAPI(Swagger UI/Scalar), Thumbnailator, TwelveMonkeys WebP, Lombok, MySQL Connector |
-| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation·관계 Core 완료·후속 도메인 협력 진행 예정 (친구 공유·초대) |
+| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation·관계 Core·출시 준비·친구 화면 완성 완료, 시간표 공유·친구 초대·알림/탈퇴 정리 후속 예정 |
 
 ---
 
@@ -1041,7 +1041,7 @@ SSE 운영 제약:
 
 ### Phase 14: 친구·시간표 공유·친구 초대
 
-> 상태: Backend #78·#79·#80과 Frontend #22·#23 완료, Core 출시 준비 보완과 후속 4단계 구현 계획 승인
+> 상태: Backend #78·#79·#80·#81·#82·#83과 Frontend #22·#23·#24·#25 완료, 시간표 공유·친구 초대·알림·탈퇴 정리의 후속 3단계 구현 계획 승인
 > 상세 기준: docs/features/friends.md
 > 후속 구현 시작 조건: 해당 기능 기준 문서 검토 후 사용자의 별도 코드 구현 승인
 
@@ -1071,7 +1071,7 @@ SSE 운영 제약:
 | Chat | 공개 non-PARTY 방 초대와 입장 자격 |
 | Minecraft | 친구용 계정 안전 projection |
 | Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, FRIEND_DECLINED, PARTY_INVITATION, CHAT_ROOM_INVITATION |
-| Support | 기존 MEMBER 신고 저장·중복·운영 처리 |
+| Support | 기존 범용 MEMBER 신고 저장·중복·운영 처리는 유지하되, Friend 전용 신고 기능은 V1 범위에서 제외 |
 
 #### 14-3. 완료 이력
 
@@ -1080,28 +1080,25 @@ SSE 운영 제약:
 | Backend | [#78](https://github.com/skuri-kr/SKURI-Backend/pull/78) | 친구 기능 기준 문서와 도메인·상태·권한 계획 |
 | Backend | [#79](https://github.com/skuri-kr/SKURI-Backend/pull/79) | FriendProfile·FriendCodeRegistry, 코드·privacy API, provisioning·backfill |
 | Backend | [#80](https://github.com/skuri-kr/SKURI-Backend/pull/80) | 친구 요청·관계·즐겨찾기·친구 끊기·차단·검색·PENDING 목록·badge API |
+| Backend | [#81](https://github.com/skuri-kr/SKURI-Backend/pull/81) | 프로필 완료 eligibility, ACTIVE 닉네임 정책, Friend 데이터 lifecycle, 관계 상태와 운영 cleanup |
+| Backend | [#82](https://github.com/skuri-kr/SKURI-Backend/pull/82) | 친구 출시 운영 postcheck CTE 검증 보정 |
+| Backend | [#83](https://github.com/skuri-kr/SKURI-Backend/pull/83) | 친구 Minecraft 안전 projection과 목록·수락 응답 요약 |
 | Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 모바일 친구 기능 구현 계획 |
 | Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings와 관계 Core 연동 |
+| Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX와 수동 QA 보완 |
+| Frontend | [#25](https://github.com/skuri-kr/SKURI-Frontend/pull/25) | 친구 QR 생성·스캔과 Minecraft 계정 표시 |
 
-#### 14-4. 남은 5단계 구현 단위
+#### 14-4. 남은 3단계 구현 단위
 
-한 단계에서는 저장소당 최대 1개 PR만 만들고 런타임·테스트·문서는 같은 PR의 목적별 커밋으로 나눈다. 승인된 남은 계획은 Backend 5개, Frontend 5개 PR이며 Admin 친구 관계망 UI는 V1에서 제외한다.
+한 단계에서는 저장소당 최대 1개 PR만 만들고 런타임·테스트·문서는 같은 PR의 목적별 커밋으로 나눈다. 승인된 남은 계획은 Backend 3개, Frontend 3개 PR이며 Admin 친구 관계망 UI는 V1에서 제외한다.
 
-1. [ ] Core 출시 준비
-   - 가입 완료 판정, ACTIVE 닉네임 예약·중복 정책
-   - 완료 회원만 provisioning·backfill·lazy ensure
-   - nicknameSearchable 기본 true, 1글자 검색, relationshipState enum
-   - 미완료 회원 Friend 데이터 운영 cleanup과 관계 Core 모바일 QA 보완
-2. [ ] 친구 화면 완성
-   - QR 생성·스캔과 카메라 권한
-   - Minecraft 친구 계정 안전 projection과 SELF·FRIEND 계층
-3. [ ] 시간표 공유
+1. [ ] 시간표 공유
    - 시간표 공유 설정·친구별 예외·친구 시간표 조회
    - 모바일 accordion·공통 공강·같이 듣는 수업
-4. [ ] 친구 초대
+2. [ ] 친구 초대
    - TaxiParty·공개 Chat 수신자별 부분 성공 친구 초대
    - FriendHub 초대 탭·공통 친구 선택 UX
-5. [ ] 알림·탈퇴 정리
+3. [ ] 알림·탈퇴 정리
    - 친구 요청·수락·거절·초대 인박스·FCM·SSE·이동
    - Notification 설정·badge와 회원 탈퇴 cleanup
 
@@ -1208,6 +1205,7 @@ Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 > **문서 이력**
 > - 2026-08-18: Phase 14 리뷰 보완 — 영구 코드 registry, privacy·PENDING cursor 계약, invitationId·expiryReason과 탈퇴 경쟁 검증을 추가
 > - 2026-08-18: Phase 14 친구·시간표 공유·친구 초대 계획 추가 — 정책 기준 문서, 도메인 분리, 구현 중지선과 완료 기준을 문서화
+> - 2026-08-22: Phase 14 1·2단계 완료 반영 — Backend #81·#82·#83과 Frontend #24·#25 완료 범위, Friend 전용 신고 제외, 저장소별 남은 3단계 PR 계획을 동기화
 > - 2026-08-21: Phase 14 전달 이력·출시 준비 계획 갱신 — Backend #78·#79·#80과 Frontend #22·#23 완료 범위, 프로필 완료 eligibility와 저장소별 5단계 후속 PR 계획을 반영
 > - 2026-04-06: Admin Chat read API 구현 반영 — 공개 채팅방 관리자 목록/상세/메시지 조회와 관리자 파티 메시지 조회를 Phase 3/Phase 2 운영 API 및 완료 기준에 추가
 > - 2026-04-01: Phase 13 구현 반영 완료 상태로 갱신 — 마인크래프트 public/internal API, public SSE, bridge outbox, IMAGE placeholder, notification policy, 테스트/문서 완료 기준을 체크 상태로 동기화

@@ -1,8 +1,8 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: Foundation·관계 Core 구현 완료, Core 출시 준비 보완과 후속 4단계 구현 계획 승인
-> 기준일: 2026-08-21
-> 다음 구현 단위: 가입 완료 회원만 FriendProfile을 제공하는 Core 출시 준비 보완을 먼저 수행한 뒤 친구 화면 완성, 시간표 공유, 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
+> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성 구현 완료. 시간표 공유·친구 초대·알림·회원 탈퇴 cleanup의 후속 3단계 구현 계획 승인
+> 기준일: 2026-08-22
+> 다음 구현 단위: 시간표 공유를 먼저 수행한 뒤 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
 ---
@@ -35,10 +35,15 @@
 | Backend | [#78](https://github.com/skuri-kr/SKURI-Backend/pull/78) | 친구 기능 기준 명세, 도메인 경계, 상태·권한·탈퇴 계획 문서화 |
 | Backend | [#79](https://github.com/skuri-kr/SKURI-Backend/pull/79) | FriendProfile·영구 코드 registry, 코드 조회·재발급·preview, 검색 공개 설정, provisioning·backfill |
 | Backend | [#80](https://github.com/skuri-kr/SKURI-Backend/pull/80) | 친구 요청·관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록·badge API |
+| Backend | [#81](https://github.com/skuri-kr/SKURI-Backend/pull/81) | 프로필 완료 eligibility, ACTIVE 닉네임 정책, Friend 데이터 lifecycle, 관계 상태와 출시 전 데이터 정리 절차 |
+| Backend | [#82](https://github.com/skuri-kr/SKURI-Backend/pull/82) | 친구 출시 운영 postcheck CTE 검증 보정 |
+| Backend | [#83](https://github.com/skuri-kr/SKURI-Backend/pull/83) | 친구 목록·수락 응답 Minecraft 요약과 SELF·FRIEND 안전 projection |
 | Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 모바일 친구 기능 정보 구조·화면·상태·검증 계획 문서화 |
 | Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings와 관계 Core 연동 |
+| Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX, 회원가입·프로필 닉네임 정책과 관계 Core 수동 QA 보완 |
+| Frontend | [#25](https://github.com/skuri-kr/SKURI-Frontend/pull/25) | 친구 QR 생성·스캔과 친구 Minecraft SELF·FRIEND 계정 표시 |
 
-PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색·요청 상태 문제는 Core 출시 준비 단계에서 보완한다. 이는 기존 완료 범위를 되돌리는 작업이 아니라 실제 배포 전에 회원과 Friend 데이터의 생성 자격을 바로잡는 출시 준비 작업이다.
+PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색·요청 상태 문제는 #81·#24에서 보완했다. 이는 기존 완료 범위를 되돌린 것이 아니라 실제 배포 전에 회원과 Friend 데이터의 생성 자격을 바로잡은 출시 준비 작업이다.
 
 ### 1.2 용어 구분
 
@@ -784,30 +789,27 @@ batch 요청과 응답:
 1. Backend #78 기준 문서
 2. Backend #79 Friend Foundation
 3. Backend #80 관계 Core
-4. Frontend #22 모바일 계획
-5. Frontend #23 관계 Core 모바일
+4. Backend #81 Core 출시 준비
+5. Backend #82 출시 postcheck 문서 보정
+6. Backend #83 친구 화면 완성 API
+7. Frontend #22 모바일 계획
+8. Frontend #23 관계 Core 모바일
+9. Frontend #24 Core 출시 준비 UX
+10. Frontend #25 친구 화면 완성 UX
 
-남은 승인 구현은 다음 5단계다.
+남은 승인 구현은 다음 3단계다.
 
-1. Core 출시 준비
-   - 프로필 완료 판정과 ACTIVE 닉네임 예약·중복 정책
-   - 완료 회원만 provisioning·backfill·lazy ensure
-   - 검색 기본 true·1글자, relationshipState enum
-   - 운영 DB preflight·일회성 cleanup·postcheck와 모바일 QA 보완
-2. 친구 화면 완성
-   - QR 생성·스캔
-   - Minecraft 안전 projection과 SELF·FRIEND 계층
-3. 시간표 공유
+1. 시간표 공유
    - Academic 공개 범위·친구별 예외·친구 시간표 projection
    - 모바일 아코디언·공통 공강·같이 듣는 수업
-4. 친구 초대
+2. 친구 초대
    - TaxiParty와 공개 Chat 수신자별 부분 성공 초대
    - FriendHub 초대 탭과 공통 친구 선택 UX
-5. 알림·탈퇴 정리
+3. 알림·탈퇴 정리
    - 친구 요청·수락·거절과 초대 인박스·FCM·SSE·화면 이동
    - 모든 Friend·공유·초대 파생 데이터의 회원 탈퇴 cleanup
 
-각 단계는 저장소당 최대 1개 PR로 진행한다. Backend와 Frontend에 각각 5개의 후속 PR을 만들며 Admin 친구 관계망 UI는 V1 제외 범위라 PR을 만들지 않는다. 단계 내부에서 서로 다른 도메인·테스트·문서는 작은 Conventional Commit으로 구분하고, 변경량 때문에 PR 분리가 필요하면 먼저 사용자 승인을 받는다.
+각 단계는 저장소당 최대 1개 PR로 진행한다. Backend와 Frontend에 각각 3개의 후속 PR을 만들며 Admin 친구 관계망 UI는 V1 제외 범위라 PR을 만들지 않는다. 단계 내부에서 서로 다른 도메인·테스트·문서는 작은 Conventional Commit으로 구분하고, 변경량 때문에 PR 분리가 필요하면 먼저 사용자 승인을 받는다.
 
 Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 친구 FE가 아직 배포되지 않았으므로 구버전 호환 field를 유지하지 않는다. 이후 단계는 가능한 한 additive API로 Backend를 먼저 배포하고, 모바일 노출은 필요한 API 배포 확인 후 진행한다.
 
@@ -884,10 +886,10 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 
 ## 16. 문서 검토 결과
 
-검토일: 2026-08-21
+검토일: 2026-08-22
 
-- [x] Backend #78·#79·#80과 Frontend #22·#23의 완료 범위가 후속 단계와 구분되어 있다.
-- [x] 승인 V1이 5단계·저장소별 단계당 최대 1개 PR 계획으로 정리되어 있다.
+- [x] Backend #78·#79·#80·#81·#82·#83과 Frontend #22·#23·#24·#25의 완료 범위가 후속 단계와 구분되어 있다.
+- [x] 승인 V1의 1·2단계 완료와 남은 3단계·저장소별 단계당 최대 1개 PR 계획이 구분되어 있다.
 - [x] 가입 완료 판정과 미완료 회원 Friend 데이터 비생성·일회성 cleanup이 명시되어 있다.
 - [x] ACTIVE 닉네임 예약·중복·탈퇴 후 재사용과 기존 중복 grandfathering이 명시되어 있다.
 - [x] 검색 기본 true·1글자와 관계 상태 enum 계약이 명시되어 있다.
@@ -965,3 +967,4 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-21 | canSendFriendRequest 호환 field 없이 REQUESTABLE·INCOMING_PENDING·OUTGOING_PENDING·ALREADY_FRIEND 관계 상태로 교체 |
 | 2026-08-21 | 친구 요청 거절 알림은 알림 단계에서 원 요청자에게 제공하고 FriendHub 요청 탭으로 이동 |
 | 2026-08-21 | 각 구현 단계의 최종 PR 전에는 런타임·친구 명세·모바일 계획·OpenAPI·ERD·운영 문서를 대조하고 drift를 같은 PR에서 해소 |
+| 2026-08-22 | Core 출시 준비(#81·#24)와 친구 화면 완성(#83·#25)을 완료 이력으로 고정하고, 다음 구현 단위를 시간표 공유로 전환 |
