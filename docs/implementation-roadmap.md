@@ -14,7 +14,7 @@
 | Java | 21 |
 | 빌드 도구 | Gradle |
 | 현재 의존성 | JPA, Web MVC, Validation, Security, Firebase Admin, Springdoc OpenAPI(Swagger UI/Scalar), Thumbnailator, TwelveMonkeys WebP, Lombok, MySQL Connector |
-| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation·관계 Core·출시 준비·친구 화면 완성 완료, 시간표 공유·친구 초대·알림/탈퇴 정리 후속 예정 |
+| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation·관계 Core·출시 준비·친구 화면 완성 완료, 시간표 공유 백엔드 구현 진행, 친구 초대·알림/탈퇴 정리 후속 예정 |
 
 ---
 
@@ -1041,7 +1041,7 @@ SSE 운영 제약:
 
 ### Phase 14: 친구·시간표 공유·친구 초대
 
-> 상태: Backend #78·#79·#80·#81·#82·#83과 Frontend #22·#23·#24·#25 완료, 시간표 공유·친구 초대·알림·탈퇴 정리의 후속 3단계 구현 계획 승인
+> 상태: Backend #78·#79·#80·#81·#82·#83과 Frontend #22·#23·#24·#25 완료, 시간표 공유 백엔드 구현 진행, 친구 초대·알림·탈퇴 정리의 후속 단계 구현 계획 승인
 > 상세 기준: docs/features/friends.md
 > 후속 구현 시작 조건: 해당 기능 기준 문서 검토 후 사용자의 별도 코드 구현 승인
 

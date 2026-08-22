@@ -1,6 +1,6 @@
 # Spring 백엔드 ERD (Entity Relationship Diagram)
 
-> 최종 수정일: 2026-08-21
+> 최종 수정일: 2026-08-22
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -525,6 +525,21 @@ erDiagram
         int day_of_week "1-6 (월-토), nullable"
         int start_period "1-15, nullable"
         int end_period "1-15, nullable"
+    }
+
+    timetable_sharing_settings {
+        varchar(36) owner_member_id PK "친구에게 공개할 시간표 소유 회원"
+        enum default_scope "PRIVATE,BUSY_ONLY,DETAILS"
+        datetime created_at
+        datetime updated_at
+    }
+
+    timetable_share_overrides {
+        varchar(36) owner_member_id PK "공개하는 회원"
+        varchar(36) friend_member_id PK "예외 적용 친구"
+        enum scope "PRIVATE,BUSY_ONLY,DETAILS"
+        datetime created_at
+        datetime updated_at
     }
 
     academic_schedules {
@@ -1096,6 +1111,8 @@ Taxi history 계약 메모:
 | `user_timetables` | 사용자 시간표 | ~5,000/학기 |
 | `user_timetable_courses` | 시간표-강의 매핑 | ~25,000/학기 |
 | `user_timetable_manual_courses` | 시간표 직접 입력 강의 | ~5,000/학기 |
+| `timetable_sharing_settings` | 회원별 친구 시간표 기본 공개 범위 | ACTIVE 회원 수 이하 |
+| `timetable_share_overrides` | 소유자→친구 방향의 기본값 우선 예외 | 친구 관계의 최대 2배 |
 | `academic_schedules` | 학사 일정 | ~100/년 |
 
 ### 2.10 Support 도메인
@@ -1199,6 +1216,8 @@ Taxi history 계약 메모:
 | 강의-시간 | courses | course_schedules | 1:N | 강의에 여러 시간 슬롯 |
 | 시간표-강의 | user_timetables | user_timetable_courses | 1:N | 시간표에 여러 강의 |
 | 시간표-직접입력강의 | user_timetables | user_timetable_manual_courses | 1:N | 시간표에 여러 직접 입력 강의 |
+| 회원-시간표 공유 기본값 | members | timetable_sharing_settings | 1:0..1 | 저장 레코드가 없으면 `PRIVATE` 기본값 적용 |
+| 회원-친구별 시간표 예외 | members | timetable_share_overrides | 1:N | owner→friend 단방향 예외, friendship 종료·차단 시 양방향 삭제 |
 | 회원-알림 | members | user_notifications | 1:N | 회원에게 여러 알림 |
 | 회원-FCM | members | fcm_tokens | 1:N | 회원의 여러 디바이스 토큰 |
 
@@ -1464,6 +1483,9 @@ CREATE INDEX idx_user_timetable_manual_courses_department ON user_timetable_manu
 -- academic_schedules
 CREATE INDEX idx_academic_schedules_date ON academic_schedules(start_date, end_date);
 CREATE INDEX idx_academic_schedules_primary ON academic_schedules(is_primary);
+
+-- timetable_sharing_settings / timetable_share_overrides
+-- owner_member_id 및 (owner_member_id, friend_member_id)는 각각 PK로 조회·중복 방지를 수행한다.
 ```
 
 ### 4.9 Support 도메인
@@ -1527,6 +1549,7 @@ CREATE UNIQUE INDEX uk_friendships_member_pair ON friendships(member_low_id, mem
 > - 2026-08-18: Friend 관계 Core 테이블 추가 — `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`와 PENDING pair unique·cursor 인덱스를 반영
 > - 2026-08-18: Friend Foundation 테이블 추가 — `friend_profiles`, `friend_code_registry`의 공개 식별자·ACTIVE/RETIRED 영구 코드 registry와 unique 제약을 반영
 > - 2026-08-21: Friend Core 출시 준비 반영 — nullable `members.nickname_key`(VARCHAR(255)), 프로필 완료 ACTIVE 회원 eligibility, `nickname_searchable` 기본 true를 반영
+> - 2026-08-22: 친구 시간표 공유 반영 — `timetable_sharing_settings`, `timetable_share_overrides`의 기본 범위·친구별 예외 모델과 정리 규칙을 반영
 > - 2026-03-30: Minecraft 도메인 테이블 추가 — `minecraft_accounts`, `minecraft_server_state`, `minecraft_online_players`, `minecraft_bridge_events`와 관련 인덱스, chat sender key/Minotar 전제를 반영
 > - 2026-02-03: 초안 작성
 > - 2026-03-05: Board 댓글 정책 동기화 — `comments.parent_id` 관계를 부모 보존 정책(B)에 맞게 정정(`ON DELETE SET NULL`), depth 1 제약/placeholder soft delete 설명 반영

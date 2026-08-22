@@ -122,7 +122,7 @@ Friend는 Supporting 도메인으로서 영구 미재사용 친구 코드 regist
 | Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, PARTY_INVITATION, CHAT_ROOM_INVITATION의 인박스·SSE·FCM 전달 |
 | Support | 기존 신고 저장·중복 정책·운영 처리 |
 
-Friend Foundation과 관계 Core, Minecraft 안전 projection의 API·DB 조회는 현재 런타임에 존재한다. 친구 요청은 30일 PENDING·역방향 자동 수락·수락 멱등성·terminal 409을 서버가 강제하며, 차단은 일반 대상 없음으로 마스킹한다. 시간표 공유·택시·공개방 초대·알림은 아직 계획 상태이며, 상세 상태 전이와 데이터 노출 정책은 `docs/features/friends.md`를 기준으로 한다.
+Friend Foundation과 관계 Core, Minecraft 안전 projection, 시간표 공유의 API·DB 조회는 현재 런타임에 존재한다. 친구 요청은 30일 PENDING·역방향 자동 수락·수락 멱등성·terminal 409을 서버가 강제하며, 차단은 일반 대상 없음으로 마스킹한다. 시간표 공유는 `PRIVATE` 기본값, 친구별 예외 우선, friendship 종료·차단 시 양방향 예외 정리를 서버가 강제한다. 택시·공개방 초대·알림은 아직 계획 상태이며, 상세 상태 전이와 데이터 노출 정책은 `docs/features/friends.md`를 기준으로 한다.
 
 ---
 

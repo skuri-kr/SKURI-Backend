@@ -1,8 +1,8 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성 구현 완료. 시간표 공유·친구 초대·알림·회원 탈퇴 cleanup의 후속 3단계 구현 계획 승인
+> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성 구현 완료. 시간표 공유 백엔드 API 구현 진행 중이며, 친구 초대·알림·회원 탈퇴 cleanup은 후속 단계다.
 > 기준일: 2026-08-22
-> 다음 구현 단위: 시간표 공유를 먼저 수행한 뒤 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
+> 다음 구현 단위: 시간표 공유 모바일 UI를 완료한 뒤 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
 ---
@@ -592,7 +592,7 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 - photoUrl
 - favorite
 
-친구 목록·상세는 위 다섯 필드와 nullable `primaryMinecraftGameName`, `minecraftAccountCount`를 반환한다. 대표 SELF 계정이 없으면 게임명은 null이고, 계정 수는 등록된 SELF·FRIEND 전체 수다. `effectiveTimetableScope`는 시간표 공유 단계에서 additive field로 추가한다. 아직 구현되지 않은 도메인의 기본값이나 추측한 값을 친구 목록에 반환하지 않는다.
+친구 목록·상세는 위 다섯 필드와 nullable `primaryMinecraftGameName`, `minecraftAccountCount`, `effectiveTimetableScope`를 반환한다. 대표 SELF 계정이 없으면 게임명은 null이고, 계정 수는 등록된 SELF·FRIEND 전체 수다. `effectiveTimetableScope`는 **내 시간표를 해당 친구에게 공개하는 실제 범위**이며, 친구별 예외가 있으면 예외가 기본값보다 우선한다.
 
 관계 Core의 HTTP 응답은 다음처럼 고정한다.
 
@@ -677,6 +677,14 @@ semester는 `2026-1` 형식의 필수 query parameter다. 친구 시간표 응�
 - PRIVATE: 시간표 필드는 비우고 공개되지 않았음을 표현한다.
 - BUSY_ONLY: slots만 제공하고 course 식별·이름 필드는 제공하지 않는다.
 - DETAILS: 허용된 course와 slot 상세를 제공한다.
+
+구현 규칙:
+
+- 기본 범위의 저장 레코드가 없으면 `PRIVATE`를 적용한다.
+- 친구별 예외는 기본 범위보다 우선하며, 현재 상호 친구인 대상만 설정·조회할 수 있다.
+- 친구 끊기 또는 차단 시 양방향 시간표 공유 예외를 삭제한다.
+- `PRIVATE`는 시간표 존재 여부도 공개하지 않아 `hasTimetable=false`, 빈 `courses`·`slots`만 반환한다.
+- `BUSY_ONLY`는 점유 시간만 반환하고, `DETAILS`에서만 강의 상세를 반환한다. 직접 입력 강의는 `courseId=null`이다.
 
 ### 9.5 마인크래프트
 
