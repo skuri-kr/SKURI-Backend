@@ -81,7 +81,7 @@ class FriendRelationshipControllerContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].friendPublicId").value("friend-public-id"))
                 .andExpect(jsonPath("$.data[0].favorite").value(true))
-                .andExpect(jsonPath("$.data[0].effectiveTimetableScope").doesNotExist())
+                .andExpect(jsonPath("$.data[0].effectiveTimetableScope").value("PRIVATE"))
                 .andExpect(jsonPath("$.data[0].primaryMinecraftGameName").value("skuriPlayer"))
                 .andExpect(jsonPath("$.data[0].minecraftAccountCount").value(3));
     }

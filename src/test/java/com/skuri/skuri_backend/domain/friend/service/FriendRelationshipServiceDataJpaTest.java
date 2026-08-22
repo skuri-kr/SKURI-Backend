@@ -3,6 +3,10 @@ package com.skuri.skuri_backend.domain.friend.service;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.common.config.JpaAuditingConfig;
+import com.skuri.skuri_backend.domain.academic.entity.TimetableShareOverride;
+import com.skuri.skuri_backend.domain.academic.entity.TimetableShareScope;
+import com.skuri.skuri_backend.domain.academic.repository.TimetableShareOverrideRepository;
+import com.skuri.skuri_backend.domain.academic.service.TimetableSharingScopeResolver;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRelationshipState;
 import com.skuri.skuri_backend.domain.friend.entity.FriendCodeRegistry;
 import com.skuri.skuri_backend.domain.friend.entity.FriendProfile;
@@ -52,6 +56,7 @@ import static org.mockito.Mockito.verify;
         FriendProfileProvisioningAttemptService.class,
         FriendProfileProvisioningService.class,
         FriendMemberPairLockService.class,
+        TimetableSharingScopeResolver.class,
         FriendSummarySnapshotFactory.class,
         FriendRequestTransitionPreflightService.class,
         FriendRequestTransitionMutationService.class,
@@ -90,6 +95,9 @@ class FriendRelationshipServiceDataJpaTest {
     private MemberBlockRepository memberBlockRepository;
 
     @Autowired
+    private TimetableShareOverrideRepository timetableShareOverrideRepository;
+
+    @Autowired
     private MinecraftAccountRepository minecraftAccountRepository;
 
     @Autowired
@@ -107,6 +115,7 @@ class FriendRelationshipServiceDataJpaTest {
     @AfterEach
     void tearDown() {
         memberBlockRepository.deleteAll();
+        timetableShareOverrideRepository.deleteAll();
         friendPreferenceRepository.deleteAll();
         friendshipRepository.deleteAll();
         friendRequestRepository.deleteAll();
@@ -516,6 +525,12 @@ class FriendRelationshipServiceDataJpaTest {
         friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId);
 
         friendRelationshipService.setFavorite(pair.firstMemberId(), pair.secondPublicId(), true);
+        timetableShareOverrideRepository.saveAndFlush(TimetableShareOverride.create(
+                pair.firstMemberId(), pair.secondMemberId(), TimetableShareScope.DETAILS
+        ));
+        timetableShareOverrideRepository.saveAndFlush(TimetableShareOverride.create(
+                pair.secondMemberId(), pair.firstMemberId(), TimetableShareScope.BUSY_ONLY
+        ));
         assertThat(friendRelationshipQueryService.getFriends(pair.firstMemberId())).singleElement()
                 .extracting(friend -> friend.favorite()).isEqualTo(true);
         assertThat(friendRelationshipQueryService.getFriends(pair.secondMemberId())).singleElement()
@@ -525,6 +540,7 @@ class FriendRelationshipServiceDataJpaTest {
 
         assertThat(friendshipRepository.count()).isZero();
         assertThat(friendPreferenceRepository.count()).isZero();
+        assertThat(timetableShareOverrideRepository.count()).isZero();
     }
 
     @Test
