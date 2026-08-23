@@ -536,7 +536,7 @@ erDiagram
 
     timetable_share_overrides {
         varchar(36) owner_member_id PK "공개하는 회원"
-        varchar(36) friend_member_id PK "예외 적용 친구"
+        varchar(36) friend_member_id PK "예외 적용 친구, 역방향 조회 IDX 선두"
         enum scope "PRIVATE,BUSY_ONLY,DETAILS"
         datetime created_at
         datetime updated_at
@@ -1486,6 +1486,9 @@ CREATE INDEX idx_academic_schedules_primary ON academic_schedules(is_primary);
 
 -- timetable_sharing_settings / timetable_share_overrides
 -- owner_member_id 및 (owner_member_id, friend_member_id)는 각각 PK로 조회·중복 방지를 수행한다.
+-- 친구가 자신의 공유 설정을 조회할 때 사용하는 역방향(friend→owner) 조회를 지원한다.
+CREATE INDEX idx_timetable_share_overrides_friend_owner
+    ON timetable_share_overrides(friend_member_id, owner_member_id);
 ```
 
 ### 4.9 Support 도메인
@@ -1550,6 +1553,7 @@ CREATE UNIQUE INDEX uk_friendships_member_pair ON friendships(member_low_id, mem
 > - 2026-08-18: Friend Foundation 테이블 추가 — `friend_profiles`, `friend_code_registry`의 공개 식별자·ACTIVE/RETIRED 영구 코드 registry와 unique 제약을 반영
 > - 2026-08-21: Friend Core 출시 준비 반영 — nullable `members.nickname_key`(VARCHAR(255)), 프로필 완료 ACTIVE 회원 eligibility, `nickname_searchable` 기본 true를 반영
 > - 2026-08-22: 친구 시간표 공유 반영 — `timetable_sharing_settings`, `timetable_share_overrides`의 기본 범위·친구별 예외 모델과 정리 규칙을 반영
+> - 2026-08-23: 친구 시간표 예외의 역방향 friend→owner 조회용 `(friend_member_id, owner_member_id)` 인덱스를 반영
 > - 2026-03-30: Minecraft 도메인 테이블 추가 — `minecraft_accounts`, `minecraft_server_state`, `minecraft_online_players`, `minecraft_bridge_events`와 관련 인덱스, chat sender key/Minotar 전제를 반영
 > - 2026-02-03: 초안 작성
 > - 2026-03-05: Board 댓글 정책 동기화 — `comments.parent_id` 관계를 부모 보존 정책(B)에 맞게 정정(`ON DELETE SET NULL`), depth 1 제약/placeholder soft delete 설명 반영
