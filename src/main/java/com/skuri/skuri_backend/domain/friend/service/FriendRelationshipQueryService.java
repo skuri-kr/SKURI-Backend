@@ -67,6 +67,11 @@ public class FriendRelationshipQueryService {
     @Transactional
     public List<FriendSummaryResponse> getFriends(String ownerMemberId) {
         provisioningService.ensureForActiveMember(ownerMemberId);
+        return getFriendsForProvisionedMember(ownerMemberId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<FriendSummaryResponse> getFriendsForProvisionedMember(String ownerMemberId) {
         List<Friendship> friendships = friendshipRepository.findAllByMemberId(ownerMemberId);
         Set<String> friendMemberIds = friendships.stream()
                 .map(friendship -> friendship.otherMemberId(ownerMemberId))

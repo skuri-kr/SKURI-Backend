@@ -24,6 +24,7 @@ import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPair;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
+import com.skuri.skuri_backend.domain.friend.service.FriendProfileProvisioningService;
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -31,9 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -46,36 +44,17 @@ public class TimetableSharingService {
     private final TimetableShareOverrideRepository timetableShareOverrideRepository;
     private final TimetableSharingScopeResolver timetableSharingScopeResolver;
     private final TimetableSharingSettingsMutationService timetableSharingSettingsMutationService;
+    private final TimetableSharingSettingsReadService timetableSharingSettingsReadService;
     private final UserTimetableRepository userTimetableRepository;
+    private final FriendProfileProvisioningService friendProfileProvisioningService;
     private final FriendRelationshipQueryService friendRelationshipQueryService;
     private final FriendProfileRepository friendProfileRepository;
     private final FriendshipRepository friendshipRepository;
     private final FriendMemberPairLockService pairLockService;
 
-    @Transactional(readOnly = true)
     public TimetableSharingSettingsResponse getMySharingSettings(String ownerMemberId) {
-        TimetableShareScope defaultScope = timetableSharingScopeResolver.defaultScope(ownerMemberId);
-        Set<String> activeFriendPublicIds = friendRelationshipQueryService.getFriends(ownerMemberId).stream()
-                .map(friend -> friend.friendPublicId())
-                .collect(Collectors.toSet());
-        // Friend summaries intentionally hide internal member IDs, so map override targets through FriendProfile.
-        Map<String, String> publicIdsByMemberId = friendProfileRepository.findAllByMemberIdIn(
-                        timetableShareOverrideRepository.findAllByOwnerMemberId(ownerMemberId).stream()
-                                .map(TimetableShareOverride::getFriendMemberId)
-                                .collect(Collectors.toSet())
-                ).stream()
-                .collect(Collectors.toMap(profile -> profile.getMemberId(), profile -> profile.getPublicId()));
-        List<TimetableShareOverrideResponse> overrides = timetableShareOverrideRepository
-                .findAllByOwnerMemberId(ownerMemberId)
-                .stream()
-                .map(override -> new TimetableShareOverrideResponse(
-                        publicIdsByMemberId.get(override.getFriendMemberId()),
-                        override.getScope()
-                ))
-                .filter(override -> override.friendPublicId() != null && activeFriendPublicIds.contains(override.friendPublicId()))
-                .sorted(Comparator.comparing(TimetableShareOverrideResponse::friendPublicId))
-                .toList();
-        return new TimetableSharingSettingsResponse(defaultScope, overrides);
+        friendProfileProvisioningService.ensureForActiveMember(ownerMemberId);
+        return timetableSharingSettingsReadService.getForProvisionedMember(ownerMemberId);
     }
 
     public TimetableSharingSettingsResponse updateMySharingSettings(
