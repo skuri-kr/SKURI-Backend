@@ -28,6 +28,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -71,6 +72,10 @@ class PartyInvitationTransitionServiceTest {
         assertThat(invitation.getStatus()).isEqualTo(PartyInvitationStatus.ACCEPTED);
         assertThat(invitation.getActiveTargetKey()).isNull();
         verify(taxiPartyService).acceptInvitedMemberWithLockedParty(party, "invitee-1", "inviter-1");
+        var lockOrder = inOrder(pairLockService, partyRepository, invitationRepository);
+        lockOrder.verify(pairLockService).lockActivePair("inviter-1", "invitee-1");
+        lockOrder.verify(partyRepository).findDetailByIdForUpdate("party-1");
+        lockOrder.verify(invitationRepository).findByIdForUpdate("invite-1");
     }
 
     @Test
@@ -92,6 +97,7 @@ class PartyInvitationTransitionServiceTest {
         Member invitee = completeMember("invitee-1");
         FriendMemberPair pair = FriendMemberPair.of("inviter-1", "invitee-1");
         when(invitationRepository.findById("invite-1")).thenReturn(Optional.of(invitation));
+        when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
         when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(memberRepository.findActiveById("inviter-1")).thenReturn(Optional.of(inviter));
         when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(invitee));

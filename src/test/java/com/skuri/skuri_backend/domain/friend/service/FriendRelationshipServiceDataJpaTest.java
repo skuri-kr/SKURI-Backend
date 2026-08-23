@@ -44,6 +44,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -588,6 +589,23 @@ class FriendRelationshipServiceDataJpaTest {
 
         assertThat(friendRelationshipQueryService.getFriends(pair.firstMemberId())).isEmpty();
         assertThat(friendRelationshipQueryService.getFriends(pair.secondMemberId())).isEmpty();
+    }
+
+    @Test
+    void 초대이력의_회원표시는_양방향차단대상을_마스킹한다() {
+        FriendPair pair = createPair();
+
+        assertThat(friendRelationshipQueryService.findInvitationCandidatesByMemberIds(
+                pair.firstMemberId(),
+                Set.of(pair.secondMemberId())
+        )).containsKey(pair.secondMemberId());
+
+        memberBlockRepository.saveAndFlush(MemberBlock.create(pair.secondMemberId(), pair.firstMemberId()));
+
+        assertThat(friendRelationshipQueryService.findInvitationCandidatesByMemberIds(
+                pair.firstMemberId(),
+                Set.of(pair.secondMemberId())
+        )).doesNotContainKey(pair.secondMemberId());
     }
 
     @Test

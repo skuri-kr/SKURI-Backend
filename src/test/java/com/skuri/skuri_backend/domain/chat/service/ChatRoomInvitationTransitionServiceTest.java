@@ -30,6 +30,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -75,6 +76,10 @@ class ChatRoomInvitationTransitionServiceTest {
                 eq(room),
                 argThat(member -> member.getId().equals("invitee-1"))
         );
+        var lockOrder = inOrder(pairLockService, chatRoomRepository, invitationRepository);
+        lockOrder.verify(pairLockService).lockActivePair("inviter-1", "invitee-1");
+        lockOrder.verify(chatRoomRepository).findByIdForUpdate("room-1");
+        lockOrder.verify(invitationRepository).findByIdForUpdate("invite-1");
     }
 
     @Test
@@ -107,11 +112,24 @@ class ChatRoomInvitationTransitionServiceTest {
         verify(chatRoomRepository, never()).findByIdForUpdate("room-1");
     }
 
+    @Test
+    void 칠일이지난_초대를_취소하면_TIMEOUT으로_만료한다() {
+        ChatRoomInvitation invitation = invitation(LocalDateTime.now().minusDays(8));
+        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(invitation));
+
+        boolean canceled = service.cancel("inviter-1", "invite-1");
+
+        assertThat(canceled).isFalse();
+        assertThat(invitation.getStatus()).isEqualTo(ChatRoomInvitationStatus.EXPIRED);
+        assertThat(invitation.getExpiryReason()).isEqualTo(ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT);
+    }
+
     private void stubAcceptBoundary(ChatRoom room, ChatRoomInvitation invitation) {
         Member inviter = completeMember("inviter-1");
         Member invitee = completeMember("invitee-1");
         FriendMemberPair pair = FriendMemberPair.of("inviter-1", "invitee-1");
         when(invitationRepository.findById("invite-1")).thenReturn(Optional.of(invitation));
+        when(chatRoomRepository.findById("room-1")).thenReturn(Optional.of(room));
         when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(room));
         when(memberRepository.findActiveById("inviter-1")).thenReturn(Optional.of(inviter));
         when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(invitee));

@@ -382,7 +382,7 @@ class ChatServiceTest {
 
     @Test
     void joinChatRoom_기존메시지가있으면_초기unread를0으로시작한다() {
-        ChatRoom room = ChatRoom.create("room-1", "시험기간 밤샘 메이트", ChatRoomType.CUSTOM, null, null, null, true, null);
+        ChatRoom room = ChatRoom.create("room-1", "시험기간 밤샘 메이트", ChatRoomType.CUSTOM, null, null, null, true, 11);
         ReflectionTestUtils.setField(room, "memberCount", 10);
         ReflectionTestUtils.setField(room, "lastMessageTimestamp", LocalDateTime.of(2026, 3, 5, 22, 0, 0));
         AtomicReference<ChatRoomMember> savedMemberRef = new AtomicReference<>();
@@ -422,6 +422,16 @@ class ChatServiceTest {
         verify(messagingTemplate).convertAndSend(eq("/topic/chat/room-1"), joinPayloadCaptor.capture());
         assertEquals("https://cdn.skuri.app/uploads/profiles/member-1.jpg", joinPayloadCaptor.getValue().senderPhotoUrl());
         verify(chatRoomSummaryEventPublisher).publishCurrent("room-1");
+        InOrder invitationExpiryOrder = inOrder(chatRoomInvitationLifecycleService);
+        invitationExpiryOrder.verify(chatRoomInvitationLifecycleService).expirePendingForInviteeInRoom(
+                "room-1",
+                "member-1",
+                ChatRoomInvitationExpiryReason.ALREADY_JOINED
+        );
+        invitationExpiryOrder.verify(chatRoomInvitationLifecycleService).expirePendingForRoom(
+                "room-1",
+                ChatRoomInvitationExpiryReason.CAPACITY_FULL
+        );
     }
 
     @Test
