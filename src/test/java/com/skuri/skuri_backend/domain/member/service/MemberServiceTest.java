@@ -241,6 +241,48 @@ class MemberServiceTest {
     }
 
     @Test
+    void updateMyProfile_초기기본닉네임을유지한채_프로필을완료할수없다() {
+        Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
+        when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
+        when(departmentService.normalizeSupported("컴퓨터공학과")).thenReturn("컴퓨터공학과");
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> memberService.updateMyProfile(
+                        "firebase-uid",
+                        new UpdateMemberProfileRequest(null, "20261234", "컴퓨터공학과", null)
+                )
+        );
+
+        assertEquals(ErrorCode.NICKNAME_RESERVED, exception.getErrorCode());
+        assertNull(member.getStudentId());
+        assertNull(member.getDepartment());
+        verify(eventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void updateMyProfile_이미완료된예약닉네임회원은_부분수정을허용한다() {
+        Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
+        member.updateProfile(
+                "스쿠리 유저",
+                "legacy-reserved-key",
+                "20261234",
+                "컴퓨터공학과",
+                null
+        );
+        when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
+
+        MemberMeResponse response = memberService.updateMyProfile(
+                "firebase-uid",
+                new UpdateMemberProfileRequest(null, null, null, "https://example.com/new.jpg")
+        );
+
+        assertEquals("스쿠리 유저", response.nickname());
+        assertEquals("https://example.com/new.jpg", response.photoUrl());
+        verify(eventPublisher, never()).publish(any());
+    }
+
+    @Test
     void updateMyProfile_예약닉네임이면_거부한다() {
         Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
         when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
