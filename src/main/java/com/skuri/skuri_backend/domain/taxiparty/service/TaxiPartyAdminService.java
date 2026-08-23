@@ -28,6 +28,7 @@ import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Location;
 import com.skuri.skuri_backend.domain.taxiparty.entity.MemberSettlement;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import com.skuri.skuri_backend.domain.taxiparty.exception.PartyNotFoundException;
 import com.skuri.skuri_backend.domain.taxiparty.repository.JoinRequestRepository;
@@ -65,6 +66,7 @@ public class TaxiPartyAdminService {
     private final MemberRepository memberRepository;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatService chatService;
+    private final PartyInvitationLifecycleService partyInvitationLifecycleService;
     private final PartySseService partySseService;
     private final AfterCommitApplicationEventPublisher eventPublisher;
 
@@ -120,7 +122,7 @@ public class TaxiPartyAdminService {
 
     @Transactional
     public PartyStatusResponse updatePartyStatus(String partyId, AdminPartyStatusAction action) {
-        Party party = partyRepository.findDetailById(partyId)
+        Party party = partyRepository.findDetailByIdForUpdate(partyId)
                 .orElseThrow(PartyNotFoundException::new);
         PartyStatus beforeStatus = party.getStatus();
         String partyChatActorId = party.getLeaderId();
@@ -152,6 +154,13 @@ public class TaxiPartyAdminService {
             }
         }
 
+        if (action != AdminPartyStatusAction.REOPEN) {
+            partyInvitationLifecycleService.expirePendingForParty(
+                    party.getId(),
+                    PartyInvitationExpiryReason.TARGET_UNAVAILABLE
+            );
+        }
+
         eventPublisher.publish(new NotificationDomainEvent.PartyStatusChanged(
                 party.getId(),
                 beforeStatus,
@@ -162,7 +171,8 @@ public class TaxiPartyAdminService {
 
     @Transactional
     public void removePartyMember(String adminActorId, String partyId, String memberId) {
-        Party party = findPartyDetailOrThrow(partyId);
+        Party party = partyRepository.findDetailByIdForUpdate(partyId)
+                .orElseThrow(PartyNotFoundException::new);
         Member member = memberRepository.findById(memberId).orElseThrow(MemberNotFoundException::new);
 
         if (party.getStatus() == PartyStatus.ARRIVED) {
@@ -182,6 +192,11 @@ public class TaxiPartyAdminService {
         String removedMemberName = resolveDisplayName(member);
         party.removeMember(memberId);
         savePartyWithLockHandling(party);
+        partyInvitationLifecycleService.expirePendingByInviterInParty(
+                party.getId(),
+                memberId,
+                PartyInvitationExpiryReason.INVITER_LEFT
+        );
         chatService.syncPartyChatRoomMembers(party);
         chatService.createPartyMemberLeaveSystemMessage(
                 party,

@@ -389,6 +389,8 @@ public class TaxiPartyService {
     @Transactional
     public JoinRequestAcceptResponse acceptJoinRequest(String leaderId, String requestId) {
         JoinRequest joinRequest = findJoinRequestOrThrow(requestId);
+        String requesterId = joinRequest.getRequesterId();
+        lockMemberOrThrow(requesterId);
         Party party = partyRepository.findDetailByIdForUpdate(joinRequest.getParty().getId())
                 .orElseThrow(PartyNotFoundException::new);
         JoinRequestStatus previousStatus = joinRequest.getStatus();
@@ -402,8 +404,6 @@ public class TaxiPartyService {
             throw new BusinessException(ErrorCode.PARTY_CLOSED);
         }
 
-        String requesterId = joinRequest.getRequesterId();
-        lockMemberOrThrow(requesterId);
         if (party.isMember(requesterId)) {
             throw new BusinessException(ErrorCode.ALREADY_IN_PARTY);
         }
