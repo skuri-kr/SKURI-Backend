@@ -17,6 +17,7 @@ import com.skuri.skuri_backend.domain.academic.entity.TimetableSharingSetting;
 import com.skuri.skuri_backend.domain.academic.entity.UserTimetable;
 import com.skuri.skuri_backend.domain.academic.entity.UserTimetableCourse;
 import com.skuri.skuri_backend.domain.academic.entity.UserTimetableManualCourse;
+import com.skuri.skuri_backend.domain.academic.repository.CourseRepository;
 import com.skuri.skuri_backend.domain.academic.repository.TimetableShareOverrideRepository;
 import com.skuri.skuri_backend.domain.academic.repository.UserTimetableRepository;
 import com.skuri.skuri_backend.domain.friend.entity.Friendship;
@@ -32,6 +33,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
@@ -45,6 +49,7 @@ public class TimetableSharingService {
     private final TimetableSharingScopeResolver timetableSharingScopeResolver;
     private final TimetableSharingSettingsMutationService timetableSharingSettingsMutationService;
     private final TimetableSharingSettingsReadService timetableSharingSettingsReadService;
+    private final CourseRepository courseRepository;
     private final UserTimetableRepository userTimetableRepository;
     private final FriendProfileProvisioningService friendProfileProvisioningService;
     private final FriendRelationshipQueryService friendRelationshipQueryService;
@@ -119,9 +124,7 @@ public class TimetableSharingService {
     }
 
     private FriendTimetableResponse toFriendTimetableResponse(UserTimetable timetable, TimetableShareScope scope) {
-        List<Course> officialCourses = timetable.getCourseMappings().stream()
-                .map(UserTimetableCourse::getCourse)
-                .toList();
+        List<Course> officialCourses = fetchCoursesWithSchedules(timetable);
         List<FriendTimetableSlotResponse> slots = Stream.concat(
                         officialCourses.stream().flatMap(course -> course.getSchedules().stream()
                                 .map(this::toSlotResponse)),
@@ -143,6 +146,22 @@ public class TimetableSharingService {
                         .toList()
                 : List.of();
         return new FriendTimetableResponse(timetable.getSemester(), scope, true, courses, slots);
+    }
+
+    private List<Course> fetchCoursesWithSchedules(UserTimetable timetable) {
+        List<String> courseIds = timetable.getCourseMappings().stream()
+                .map(UserTimetableCourse::getCourseId)
+                .toList();
+        if (courseIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Course> detailedCourses = courseRepository.findAllWithSchedulesByIdIn(courseIds).stream()
+                .collect(Collectors.toMap(Course::getId, Function.identity()));
+        return timetable.getCourseMappings().stream()
+                .map(UserTimetableCourse::getCourse)
+                .map(course -> detailedCourses.getOrDefault(course.getId(), course))
+                .toList();
     }
 
     private FriendTimetableSlotResponse toSlotResponse(CourseSchedule schedule) {
