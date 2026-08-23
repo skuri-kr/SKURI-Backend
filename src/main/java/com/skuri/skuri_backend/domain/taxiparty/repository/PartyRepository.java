@@ -166,6 +166,19 @@ public interface PartyRepository extends JpaRepository<Party, String> {
     );
 
     @Query("""
+            select distinct p.id
+            from Party p
+            join p.members pm
+            where pm.id.memberId = :memberId
+              and p.status in :statuses
+            order by p.id asc
+            """)
+    List<String> findActiveIdsByMemberId(
+            @Param("memberId") String memberId,
+            @Param("statuses") Collection<PartyStatus> statuses
+    );
+
+    @Query("""
             select p.id
             from Party p
             where p.status <> com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus.ENDED

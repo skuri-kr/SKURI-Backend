@@ -71,6 +71,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -614,12 +615,19 @@ public class ChatService {
 
     @Transactional
     public void removeMemberFromAllChatRooms(String memberId) {
-        chatRoomInvitationLifecycleService.expirePendingByInviter(
-                memberId,
-                ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN
+        Set<String> targetChatRoomIds = new TreeSet<>(
+                chatRoomMemberRepository.findChatRoomIdsByMemberId(memberId)
         );
-        for (String chatRoomId : chatRoomMemberRepository.findChatRoomIdsByMemberId(memberId)) {
+        targetChatRoomIds.addAll(
+                chatRoomInvitationLifecycleService.findPendingChatRoomIdsByInviter(memberId)
+        );
+        for (String chatRoomId : targetChatRoomIds) {
             ChatRoom room = chatRoomRepository.findByIdForUpdate(chatRoomId).orElse(null);
+            chatRoomInvitationLifecycleService.expirePendingByInviterInRoom(
+                    chatRoomId,
+                    memberId,
+                    ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN
+            );
             if (room == null) {
                 continue;
             }

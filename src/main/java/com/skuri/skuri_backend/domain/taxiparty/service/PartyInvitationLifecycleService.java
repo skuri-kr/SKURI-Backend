@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,11 +24,9 @@ public class PartyInvitationLifecycleService {
                 .forEach(invitation -> invitation.expire(reason, now));
     }
 
-    @Transactional
-    public void expirePendingByInviter(String inviterId, PartyInvitationExpiryReason reason) {
-        LocalDateTime now = LocalDateTime.now();
-        partyInvitationRepository.findPendingByInviterIdForUpdate(inviterId)
-                .forEach(invitation -> invitation.expire(reason, now));
+    @Transactional(readOnly = true)
+    public List<String> findPendingPartyIdsByInviter(String inviterId) {
+        return partyInvitationRepository.findPendingPartyIdsByInviterId(inviterId);
     }
 
     @Transactional

@@ -38,6 +38,7 @@ import com.skuri.skuri_backend.domain.taxiparty.entity.Location;
 import com.skuri.skuri_backend.domain.taxiparty.entity.MemberSettlement;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyEndReason;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyMember;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.SettlementAccountSnapshot;
@@ -65,6 +66,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 @Service
 @RequiredArgsConstructor
@@ -520,12 +522,20 @@ public class TaxiPartyService {
 
     @Transactional
     public void handleMemberWithdrawal(String memberId) {
-        partyInvitationLifecycleService.expirePendingByInviter(
-                memberId,
-                com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.MEMBER_WITHDRAWN
+        Set<String> targetPartyIds = new TreeSet<>(
+                partyRepository.findActiveIdsByMemberId(memberId, ACTIVE_PARTY_STATUSES)
         );
-        List<Party> activeParties = partyRepository.findActiveDetailsByMemberId(memberId, ACTIVE_PARTY_STATUSES);
-        for (Party party : activeParties) {
+        targetPartyIds.addAll(partyInvitationLifecycleService.findPendingPartyIdsByInviter(memberId));
+        for (String partyId : targetPartyIds) {
+            Party party = partyRepository.findDetailByIdForUpdate(partyId).orElse(null);
+            partyInvitationLifecycleService.expirePendingByInviterInParty(
+                    partyId,
+                    memberId,
+                    PartyInvitationExpiryReason.MEMBER_WITHDRAWN
+            );
+            if (party == null || !ACTIVE_PARTY_STATUSES.contains(party.getStatus()) || !party.isMember(memberId)) {
+                continue;
+            }
             if (party.isLeader(memberId)) {
                 withdrawLeaderFromParty(party);
                 continue;

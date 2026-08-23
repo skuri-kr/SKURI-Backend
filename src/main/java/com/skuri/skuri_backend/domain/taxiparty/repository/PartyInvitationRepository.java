@@ -34,15 +34,14 @@ public interface PartyInvitationRepository extends JpaRepository<PartyInvitation
             """)
     List<PartyInvitation> findPendingByPartyIdForUpdate(@Param("partyId") String partyId);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
-            select invitation
+            select distinct invitation.partyId
             from PartyInvitation invitation
             where invitation.inviterId = :inviterId
               and invitation.status = com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus.PENDING
-            order by invitation.id asc
+            order by invitation.partyId asc
             """)
-    List<PartyInvitation> findPendingByInviterIdForUpdate(@Param("inviterId") String inviterId);
+    List<String> findPendingPartyIdsByInviterId(@Param("inviterId") String inviterId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
