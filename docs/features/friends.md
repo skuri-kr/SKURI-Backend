@@ -197,6 +197,7 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 - 정원이 다시 생기거나 파티가 다시 열려도 EXPIRED 초대는 복원하지 않으며 새 초대를 발송해야 한다.
 - 수신자가 다른 활성 파티에 참여 중인 상태는 대상 파티가 여전히 OPEN이고 자리가 있으며 친구 관계가 유효한 동안에만 PENDING을 유지할 수 있는 일시적 수락 실패다.
 - 파티 상태·정원·참여자·친구 관계 변경 시 선제적으로 만료시키고, 받은 초대 목록·badge count·수락 처리에서도 누락된 만료를 재검증한다.
+- 같은 파티에 대한 참가 요청과 친구 초대가 동시에 PENDING이면 먼저 수락된 경로만 참가를 확정한다. 초대 수락 시 참가 요청은 CANCELED, 참가 요청 수락 시 초대는 EXPIRED + ALREADY_JOINED로 같은 트랜잭션에서 정리한다.
 - 다중 선택 발송은 batch 전체 원자성이 아니라 수신자별 원자성을 사용한다. 각 수신자는 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE 중 하나의 결과를 가진다.
 - 응답 item 순서는 요청의 friendPublicId 순서를 유지하고 SENT item만 새 초대를 생성한다. 차단·친구 관계 상실·다른 활성 파티처럼 민감하거나 변동 가능한 사유는 NOT_ELIGIBLE로 통합한다.
 - 파티 없음·비OPEN, 초대자 비참여, 잘못된 batch 형식 같은 요청 전체 조건이 실패할 때만 초대를 하나도 만들지 않고 4xx로 응답한다.
@@ -213,6 +214,7 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 - 방 삭제, 비공개 전환, 정원 마감, 기존 참여, 친구 해제, 차단, 초대자 탈퇴 시 PENDING 초대를 EXPIRED로 확정한다.
 - 정원이 다시 생기거나 최대 인원이 늘어나도 EXPIRED 초대는 복원하지 않으며 새 초대를 발송해야 한다.
 - 방 상태·정원·참여자·친구 관계 변경 시 선제적으로 만료시키고, 받은 초대 목록·badge count·수락 처리에서도 누락된 만료를 재검증한다.
+- 회원 탈퇴로 모든 방에서 제거될 때 해당 회원이 보낸 PENDING 초대는 EXPIRED + MEMBER_WITHDRAWN, 학과 변경으로 기존 학과방에서 제거될 때 그 방에서 보낸 PENDING 초대는 EXPIRED + INVITER_LEFT로 정리한다.
 - 다중 선택 발송은 택시파티와 같은 수신자별 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE 결과를 요청 순서대로 반환한다.
 - 공개 non-PARTY 방 여부, 초대자 참여와 방 전체 자격이 실패하면 전체 4xx이며, 수신자별 관계·차단·입장 자격 경쟁은 NOT_ELIGIBLE로 처리해 다른 SENT 결과를 되돌리지 않는다.
 
@@ -536,6 +538,8 @@ PENDING ── 수락 성공 ──> ACCEPTED + 파티 참여
 ~~~
 
 정원 확인과 파티 참여는 같은 트랜잭션과 잠금 경계에서 처리한다. 정원이 가득 차는 순간 남아 있는 PENDING 초대를 EXPIRED로 전환하며, 초대 목록·badge count·수락 진입 시에도 lazy reconciliation으로 같은 terminal 조건을 적용한다. EXPIRED는 파티 재개방이나 자리 발생으로 복원하지 않는다. 수신자의 다른 활성 파티 참여만 대상 초대의 다른 terminal 조건이 충족되지 않은 동안 PENDING을 유지할 수 있는 재시도 가능 사유다.
+
+같은 회원이 동일 파티에 PENDING 참가 요청과 PENDING 친구 초대를 함께 가진 경우, 초대 수락은 참가 요청을 CANCELED로 만들고 참가 요청 수락은 초대를 EXPIRED + ALREADY_JOINED로 만든다. 두 흐름 중 실제 참가를 먼저 확정한 경로가 승리하며 경쟁 경로는 다시 처리할 수 없는 terminal 상태로 정리한다.
 
 ### 7.4 공개방 초대
 

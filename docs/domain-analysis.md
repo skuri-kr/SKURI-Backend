@@ -303,6 +303,8 @@ endReason 종류:
   - 일반 멤버 탈퇴는 `OPEN`, `CLOSED` 상태에서만 자동 이탈 허용
   - 일반 멤버가 `ARRIVED` 파티에 속해 있으면 정산 회피 방지를 위해 회원 탈퇴를 거부
   - 탈퇴 회원이 요청자인 `PENDING` join request는 `CANCELED`로 정리
+  - 동일 파티의 PENDING 참가 요청과 친구 초대가 경쟁하면 먼저 수락된 참가 경로를 유지하고, 초대 수락은 참가 요청을 `CANCELED`, 참가 요청 수락은 초대를 `EXPIRED + ALREADY_JOINED`로 정리
+  - 회원 탈퇴·학과 변경으로 파티나 공개방 멤버십을 일괄 제거할 때 발송자가 더 이상 유효하지 않은 PENDING 친구 초대도 함께 만료
 
 파티 채팅 특수 메시지:
   - ACCOUNT: 계좌 정보 공유
