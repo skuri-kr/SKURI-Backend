@@ -550,6 +550,10 @@ class ChatServiceTest {
                 "member-1",
                 ChatRoomInvitationExpiryReason.INVITER_LEFT
         );
+        verify(chatRoomInvitationLifecycleService).expirePendingDepartmentRoomInvitationsForInvitee(
+                "member-1",
+                ChatRoomInvitationExpiryReason.ELIGIBILITY_CHANGED
+        );
     }
 
     @Test
@@ -565,6 +569,10 @@ class ChatServiceTest {
 
         verify(chatRoomMemberRepository, never()).delete(any(ChatRoomMember.class));
         verify(chatMessageRepository, never()).save(any(ChatMessage.class));
+        verify(chatRoomInvitationLifecycleService).expirePendingDepartmentRoomInvitationsForInvitee(
+                "member-1",
+                ChatRoomInvitationExpiryReason.ELIGIBILITY_CHANGED
+        );
     }
 
     @Test

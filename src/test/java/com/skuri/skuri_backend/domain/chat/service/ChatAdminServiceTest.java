@@ -6,6 +6,7 @@ import com.skuri.skuri_backend.domain.chat.dto.request.AdminCreateChatRoomReques
 import com.skuri.skuri_backend.domain.chat.dto.response.AdminChatRoomMemberResponse;
 import com.skuri.skuri_backend.domain.chat.dto.response.AdminCreateChatRoomResponse;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
@@ -15,6 +16,7 @@ import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,6 +29,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -176,10 +179,16 @@ class ChatAdminServiceTest {
                 true,
                 null
         );
-        when(chatRoomRepository.findById("room-public")).thenReturn(Optional.of(room));
+        when(chatRoomRepository.findByIdForUpdate("room-public")).thenReturn(Optional.of(room));
 
         chatAdminService.deletePublicChatRoom("room-public");
 
+        InOrder deletionOrder = inOrder(chatRoomRepository, chatRoomInvitationLifecycleService);
+        deletionOrder.verify(chatRoomRepository).findByIdForUpdate("room-public");
+        deletionOrder.verify(chatRoomInvitationLifecycleService).expirePendingForRoom(
+                "room-public",
+                ChatRoomInvitationExpiryReason.TARGET_UNAVAILABLE
+        );
         verify(chatMessageRepository).deleteByChatRoomId("room-public");
         verify(chatRoomMemberRepository).deleteById_ChatRoomId("room-public");
         verify(chatRoomRepository).delete(room);
@@ -197,7 +206,7 @@ class ChatAdminServiceTest {
                 false,
                 null
         );
-        when(chatRoomRepository.findById("room-private")).thenReturn(Optional.of(room));
+        when(chatRoomRepository.findByIdForUpdate("room-private")).thenReturn(Optional.of(room));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
@@ -211,7 +220,7 @@ class ChatAdminServiceTest {
     @Test
     void deletePublicChatRoom_파티방_예외() {
         ChatRoom room = ChatRoom.createPartyRoom("party-1");
-        when(chatRoomRepository.findById("party:party-1")).thenReturn(Optional.of(room));
+        when(chatRoomRepository.findByIdForUpdate("party:party-1")).thenReturn(Optional.of(room));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
@@ -224,7 +233,7 @@ class ChatAdminServiceTest {
 
     @Test
     void deletePublicChatRoom_미존재_예외() {
-        when(chatRoomRepository.findById("unknown")).thenReturn(Optional.empty());
+        when(chatRoomRepository.findByIdForUpdate("unknown")).thenReturn(Optional.empty());
 
         BusinessException exception = assertThrows(
                 BusinessException.class,

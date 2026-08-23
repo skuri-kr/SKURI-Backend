@@ -18,6 +18,7 @@ import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Location;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyEndReason;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.SettlementAccountSnapshot;
 import com.skuri.skuri_backend.domain.taxiparty.entity.SettlementTargetSnapshot;
@@ -61,6 +62,9 @@ class TaxiPartyAdminServiceTest {
     private ChatService chatService;
 
     @Mock
+    private PartyInvitationLifecycleService partyInvitationLifecycleService;
+
+    @Mock
     private PartySseService partySseService;
 
     @Mock
@@ -73,7 +77,7 @@ class TaxiPartyAdminServiceTest {
     void updatePartyStatus_END_정상처리시_리더기준_END메시지를재사용한다() {
         Party party = sampleParty("party-1", "leader");
         arrive(party);
-        when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PartyStatusResponse response = taxiPartyAdminService.updatePartyStatus("party-1", AdminPartyStatusAction.END);
@@ -81,14 +85,31 @@ class TaxiPartyAdminServiceTest {
         assertEquals(PartyStatus.ENDED, response.status());
         assertEquals(PartyEndReason.FORCE_ENDED, response.endReason());
         verify(chatService).createPartyEndMessage(party, "leader");
+        verify(partyInvitationLifecycleService).expirePendingForParty(
+                "party-1",
+                PartyInvitationExpiryReason.TARGET_UNAVAILABLE
+        );
         verify(partySseService).publishPartyStatusChanged(party);
         verify(eventPublisher).publish(any());
     }
 
     @Test
+    void updatePartyStatus_REOPEN_만료된초대를복원하거나추가만료하지않는다() {
+        Party party = sampleParty("party-1", "leader");
+        party.close();
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PartyStatusResponse response = taxiPartyAdminService.updatePartyStatus("party-1", AdminPartyStatusAction.REOPEN);
+
+        assertEquals(PartyStatus.OPEN, response.status());
+        verify(partyInvitationLifecycleService, never()).expirePendingForParty(any(), any());
+    }
+
+    @Test
     void updatePartyStatus_END_허용되지않는전이면_실패한다() {
         Party party = sampleParty("party-1", "leader");
-        when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
@@ -98,13 +119,14 @@ class TaxiPartyAdminServiceTest {
         assertEquals(ErrorCode.INVALID_PARTY_STATE_TRANSITION, exception.getErrorCode());
         verify(partyRepository, never()).saveAndFlush(any(Party.class));
         verify(chatService, never()).createPartyEndMessage(any(), any());
+        verify(partyInvitationLifecycleService, never()).expirePendingForParty(any(), any());
     }
 
     @Test
     void removePartyMember_일반멤버면_성공한다() {
         Party party = sampleParty("party-1", "leader");
         Member member = memberWithProfile("member-1", "김철수", "김철수", null, "컴퓨터공학과", "20230001");
-        when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(memberRepository.findById("member-1")).thenReturn(Optional.of(member));
         when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -112,6 +134,11 @@ class TaxiPartyAdminServiceTest {
 
         assertEquals(1, party.getCurrentMembers());
         verify(chatService).syncPartyChatRoomMembers(party);
+        verify(partyInvitationLifecycleService).expirePendingByInviterInParty(
+                "party-1",
+                "member-1",
+                PartyInvitationExpiryReason.INVITER_LEFT
+        );
         verify(chatService).createPartyMemberLeaveSystemMessage(party, "admin-1", "김철수님이 나갔어요.");
         verify(partySseService).publishPartyMemberLeft(party, "member-1", "KICKED", List.of("leader", "member-1"));
         verify(eventPublisher).publish(any());
@@ -121,7 +148,7 @@ class TaxiPartyAdminServiceTest {
     void removePartyMember_리더면_실패한다() {
         Party party = sampleParty("party-1", "leader");
         Member leader = sampleMember("leader", "리더");
-        when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(memberRepository.findById("leader")).thenReturn(Optional.of(leader));
 
         BusinessException exception = assertThrows(

@@ -1,5 +1,8 @@
 package com.skuri.skuri_backend.domain.chat.repository;
 
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitation;
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +11,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,8 +42,54 @@ class ChatRoomInvitationRepositoryDataJpaTest {
         )).containsExactly("active-member");
     }
 
+    @Test
+    void 학과변경정리조회는_받은학과방_PENDING초대만_잠금조회한다() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 24, 1, 0);
+        entityManager.persist(ChatRoom.create(
+                "department-room",
+                "컴퓨터공학과 채팅방",
+                ChatRoomType.DEPARTMENT,
+                "컴퓨터공학과",
+                null,
+                null,
+                true,
+                null
+        ));
+        entityManager.persist(ChatRoom.create(
+                "university-room",
+                "성결대 전체 채팅방",
+                ChatRoomType.UNIVERSITY,
+                null,
+                null,
+                null,
+                true,
+                null
+        ));
+        insertInvitation("department-invite", "department-room", "member-1", now.plusDays(1), now);
+        insertInvitation("university-invite", "university-room", "member-1", now.plusDays(1), now);
+        entityManager.flush();
+        entityManager.clear();
+
+        List<ChatRoomInvitation> invitations = invitationRepository
+                .findPendingDepartmentRoomInvitationsByInviteeIdForUpdate("member-1");
+
+        assertThat(invitations)
+                .extracting(ChatRoomInvitation::getId)
+                .containsExactly("department-invite");
+    }
+
     private void insertInvitation(
             String invitationId,
+            String inviteeId,
+            LocalDateTime expiresAt,
+            LocalDateTime createdAt
+    ) {
+        insertInvitation(invitationId, "room-1", inviteeId, expiresAt, createdAt);
+    }
+
+    private void insertInvitation(
+            String invitationId,
+            String chatRoomId,
             String inviteeId,
             LocalDateTime expiresAt,
             LocalDateTime createdAt
@@ -54,12 +104,12 @@ class ChatRoomInvitationRepositoryDataJpaTest {
                 )
                 """)
                 .setParameter("id", invitationId)
-                .setParameter("chatRoomId", "room-1")
+                .setParameter("chatRoomId", chatRoomId)
                 .setParameter("inviterId", "inviter-1")
                 .setParameter("inviteeId", inviteeId)
                 .setParameter("status", "PENDING")
                 .setParameter("expiresAt", expiresAt)
-                .setParameter("activeTargetKey", "room-1:" + inviteeId)
+                .setParameter("activeTargetKey", chatRoomId + ":" + inviteeId)
                 .setParameter("createdAt", createdAt)
                 .setParameter("updatedAt", createdAt)
                 .executeUpdate();

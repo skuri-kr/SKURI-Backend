@@ -513,6 +513,9 @@ class TaxiPartyServiceTest {
         assertEquals(JoinRequestStatus.ACCEPTED, response.status());
         assertEquals(2, party.getCurrentMembers());
         assertEquals(PartyStatus.OPEN, party.getStatus());
+        InOrder aggregateLockOrder = inOrder(memberRepository, partyRepository);
+        aggregateLockOrder.verify(memberRepository).findActiveByIdForUpdate("requester-1");
+        aggregateLockOrder.verify(partyRepository).findDetailByIdForUpdate("party-1");
         verify(chatService).createPartyMemberJoinSystemMessage(party, "leader", "스쿠리 유저님이 입장했어요.");
         verify(chatService, never()).createPartySystemMessage(party, "leader", "모집이 마감되었어요.");
         verify(partySseService, never()).publishPartyStatusChanged(party);
