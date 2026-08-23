@@ -661,6 +661,10 @@ public class ChatService {
                     ChatMessage.SOURCE_MEMBER_LEAVE
             );
         }
+        chatRoomInvitationLifecycleService.expirePendingDepartmentRoomInvitationsForInvitee(
+                memberId,
+                ChatRoomInvitationExpiryReason.ELIGIBILITY_CHANGED
+        );
     }
 
     private void publishChatRoomRemovedEvent(ChatRoom room, String memberId) {

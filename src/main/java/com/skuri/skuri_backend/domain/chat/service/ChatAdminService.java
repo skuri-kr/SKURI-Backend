@@ -104,7 +104,7 @@ public class ChatAdminService {
 
     @Transactional
     public void deletePublicChatRoom(String chatRoomId) {
-        ChatRoom room = chatRoomRepository.findById(chatRoomId)
+        ChatRoom room = chatRoomRepository.findByIdForUpdate(chatRoomId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
         if (room.getType() == ChatRoomType.PARTY) {
             throw new BusinessException(ErrorCode.INVALID_REQUEST, "파티 채팅방은 관리자 API로 삭제할 수 없습니다.");

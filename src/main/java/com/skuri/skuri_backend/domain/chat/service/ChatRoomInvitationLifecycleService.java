@@ -67,6 +67,16 @@ public class ChatRoomInvitationLifecycleService {
                 .forEach(invitation -> invitation.expire(reason, now));
     }
 
+    @Transactional
+    public void expirePendingDepartmentRoomInvitationsForInvitee(
+            String inviteeId,
+            ChatRoomInvitationExpiryReason reason
+    ) {
+        LocalDateTime now = LocalDateTime.now();
+        invitationRepository.findPendingDepartmentRoomInvitationsByInviteeIdForUpdate(inviteeId)
+                .forEach(invitation -> invitation.expire(reason, now));
+    }
+
     @Transactional(readOnly = true)
     public long countPendingReceived(String memberId) {
         return invitationRepository.countByInviteeIdAndStatus(memberId, ChatRoomInvitationStatus.PENDING);
