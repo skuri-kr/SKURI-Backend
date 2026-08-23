@@ -615,6 +615,10 @@ public class ChatService {
 
     @Transactional
     public void removeMemberFromAllChatRooms(String memberId) {
+        chatRoomInvitationLifecycleService.expirePendingByInviter(
+                memberId,
+                ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
         for (String chatRoomId : chatRoomMemberRepository.findChatRoomIdsByMemberId(memberId)) {
             ChatRoom room = chatRoomRepository.findByIdForUpdate(chatRoomId).orElse(null);
             if (room == null) {
@@ -643,6 +647,11 @@ public class ChatService {
             if (membership == null) {
                 continue;
             }
+            chatRoomInvitationLifecycleService.expirePendingByInviterInRoom(
+                    chatRoomId,
+                    memberId,
+                    ChatRoomInvitationExpiryReason.INVITER_LEFT
+            );
             removeMembership(membership, room, true, false);
             createMembershipSystemMessage(
                     room,
