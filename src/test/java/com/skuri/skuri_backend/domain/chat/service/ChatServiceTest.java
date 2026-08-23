@@ -592,7 +592,10 @@ class ChatServiceTest {
 
         when(chatRoomMemberRepository.findChatRoomIdsByMemberId("member-1"))
                 .thenReturn(List.of("deleted-room", "room-1"));
+        when(chatRoomInvitationLifecycleService.findPendingChatRoomIdsByInviter("member-1"))
+                .thenReturn(List.of("invitation-room"));
         when(chatRoomRepository.findByIdForUpdate("deleted-room")).thenReturn(Optional.empty());
+        when(chatRoomRepository.findByIdForUpdate("invitation-room")).thenReturn(Optional.empty());
         when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(remainingRoom));
         when(chatRoomMemberRepository.findById_ChatRoomIdAndId_MemberId("room-1", "member-1"))
                 .thenReturn(Optional.of(remainingMembership));
@@ -603,7 +606,15 @@ class ChatServiceTest {
         verify(chatRoomMemberRepository).delete(remainingMembership);
         verify(chatRoomMemberRepository, times(1)).delete(any(ChatRoomMember.class));
         verify(chatRoomSummaryEventPublisher).publishCurrent("room-1");
-        verify(chatRoomInvitationLifecycleService).expirePendingByInviter(
+        verify(chatRoomInvitationLifecycleService).expirePendingByInviterInRoom(
+                "invitation-room",
+                "member-1",
+                ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
+        InOrder lockOrder = inOrder(chatRoomRepository, chatRoomInvitationLifecycleService);
+        lockOrder.verify(chatRoomRepository).findByIdForUpdate("room-1");
+        lockOrder.verify(chatRoomInvitationLifecycleService).expirePendingByInviterInRoom(
+                "room-1",
                 "member-1",
                 ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN
         );

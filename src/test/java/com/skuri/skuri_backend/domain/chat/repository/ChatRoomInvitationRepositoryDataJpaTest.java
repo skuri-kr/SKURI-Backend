@@ -43,6 +43,21 @@ class ChatRoomInvitationRepositoryDataJpaTest {
     }
 
     @Test
+    void 인박스카운트는_만료시각이지나지않은_PENDING만_센다() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 24, 1, 0);
+        insertInvitation("active-invite", "room-1", "active-member", now.plusMinutes(1), now);
+        insertInvitation("timed-out-invite", "room-2", "active-member", now.minusMinutes(1), now.minusDays(7));
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(invitationRepository.countByInviteeIdAndStatusAndExpiresAtAfter(
+                "active-member",
+                com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationStatus.PENDING,
+                now
+        )).isEqualTo(1);
+    }
+
+    @Test
     void 학과변경정리조회는_받은학과방_PENDING초대만_잠금조회한다() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 24, 1, 0);
         entityManager.persist(ChatRoom.create(

@@ -960,8 +960,12 @@ class TaxiPartyServiceTest {
         JoinRequest joinRequest = JoinRequest.create(party, "requester-1");
         ReflectionTestUtils.setField(joinRequest, "id", "request-1");
 
-        when(partyRepository.findActiveDetailsByMemberId("leader", java.util.EnumSet.of(PartyStatus.OPEN, PartyStatus.CLOSED, PartyStatus.ARRIVED)))
-                .thenReturn(List.of(party));
+        when(partyRepository.findActiveIdsByMemberId("leader", java.util.EnumSet.of(PartyStatus.OPEN, PartyStatus.CLOSED, PartyStatus.ARRIVED)))
+                .thenReturn(List.of("party-1"));
+        when(partyInvitationLifecycleService.findPendingPartyIdsByInviter("leader"))
+                .thenReturn(List.of("invitation-only-party"));
+        when(partyRepository.findDetailByIdForUpdate("invitation-only-party")).thenReturn(Optional.empty());
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(joinRequestRepository.findByParty_IdAndStatusOrderByCreatedAtDesc("party-1", JoinRequestStatus.PENDING))
                 .thenReturn(List.of(joinRequest));
@@ -975,7 +979,15 @@ class TaxiPartyServiceTest {
         verify(chatService).createPartyEndMessage(party, "leader");
         verify(partySseService).publishPartyStatusChanged(party);
         verify(joinRequestSseService).publishJoinRequestUpdated(joinRequest, JoinRequestStatus.PENDING);
-        verify(partyInvitationLifecycleService).expirePendingByInviter(
+        verify(partyInvitationLifecycleService).expirePendingByInviterInParty(
+                "invitation-only-party",
+                "leader",
+                PartyInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
+        InOrder lockOrder = inOrder(partyRepository, partyInvitationLifecycleService);
+        lockOrder.verify(partyRepository).findDetailByIdForUpdate("party-1");
+        lockOrder.verify(partyInvitationLifecycleService).expirePendingByInviterInParty(
+                "party-1",
                 "leader",
                 PartyInvitationExpiryReason.MEMBER_WITHDRAWN
         );
