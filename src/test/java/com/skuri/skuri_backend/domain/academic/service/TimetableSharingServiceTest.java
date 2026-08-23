@@ -6,6 +6,7 @@ import com.skuri.skuri_backend.domain.academic.dto.request.UpdateTimetableSharin
 import com.skuri.skuri_backend.domain.academic.entity.Course;
 import com.skuri.skuri_backend.domain.academic.entity.TimetableShareScope;
 import com.skuri.skuri_backend.domain.academic.entity.UserTimetable;
+import com.skuri.skuri_backend.domain.academic.repository.CourseRepository;
 import com.skuri.skuri_backend.domain.academic.repository.TimetableShareOverrideRepository;
 import com.skuri.skuri_backend.domain.academic.repository.TimetableSharingSettingRepository;
 import com.skuri.skuri_backend.domain.academic.repository.UserTimetableRepository;
@@ -22,6 +23,7 @@ import org.mockito.InjectMocks;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 import java.util.List;
@@ -50,6 +52,9 @@ class TimetableSharingServiceTest {
 
     @Mock
     private TimetableSharingSettingsReadService timetableSharingSettingsReadService;
+
+    @Mock
+    private CourseRepository courseRepository;
 
     @Mock
     private UserTimetableRepository userTimetableRepository;
@@ -221,5 +226,47 @@ class TimetableSharingServiceTest {
         assertThat(response.courses()).singleElement()
                 .extracting(courseResponse -> courseResponse.professor())
                 .isNull();
+    }
+
+    @Test
+    void 친구시간표의공식강의교시는한번에조회한다() {
+        UserTimetable timetable = UserTimetable.create("friend", "2026-1");
+        Course firstMappingCourse = course("course-1", "민법총칙");
+        Course secondMappingCourse = course("course-2", "행정법");
+        timetable.addCourse(firstMappingCourse);
+        timetable.addCourse(secondMappingCourse);
+
+        Course firstDetailedCourse = course("course-1", "민법총칙");
+        firstDetailedCourse.appendSchedule(1, 3, 4);
+        Course secondDetailedCourse = course("course-2", "행정법");
+        secondDetailedCourse.appendSchedule(2, 5, 6);
+
+        when(friendRelationshipQueryService.requireFriendMemberId("viewer", "friend-public-id"))
+                .thenReturn("friend");
+        when(timetableSharingScopeResolver.resolveScope("friend", "viewer"))
+                .thenReturn(TimetableShareScope.BUSY_ONLY);
+        when(userTimetableRepository.findDetailByUserIdAndSemester("friend", "2026-1"))
+                .thenReturn(Optional.of(timetable));
+        when(courseRepository.findAllWithSchedulesByIdIn(List.of("course-1", "course-2")))
+                .thenReturn(List.of(firstDetailedCourse, secondDetailedCourse));
+
+        FriendTimetableResponse response = timetableSharingService.getFriendTimetable(
+                "viewer", "friend-public-id", "2026-1"
+        );
+
+        assertThat(response.slots()).containsExactly(
+                new com.skuri.skuri_backend.domain.academic.dto.response.FriendTimetableSlotResponse(1, 3, 4),
+                new com.skuri.skuri_backend.domain.academic.dto.response.FriendTimetableSlotResponse(2, 5, 6)
+        );
+        verify(courseRepository).findAllWithSchedulesByIdIn(List.of("course-1", "course-2"));
+    }
+
+    private Course course(String id, String name) {
+        Course course = Course.create(
+                2, "전공선택", id, "001", name, 3,
+                "교수", "강의실", null, false, "2026-1", "법학과"
+        );
+        ReflectionTestUtils.setField(course, "id", id);
+        return course;
     }
 }
