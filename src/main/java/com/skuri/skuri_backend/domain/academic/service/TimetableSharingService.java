@@ -23,6 +23,7 @@ import com.skuri.skuri_backend.domain.academic.repository.UserTimetableRepositor
 import com.skuri.skuri_backend.domain.friend.entity.Friendship;
 import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
+import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPair;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
 import com.skuri.skuri_backend.domain.friend.service.FriendProfileProvisioningService;
@@ -55,6 +56,7 @@ public class TimetableSharingService {
     private final FriendRelationshipQueryService friendRelationshipQueryService;
     private final FriendProfileRepository friendProfileRepository;
     private final FriendshipRepository friendshipRepository;
+    private final MemberBlockRepository memberBlockRepository;
     private final FriendMemberPairLockService pairLockService;
 
     public TimetableSharingSettingsResponse getMySharingSettings(String ownerMemberId) {
@@ -118,6 +120,10 @@ public class TimetableSharingService {
                 .map(profile -> profile.getMemberId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND));
         FriendMemberPair pair = pairLockService.lockActivePair(ownerMemberId, friendMemberId);
+        if (memberBlockRepository.existsByBlockerIdAndBlockedId(ownerMemberId, friendMemberId)
+                || memberBlockRepository.existsByBlockerIdAndBlockedId(friendMemberId, ownerMemberId)) {
+            throw new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND);
+        }
         friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.FRIENDSHIP_NOT_FOUND));
         return friendMemberId;
