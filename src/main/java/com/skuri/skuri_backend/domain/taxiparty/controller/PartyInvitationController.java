@@ -57,7 +57,11 @@ public class PartyInvitationController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "파티 또는 회원 없음",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiTaxiPartyExamples.ERROR_PARTY_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "파티 상태·정원 또는 회원 프로필 조건 불충족",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiTaxiPartyExamples.ERROR_PARTY_CLOSED)))
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "PARTY_CLOSED", value = OpenApiTaxiPartyExamples.ERROR_PARTY_CLOSED),
+                            @ExampleObject(name = "PARTY_FULL", value = OpenApiTaxiPartyExamples.ERROR_PARTY_FULL),
+                            @ExampleObject(name = "MEMBER_PROFILE_INCOMPLETE", value = OpenApiCommonExamples.ERROR_MEMBER_PROFILE_INCOMPLETE)
+                    }))
     })
     public ResponseEntity<ApiResponse<PartyInvitationEligibleFriendsResponse>> getEligibleFriends(
             @AuthenticationPrincipal AuthenticatedMember authenticatedMember,
@@ -80,7 +84,10 @@ public class PartyInvitationController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "파티 또는 회원 없음",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiTaxiPartyExamples.ERROR_PARTY_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "파티 상태 또는 회원 프로필 조건 불충족",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiTaxiPartyExamples.ERROR_PARTY_CLOSED))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "PARTY_CLOSED", value = OpenApiTaxiPartyExamples.ERROR_PARTY_CLOSED),
+                            @ExampleObject(name = "MEMBER_PROFILE_INCOMPLETE", value = OpenApiCommonExamples.ERROR_MEMBER_PROFILE_INCOMPLETE)
+                    })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "batch 입력 검증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION)))
     })
@@ -120,7 +127,7 @@ public class PartyInvitationController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "수신자가 아님",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_FORBIDDEN))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "PARTY_INVITATION_RECIPIENT_REQUIRED", value = OpenApiInvitationExamples.ERROR_PARTY_INVITATION_RECIPIENT_REQUIRED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "초대 없음",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiInvitationExamples.ERROR_PARTY_INVITATION_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "초대 처리 불가 또는 다른 활성 파티 참여 중",
@@ -144,7 +151,7 @@ public class PartyInvitationController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "거절 성공",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiInvitationSchemas.PartyMutationApiResponse.class), examples = @ExampleObject(value = OpenApiInvitationExamples.SUCCESS_PARTY_DECLINE))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "수신자가 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_FORBIDDEN))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "수신자가 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "PARTY_INVITATION_RECIPIENT_REQUIRED", value = OpenApiInvitationExamples.ERROR_PARTY_INVITATION_RECIPIENT_REQUIRED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "초대 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiInvitationExamples.ERROR_PARTY_INVITATION_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "초대 처리 불가", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiInvitationExamples.ERROR_PARTY_INVITATION_STATE)))
     })
@@ -162,7 +169,7 @@ public class PartyInvitationController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "취소 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "발송자가 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_FORBIDDEN))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "발송자가 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "PARTY_INVITATION_INVITER_REQUIRED", value = OpenApiInvitationExamples.ERROR_PARTY_INVITATION_INVITER_REQUIRED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "초대 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiInvitationExamples.ERROR_PARTY_INVITATION_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "초대 처리 불가", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiInvitationExamples.ERROR_PARTY_INVITATION_STATE)))
     })
