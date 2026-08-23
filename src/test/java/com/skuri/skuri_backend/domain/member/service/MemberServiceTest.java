@@ -261,6 +261,43 @@ class MemberServiceTest {
     }
 
     @Test
+    void updateMyProfile_레거시예약닉네임을유지한채_프로필을완료할수없다() {
+        Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
+        member.updateProfile("SKURI 운영자", "legacy-reserved-key", "20261234", null, null);
+        when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
+        when(departmentService.normalizeSupported("컴퓨터공학과")).thenReturn("컴퓨터공학과");
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> memberService.updateMyProfile(
+                        "firebase-uid",
+                        new UpdateMemberProfileRequest(null, null, "컴퓨터공학과", null)
+                )
+        );
+
+        assertEquals(ErrorCode.NICKNAME_RESERVED, exception.getErrorCode());
+        assertNull(member.getDepartment());
+        verify(eventPublisher, never()).publish(any());
+    }
+
+    @Test
+    void updateMyProfile_레거시예약닉네임을정상닉네임으로바꾸면_프로필완료를허용한다() {
+        Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
+        member.updateProfile("SKURI 운영자", "legacy-reserved-key", "20261234", null, null);
+        when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
+        when(departmentService.normalizeSupported("컴퓨터공학과")).thenReturn("컴퓨터공학과");
+
+        MemberMeResponse response = memberService.updateMyProfile(
+                "firebase-uid",
+                new UpdateMemberProfileRequest("새회원", null, "컴퓨터공학과", null)
+        );
+
+        assertEquals("새회원", response.nickname());
+        assertEquals("컴퓨터공학과", response.department());
+        verify(eventPublisher).publish(new MemberLifecycleEvent.MemberProfileCompleted("firebase-uid"));
+    }
+
+    @Test
     void updateMyProfile_이미완료된예약닉네임회원은_부분수정을허용한다() {
         Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
         member.updateProfile(
