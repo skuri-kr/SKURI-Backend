@@ -269,6 +269,9 @@ public final class OpenApiAcademicExamples {
             }
             """;
 
+    public static final String ERROR_TIMETABLE_SEMESTER_FORMAT_INVALID =
+            "{\"success\":false,\"message\":\"semester는 yyyy-1 또는 yyyy-2 형식이어야 합니다.\",\"errorCode\":\"VALIDATION_ERROR\",\"timestamp\":\"2026-08-23T10:00:00\"}";
+
     public static final String SUCCESS_TIMETABLE_WITH_MANUAL_ONLINE = """
             {
               "success": true,

@@ -164,7 +164,10 @@ public class TimetableSharingController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "필수 semester 누락",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_INVALID_REQUEST))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "semester 검증 실패",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(
+                            name = "SEMESTER_FORMAT_INVALID",
+                            value = OpenApiAcademicExamples.ERROR_TIMETABLE_SEMESTER_FORMAT_INVALID
+                    ))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
     })
