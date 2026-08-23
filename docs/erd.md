@@ -845,6 +845,7 @@ erDiagram
 | `party_tags` | 파티 태그 | ~100,000/년 |
 | `member_settlements` | 멤버별 정산 상태 | ~150,000/년 |
 | `join_requests` | 동승 요청 | ~100,000/년 |
+| `party_invitations` | 파티 참가자가 친구에게 보낸 초대와 terminal 이력 | 초대량에 비례 |
 
 **parties 테이블 상세:**
 
@@ -905,6 +906,21 @@ Taxi history 계약 메모:
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
 
+**party_invitations 테이블 상세:**
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|------|------|---------|------|
+| id | VARCHAR(36) | PK | 초대 UUID |
+| party_id | VARCHAR(36) | NOT NULL, IDX(party_id, status, id) | 대상 파티 ID |
+| inviter_id | VARCHAR(36) | NOT NULL, IDX(inviter_id, status, id) | 초대한 현재 파티 참가자 |
+| invitee_id | VARCHAR(36) | NOT NULL, IDX(invitee_id, status, created_at) | 초대받은 친구 |
+| status | VARCHAR(20) | NOT NULL | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
+| expiry_reason | VARCHAR(40) | NULL | EXPIRED terminal 사유 |
+| responded_at | DATETIME | NULL | terminal 처리 시각 |
+| active_target_key | VARCHAR(73) | UK, NULL | `{partyId}:{inviteeId}`. PENDING일 때만 non-null |
+| created_at | DATETIME | NOT NULL | 생성일 |
+| updated_at | DATETIME | NOT NULL | 수정일 |
+
 ### 2.3 Chat 도메인
 
 | 테이블 | 설명 | 예상 레코드 수 |
@@ -912,6 +928,7 @@ Taxi history 계약 메모:
 | `chat_rooms` | 채팅방 | ~100 (공개) + 파티당 1개 |
 | `chat_room_members` | 채팅방 멤버 | ~100,000 |
 | `chat_messages` | 채팅 메시지 | ~1,000,000/년 |
+| `chat_room_invitations` | 공개 non-PARTY 방 친구 초대와 terminal 이력 | 초대량에 비례 |
 
 **chat_messages 테이블 상세:**
 
@@ -931,6 +948,22 @@ Taxi history 계약 메모:
 | source_event_id | VARCHAR(36) | UK, NULL | 마인크래프트 inbound dedupe/event mapping key |
 | image_asset_key | VARCHAR(255) | NULL, IDX(type, image_asset_key, deleted_at) | `IMAGE` 원본·썸네일을 같은 자산으로 식별하는 정규화 키 |
 | created_at | DATETIME | NOT NULL | 생성일 |
+
+**chat_room_invitations 테이블 상세:**
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|------|------|---------|------|
+| id | VARCHAR(36) | PK | 초대 UUID |
+| chat_room_id | VARCHAR(100) | NOT NULL, IDX(chat_room_id, status, id) | 대상 공개 채팅방 ID |
+| inviter_id | VARCHAR(36) | NOT NULL, IDX(inviter_id, status, id) | 초대한 방 참가자 |
+| invitee_id | VARCHAR(36) | NOT NULL, IDX(invitee_id, status, created_at) | 초대받은 친구 |
+| status | VARCHAR(20) | NOT NULL, IDX(status, expires_at, id) | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
+| expires_at | DATETIME | NOT NULL | 생성 시각 기준 7일 후 |
+| expiry_reason | VARCHAR(40) | NULL | EXPIRED terminal 사유 |
+| responded_at | DATETIME | NULL | terminal 처리 시각 |
+| active_target_key | VARCHAR(137) | UK, NULL | `{chatRoomId}:{inviteeId}`. PENDING일 때만 non-null |
+| created_at | DATETIME | NOT NULL | 생성일 |
+| updated_at | DATETIME | NOT NULL | 수정일 |
 
 ### 2.4 Minecraft 도메인
 
@@ -1194,8 +1227,10 @@ Taxi history 계약 메모:
 | 파티-태그 | parties | party_tags | 1:N | 파티에 여러 태그 |
 | 파티-정산 | parties | member_settlements | 1:N | 파티 멤버별 정산 상태 |
 | 파티-요청 | parties | join_requests | 1:N | 파티에 여러 동승 요청 |
+| 파티-친구초대 | parties | party_invitations | 1:N | OPEN 파티 초대와 terminal 이력 |
 | 채팅방-멤버 | chat_rooms | chat_room_members | 1:N | 채팅방에 여러 멤버 |
 | 채팅방-메시지 | chat_rooms | chat_messages | 1:N | 채팅방에 여러 메시지 |
+| 채팅방-친구초대 | chat_rooms | chat_room_invitations | 1:N | 공개 non-PARTY 방 초대와 terminal 이력 |
 | 회원-친구 공개 프로필 | members | friend_profiles | 1:0..1 | 프로필 완료 ACTIVE 회원당 하나의 공개 프로필 |
 | 활성 친구 코드-공개 프로필 | friend_code_registry | friend_profiles | 1:0..1 | ACTIVE 코드만 현재 프로필에 연결 |
 | 게시글-이미지 | posts | post_images | 1:N | 게시글에 여러 이미지 |

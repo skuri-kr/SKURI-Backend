@@ -7408,7 +7408,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 ## 14. Friend API
 
-> Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), 친구 Minecraft projection 및 시간표 공유는 현재 운영 API다. 택시·공개방 초대·알림은 아직 구현되지 않았다.
+> Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), 친구 Minecraft projection, 시간표 공유와 TaxiParty·공개방 초대는 현재 운영 API다. 알림 확장·회원 탈퇴 cleanup은 아직 구현되지 않았다.
 
 모든 Friend 런타임 API(Foundation·관계 Core)는 인증된 프로필 완료 ACTIVE 회원만 호출할 수 있다. 완료 기준은 비어 있지 않은 닉네임, 학번, 학과이며 프로필 사진은 선택이다. 프로필 미완료 회원은 현재 예약어 닉네임을 변경하지 않은 채 학번·학과만 채워 완료 상태로 전환할 수 없다. 이미 완료된 기존 예약어 닉네임 회원은 다른 완료 조건을 만족하면 Friend 기능을 사용할 수 있다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`, 프로필 미완료 회원은 `409 MEMBER_PROFILE_INCOMPLETE`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
 
@@ -7665,16 +7665,75 @@ cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형�
   "success": true,
   "data": {
     "incomingRequestCount": 1,
-    "partyInvitationCount": 0,
-    "chatRoomInvitationCount": 0,
-    "totalActionCount": 1
+    "partyInvitationCount": 1,
+    "chatRoomInvitationCount": 1,
+    "totalActionCount": 3
   }
 }
 ```
 
-관계 Core 단계에서는 택시·공개방 초대 도메인이 구현되지 않았으므로 두 초대 count는 0이다. 후속 도메인 구현에서 additive하게 실제 PENDING 초대 수를 연결한다.
+세 count는 내가 받은 유효 PENDING 항목만 포함하고 보낸 요청·초대는 제외한다. 조회 전에 친구 요청 만료, 택시파티 terminal 조건, 공개방 초대의 7일 만료와 terminal 조건을 lazy reconciliation한다.
 
-### 14.5 Friend 에러 코드
+### 14.5 TaxiParty·공개 채팅방 친구 초대
+
+#### 택시파티 초대
+
+| Method | Path | 설명 |
+| --- | --- | --- |
+| GET | `/v1/parties/{partyId}/invitations/eligible-friends` | 현재 참가자가 초대 가능한 친구와 제외 집계 조회 |
+| POST | `/v1/parties/{partyId}/invitations` | friendPublicIds 1~100명을 수신자별 독립 처리 |
+| GET | `/v1/party-invitations/received` | PENDING·EXPIRED 받은 초대 최신순 조회 |
+| POST | `/v1/party-invitations/{invitationId}/accept` | 수락 시 OPEN·정원·참여·친구·차단을 재검증하고 파티 참가 |
+| POST | `/v1/party-invitations/{invitationId}/decline` | 수신자가 PENDING 초대 거절 |
+| DELETE | `/v1/party-invitations/{invitationId}` | 발송자가 PENDING 초대 취소 |
+
+```json
+{
+  "friendPublicIds": [
+    "2fdbf426-a778-4b6a-8261-9c0549a8b2b4",
+    "5d7b8db0-b4fb-4c42-b188-f8d17e17e66f"
+  ]
+}
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      {
+        "friendPublicId": "2fdbf426-a778-4b6a-8261-9c0549a8b2b4",
+        "outcome": "SENT",
+        "invitationId": "924e59ae-87ab-44f5-8155-26180a238429"
+      },
+      {
+        "friendPublicId": "5d7b8db0-b4fb-4c42-b188-f8d17e17e66f",
+        "outcome": "NOT_ELIGIBLE",
+        "invitationId": null
+      }
+    ]
+  }
+}
+```
+
+outcome은 `SENT | ALREADY_PENDING | ALREADY_MEMBER | NOT_ELIGIBLE`다. 결과는 중복 제거 후 첫 등장 요청 순서를 유지하고 각 수신자를 독립 트랜잭션으로 처리한다. `SENT`와 현재 발송자가 만든 `ALREADY_PENDING`만 invitationId를 제공한다. 초대는 좌석을 예약하지 않으며 수락 시 다른 활성 파티가 있으면 초대를 PENDING으로 유지한 채 `409 ALREADY_IN_PARTY`를 반환한다. 파티 비OPEN·정원 마감·초대자 이탈·관계 상실은 EXPIRED로 고정한다.
+
+#### 공개 채팅방 초대
+
+| Method | Path | 설명 |
+| --- | --- | --- |
+| GET | `/v1/chat-rooms/{chatRoomId}/invitations/eligible-friends` | 공개 non-PARTY 방에 초대 가능한 친구 조회 |
+| POST | `/v1/chat-rooms/{chatRoomId}/invitations` | friendPublicIds 1~100명을 수신자별 독립 처리 |
+| GET | `/v1/chat-room-invitations/received` | PENDING·EXPIRED 받은 초대 최신순 조회 |
+| POST | `/v1/chat-room-invitations/{invitationId}/accept` | 수락 시 공개 여부·방 유형·정원·입장 자격·관계를 재검증하고 참가 |
+| POST | `/v1/chat-room-invitations/{invitationId}/decline` | 수신자가 PENDING 초대 거절 |
+| DELETE | `/v1/chat-room-invitations/{invitationId}` | 발송자가 PENDING 초대 취소 |
+
+batch 형식과 outcome 계약은 택시파티 초대와 같다. `UNIVERSITY`, `DEPARTMENT`, `GAME`, 공개 `CUSTOM`만 허용하고 `PARTY`·비공개·1:1 방은 지원하지 않는다. 초대는 생성 후 7일에 만료되며 10분 주기 최대 100건 batch와 목록·count·mutation의 lazy reconciliation을 함께 사용한다. 방 삭제·정원 마감·초대자 이탈·기존 참여·친구 해제·차단·학과 자격 변경은 안전한 expiryReason으로 EXPIRED 처리한다.
+
+받은 초대 목록은 현재 조치 가능한 `PENDING`과 사유 안내가 필요한 `EXPIRED`만 반환한다. `ACCEPTED`, `DECLINED`, `CANCELED` 이력은 V1 목록에서 제외한다. inviter와 대상 aggregate가 삭제·탈퇴 등으로 안전하게 표시될 수 없으면 해당 요약은 nullable이다.
+
+### 14.6 Friend·초대 에러 코드
 
 | 에러 코드 | HTTP | 설명 |
 | --- | --- | --- |
@@ -7692,10 +7751,19 @@ cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형�
 | `FRIEND_REQUEST_RECIPIENT_REQUIRED` | 403 | 수신자 이외의 수락·거절 |
 | `FRIEND_REQUEST_REQUESTER_REQUIRED` | 403 | 요청자 이외의 취소 |
 | `FRIEND_SELF_BLOCK_NOT_ALLOWED` | 400 | 자기 자신 차단 |
+| `PARTY_INVITATION_NOT_FOUND` | 404 | 택시파티 초대 없음 |
+| `PARTY_INVITATION_STATE_NOT_ALLOWED` | 409 | 택시파티 초대 terminal 상태 또는 수락 조건 만료 |
+| `PARTY_INVITATION_RECIPIENT_REQUIRED` | 403 | 수신자 이외의 수락·거절 |
+| `PARTY_INVITATION_INVITER_REQUIRED` | 403 | 발송자 이외의 취소 |
+| `CHAT_ROOM_INVITATION_NOT_FOUND` | 404 | 공개방 초대 없음 |
+| `CHAT_ROOM_INVITATION_STATE_NOT_ALLOWED` | 409 | 공개방 초대 terminal 상태 또는 수락 조건 만료 |
+| `CHAT_ROOM_INVITATION_RECIPIENT_REQUIRED` | 403 | 수신자 이외의 수락·거절 |
+| `CHAT_ROOM_INVITATION_INVITER_REQUIRED` | 403 | 발송자 이외의 취소 |
 
 ---
 
 > 변경 이력
+> - 2026-08-23: TaxiParty·공개 non-PARTY 채팅방 친구 초대 반영 — 수신자별 부분 성공, PENDING·EXPIRED 받은 목록, 수락 재검증, 7일 만료와 inbox count 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-21: Friend Minecraft projection 반영 — 친구 목록·상세 Minecraft 요약과 SELF·FRIEND 계층 조회 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-21: Friend Core 출시 준비 계약 반영 — 프로필 완료 회원만 FriendProfile·코드 발급, 검색 기본 공개·1자 검색, `relationshipState` enum, ACTIVE 닉네임 중복·예약어 오류를 동기화
 > - 2026-08-18: Friend 관계 Core 구현 반영 — 요청·friendship·즐겨찾기·친구 끊기·차단·검색·PENDING cursor 목록 및 차단 마스킹 계약을 `/v3/api-docs` 기준으로 추가

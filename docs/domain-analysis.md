@@ -54,7 +54,7 @@
 
 ### 2.1 승인된 목표 도메인 (9개 + 인프라)
 
-> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정), 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), Minecraft 안전 projection과 시간표 공유 Backend·Frontend 전달을 완료했다. 택시파티·공개방 초대·알림의 도메인 협력은 후속 구현 계획이다.
+> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정), 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), Minecraft 안전 projection과 시간표 공유 전달을 완료했다. TaxiParty·Chat 초대 협력은 런타임 구현 단계이며 알림은 후속 구현 계획이다.
 
 | # | 도메인 | 유형 | 핵심 책임 | 주요 엔티티 |
 |---|--------|------|----------|------------|
@@ -808,7 +808,7 @@ Hooks:
 
 ### 3.9 Friend (친구, Phase 14 관계 Core 구현)
 
-> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유 Backend·Frontend 전달 완료. 초대·알림은 후속 구현 예정
+> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유 전달 완료. TaxiParty·Chat 초대는 런타임 구현 단계이며 알림은 후속 구현 예정
 > 상세 기준: `docs/features/friends.md`
 
 ```
@@ -882,7 +882,7 @@ Hooks:
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-위 다이어그램은 현재 런타임 구조다. Friend 관계 Core, Minecraft 안전 projection과 Academic 시간표 공유 협력은 런타임에 존재하며, 아래 택시파티·공개방 초대와 알림 협력은 후속 Phase 14 범위다. 각 도메인은 상대 도메인의 내부 엔티티를 직접 수정하지 않는다.
+위 다이어그램은 현재 런타임 구조다. Friend 관계 Core, Minecraft 안전 projection, Academic 시간표 공유와 TaxiParty·공개방 초대 협력은 런타임에 존재하며, Notification 협력은 후속 Phase 14 범위다. 각 도메인은 상대 도메인의 내부 엔티티를 직접 수정하지 않는다.
 
 ```text
 Member ◄── Friend ──► Notification
@@ -1707,7 +1707,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
 | 6 | **Board** | 중간 | 비교적 단순한 CRUD | 중 |
 | 7 | **Academic** | 낮음 | 읽기 위주, 낮은 복잡도 | 하 |
 | 8 | **Support** | 낮음 | 관리 기능, 마지막 | 하 |
-| 9 | **Friend** | 관계 Core·Minecraft·시간표 협력 완료, 초대·알림 예정 | 시간표·택시파티·공개방·Minecraft를 잇는 소셜 관계 기반 | 상 |
+| 9 | **Friend** | 관계 Core·Minecraft·시간표 협력 완료, TaxiParty·Chat 초대 구현 중, 알림 예정 | 시간표·택시파티·공개방·Minecraft를 잇는 소셜 관계 기반 | 상 |
 
 ### 8.2 마이그레이션 체크리스트
 
@@ -1761,7 +1761,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
 
 > **문서 이력**
 > - 2026-08-23: 예약어 닉네임을 유지한 미완료 회원의 최초 프로필 완료 전환 거부와 기존 완료 예약어 회원 grandfathering을 반영
-> - 2026-08-23: Phase 14 Academic 시간표 공유 협력을 런타임 상태로 동기화하고, 초대·알림만 후속 범위로 분리
+> - 2026-08-23: Phase 14 Academic 시간표 공유 협력을 런타임 상태로 동기화하고, TaxiParty·Chat 초대를 런타임 구현 단계로 전환
 > - 2026-08-18: Phase 14 Friend 관계 Core 구현 반영 — 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록을 현재 런타임으로 전환하고 후속 도메인 협력 범위를 분리
 > - 2026-08-18: Phase 14 Friend Foundation 구현 반영 — FriendProfile·FriendCodeRegistry, 코드 preview·재발급, 검색 공개 설정과 Member lifecycle 연계를 현재 런타임으로 전환
 > - 2026-08-18: Phase 14 Friend 계획 보완 — 영구 미재사용 코드 registry, 잠금 후 Member ACTIVE 재확인과 탈퇴 orchestration 책임을 반영
