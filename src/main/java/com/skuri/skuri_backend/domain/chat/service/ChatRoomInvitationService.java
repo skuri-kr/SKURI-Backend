@@ -20,6 +20,9 @@ import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService;
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService.InvitationCandidate;
 import com.skuri.skuri_backend.domain.member.constant.DepartmentAliasNormalizer;
+import com.skuri.skuri_backend.domain.member.entity.Member;
+import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
+import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -43,6 +46,7 @@ public class ChatRoomInvitationService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final ChatRoomInvitationRepository invitationRepository;
+    private final MemberRepository memberRepository;
     private final FriendRelationshipQueryService friendRelationshipQueryService;
     private final FriendMemberPairLockService pairLockService;
     private final ChatRoomInvitationSendItemService sendItemService;
@@ -109,6 +113,8 @@ public class ChatRoomInvitationService {
 
     public List<ChatRoomInvitationReceivedResponse> getReceived(String inviteeMemberId) {
         pairLockService.requireActiveProfileCompleteMember(inviteeMemberId);
+        Member invitee = memberRepository.findActiveById(inviteeMemberId)
+                .orElseThrow(MemberNotFoundException::new);
         invitationRepository.findTimedOutPendingReceivedIds(
                         inviteeMemberId,
                         LocalDateTime.now(),
@@ -135,11 +141,16 @@ public class ChatRoomInvitationService {
                         inviteeMemberId,
                         invitations.stream().map(ChatRoomInvitation::getInviterId).collect(Collectors.toSet())
                 );
+        Set<String> joinedChatRoomIds = Set.copyOf(
+                chatRoomMemberRepository.findChatRoomIdsByMemberId(inviteeMemberId)
+        );
         return invitations.stream()
                 .map(invitation -> toReceivedResponse(
                         invitation,
                         rooms.get(invitation.getChatRoomId()),
-                        inviters.get(invitation.getInviterId())
+                        inviters.get(invitation.getInviterId()),
+                        invitee.getDepartment(),
+                        joinedChatRoomIds
                 ))
                 .toList();
     }
@@ -225,15 +236,19 @@ public class ChatRoomInvitationService {
     private ChatRoomInvitationReceivedResponse toReceivedResponse(
             ChatRoomInvitation invitation,
             ChatRoom room,
-            FriendInvitationCandidateResponse inviter
+            FriendInvitationCandidateResponse inviter,
+            String inviteeDepartment,
+            Set<String> joinedChatRoomIds
     ) {
-        ChatRoomInvitationTargetResponse target = room == null ? null : new ChatRoomInvitationTargetResponse(
-                room.getId(),
-                room.getName(),
-                room.getType(),
-                room.getMemberCount(),
-                room.getMaxMembers()
-        );
+        ChatRoomInvitationTargetResponse target = !canExposeTarget(room, inviteeDepartment, joinedChatRoomIds)
+                ? null
+                : new ChatRoomInvitationTargetResponse(
+                        room.getId(),
+                        room.getName(),
+                        room.getType(),
+                        room.getMemberCount(),
+                        room.getMaxMembers()
+                );
         return new ChatRoomInvitationReceivedResponse(
                 invitation.getId(),
                 "CHAT_ROOM",
@@ -244,6 +259,20 @@ public class ChatRoomInvitationService {
                 invitation.getCreatedAt(),
                 invitation.getExpiresAt(),
                 invitation.getRespondedAt()
+        );
+    }
+
+    private boolean canExposeTarget(
+            ChatRoom room,
+            String inviteeDepartment,
+            Set<String> joinedChatRoomIds
+    ) {
+        if (room == null || room.getType() != ChatRoomType.DEPARTMENT || joinedChatRoomIds.contains(room.getId())) {
+            return room != null;
+        }
+        return Objects.equals(
+                DepartmentAliasNormalizer.normalizeCandidate(room.getDepartment()),
+                DepartmentAliasNormalizer.normalizeCandidate(inviteeDepartment)
         );
     }
 }
