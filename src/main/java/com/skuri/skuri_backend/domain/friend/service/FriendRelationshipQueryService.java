@@ -211,16 +211,24 @@ public class FriendRelationshipQueryService {
                 .filter(FriendPreference::isFavorite)
                 .map(FriendPreference::getFriendMemberId)
                 .collect(Collectors.toSet());
-        return counterparts.values().stream().collect(Collectors.toMap(
-                PublicMember::memberId,
-                counterpart -> new FriendInvitationCandidateResponse(
-                        counterpart.publicId(),
-                        counterpart.nickname(),
-                        counterpart.department(),
-                        counterpart.photoUrl(),
-                        favorites.contains(counterpart.memberId())
+        Set<String> blockedCounterpartIds = Set.copyOf(
+                memberBlockRepository.findBlockedCounterpartIdsByOwnerMemberIdAndCandidateMemberIds(
+                        ownerMemberId,
+                        counterpartMemberIds
                 )
-        ));
+        );
+        return counterparts.values().stream()
+                .filter(counterpart -> !blockedCounterpartIds.contains(counterpart.memberId()))
+                .collect(Collectors.toMap(
+                        PublicMember::memberId,
+                        counterpart -> new FriendInvitationCandidateResponse(
+                                counterpart.publicId(),
+                                counterpart.nickname(),
+                                counterpart.department(),
+                                counterpart.photoUrl(),
+                                favorites.contains(counterpart.memberId())
+                        )
+                ));
     }
 
     private FriendSummaryResponse getFriendSummary(String ownerMemberId, PublicMember friend) {

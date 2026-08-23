@@ -45,18 +45,23 @@ public class PartyInvitationSendItemService {
             String partyId,
             String friendPublicId
     ) {
+        String inviteeMemberId;
+        try {
+            inviteeMemberId = friendRelationshipQueryService.requireFriendMemberId(inviterMemberId, friendPublicId);
+        } catch (BusinessException exception) {
+            return notEligible(friendPublicId);
+        }
+        FriendMemberPair pair;
+        try {
+            pair = pairLockService.lockActivePair(inviterMemberId, inviteeMemberId);
+        } catch (BusinessException exception) {
+            return notEligible(friendPublicId);
+        }
         Party party = partyRepository.findDetailByIdForUpdate(partyId).orElse(null);
         if (party == null
                 || party.getStatus() != PartyStatus.OPEN
                 || !party.isMember(inviterMemberId)
                 || party.getCurrentMembers() >= party.getMaxMembers()) {
-            return notEligible(friendPublicId);
-        }
-
-        String inviteeMemberId;
-        try {
-            inviteeMemberId = friendRelationshipQueryService.requireFriendMemberId(inviterMemberId, friendPublicId);
-        } catch (BusinessException exception) {
             return notEligible(friendPublicId);
         }
         if (party.isMember(inviteeMemberId)) {
@@ -65,13 +70,6 @@ public class PartyInvitationSendItemService {
                     PartyInvitationOutcome.ALREADY_MEMBER,
                     null
             );
-        }
-
-        FriendMemberPair pair;
-        try {
-            pair = pairLockService.lockActivePair(inviterMemberId, inviteeMemberId);
-        } catch (BusinessException exception) {
-            return notEligible(friendPublicId);
         }
         if (!hasUsableFriendship(pair)) {
             return notEligible(friendPublicId);

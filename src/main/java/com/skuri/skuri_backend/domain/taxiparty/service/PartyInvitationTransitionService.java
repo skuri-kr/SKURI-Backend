@@ -52,6 +52,17 @@ public class PartyInvitationTransitionService {
             return AcceptAttempt.stateNotAllowed(snapshot.getPartyId());
         }
 
+        if (partyRepository.findDetailById(snapshot.getPartyId()).isEmpty()) {
+            expireWithoutAggregate(invitationId, PartyInvitationExpiryReason.TARGET_UNAVAILABLE);
+            return AcceptAttempt.expired(snapshot.getPartyId());
+        }
+        FriendMemberPair pair;
+        try {
+            pair = pairLockService.lockActivePair(snapshot.getInviterId(), snapshot.getInviteeId());
+        } catch (BusinessException exception) {
+            expireAfterAggregate(invitationId, PartyInvitationExpiryReason.MEMBER_WITHDRAWN);
+            return AcceptAttempt.expired(snapshot.getPartyId());
+        }
         Party party = partyRepository.findDetailByIdForUpdate(snapshot.getPartyId()).orElse(null);
         if (party == null) {
             expireWithoutAggregate(invitationId, PartyInvitationExpiryReason.TARGET_UNAVAILABLE);
@@ -60,14 +71,6 @@ public class PartyInvitationTransitionService {
         Member inviter = memberRepository.findActiveById(snapshot.getInviterId()).orElse(null);
         Member invitee = memberRepository.findActiveById(snapshot.getInviteeId()).orElse(null);
         if (inviter == null || invitee == null || !inviter.isProfileComplete() || !invitee.isProfileComplete()) {
-            expireAfterAggregate(invitationId, PartyInvitationExpiryReason.MEMBER_WITHDRAWN);
-            return AcceptAttempt.expired(snapshot.getPartyId());
-        }
-
-        FriendMemberPair pair;
-        try {
-            pair = pairLockService.lockActivePair(snapshot.getInviterId(), snapshot.getInviteeId());
-        } catch (BusinessException exception) {
             expireAfterAggregate(invitationId, PartyInvitationExpiryReason.MEMBER_WITHDRAWN);
             return AcceptAttempt.expired(snapshot.getPartyId());
         }
@@ -134,6 +137,17 @@ public class PartyInvitationTransitionService {
         if (snapshot == null || !snapshot.isPending()) {
             return;
         }
+        if (partyRepository.findDetailById(snapshot.getPartyId()).isEmpty()) {
+            expireWithoutAggregate(invitationId, PartyInvitationExpiryReason.TARGET_UNAVAILABLE);
+            return;
+        }
+        FriendMemberPair pair;
+        try {
+            pair = pairLockService.lockActivePair(snapshot.getInviterId(), snapshot.getInviteeId());
+        } catch (BusinessException exception) {
+            expireAfterAggregate(invitationId, PartyInvitationExpiryReason.MEMBER_WITHDRAWN);
+            return;
+        }
         Party party = partyRepository.findDetailByIdForUpdate(snapshot.getPartyId()).orElse(null);
         if (party == null) {
             expireWithoutAggregate(invitationId, PartyInvitationExpiryReason.TARGET_UNAVAILABLE);
@@ -142,13 +156,6 @@ public class PartyInvitationTransitionService {
         Member inviter = memberRepository.findActiveById(snapshot.getInviterId()).orElse(null);
         Member invitee = memberRepository.findActiveById(snapshot.getInviteeId()).orElse(null);
         if (inviter == null || invitee == null || !inviter.isProfileComplete() || !invitee.isProfileComplete()) {
-            expireAfterAggregate(invitationId, PartyInvitationExpiryReason.MEMBER_WITHDRAWN);
-            return;
-        }
-        FriendMemberPair pair;
-        try {
-            pair = pairLockService.lockActivePair(snapshot.getInviterId(), snapshot.getInviteeId());
-        } catch (BusinessException exception) {
             expireAfterAggregate(invitationId, PartyInvitationExpiryReason.MEMBER_WITHDRAWN);
             return;
         }
