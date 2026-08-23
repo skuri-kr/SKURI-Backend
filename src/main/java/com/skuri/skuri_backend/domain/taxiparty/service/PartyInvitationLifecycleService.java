@@ -42,6 +42,19 @@ public class PartyInvitationLifecycleService {
     }
 
     @Transactional
+    public void expirePendingForInviteeInParty(
+            String partyId,
+            String inviteeId,
+            PartyInvitationExpiryReason reason
+    ) {
+        partyInvitationRepository.findByActiveTargetKeyForUpdate(
+                        PartyInvitation.activeTargetKey(partyId, inviteeId)
+                )
+                .filter(PartyInvitation::isPending)
+                .ifPresent(invitation -> invitation.expire(reason, LocalDateTime.now()));
+    }
+
+    @Transactional
     public void expirePendingForMemberPair(
             String firstMemberId,
             String secondMemberId,
