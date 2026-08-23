@@ -7,6 +7,7 @@ import com.skuri.skuri_backend.domain.academic.dto.request.CreateMyManualTimetab
 import com.skuri.skuri_backend.domain.academic.dto.request.UpdateTimetableShareOverrideRequest;
 import com.skuri.skuri_backend.domain.academic.dto.request.UpdateTimetableSharingSettingsRequest;
 import com.skuri.skuri_backend.domain.academic.dto.response.CourseScheduleResponse;
+import com.skuri.skuri_backend.domain.academic.dto.response.FriendTimetableCourseResponse;
 import com.skuri.skuri_backend.domain.academic.dto.response.FriendTimetableResponse;
 import com.skuri.skuri_backend.domain.academic.dto.response.FriendTimetableSlotResponse;
 import com.skuri.skuri_backend.domain.academic.dto.response.TimetableShareOverrideResponse;
@@ -35,6 +36,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -534,6 +536,61 @@ class TimetableControllerContractTest {
     }
 
     @Test
+    void getFriendTimetable_PRIVATE은시간표존재여부와모든상세를숨긴다_200() throws Exception {
+        mockValidToken();
+        when(timetableSharingService.getFriendTimetable("firebase-uid", "friend-public-id", "2026-1"))
+                .thenReturn(new FriendTimetableResponse(
+                        "2026-1",
+                        TimetableShareScope.PRIVATE,
+                        false,
+                        List.of(),
+                        List.of()
+                ));
+
+        mockMvc.perform(get("/v1/timetables/friends/friend-public-id")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .param("semester", "2026-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.effectiveScope").value("PRIVATE"))
+                .andExpect(jsonPath("$.data.hasTimetable").value(false))
+                .andExpect(jsonPath("$.data.courses").isEmpty())
+                .andExpect(jsonPath("$.data.slots").isEmpty());
+    }
+
+    @Test
+    void getFriendTimetable_DETAILS은nullable필드를누락하지않는다_200() throws Exception {
+        mockValidToken();
+        when(timetableSharingService.getFriendTimetable("firebase-uid", "friend-public-id", "2026-1"))
+                .thenReturn(new FriendTimetableResponse(
+                        "2026-1",
+                        TimetableShareScope.DETAILS,
+                        true,
+                        List.of(
+                                new FriendTimetableCourseResponse(
+                                        null, "직접 입력", "플랫폼세미나", "직접 입력", null,
+                                        2, true, List.of()
+                                ),
+                                new FriendTimetableCourseResponse(
+                                        "course-id", "01255", "민법총칙", null, "영401",
+                                        3, false, List.of(new FriendTimetableSlotResponse(1, 3, 4))
+                                )
+                        ),
+                        List.of(new FriendTimetableSlotResponse(1, 3, 4))
+                ));
+
+        mockMvc.perform(get("/v1/timetables/friends/friend-public-id")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .param("semester", "2026-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.effectiveScope").value("DETAILS"))
+                .andExpect(jsonPath("$.data.hasTimetable").value(true))
+                .andExpect(jsonPath("$.data.courses[0].courseId").value(nullValue()))
+                .andExpect(jsonPath("$.data.courses[0].location").value(nullValue()))
+                .andExpect(jsonPath("$.data.courses[1].professor").value(nullValue()))
+                .andExpect(jsonPath("$.data.courses[1].schedule[0].startPeriod").value(3));
+    }
+
+    @Test
     void getFriendTimetable_학기누락_400() throws Exception {
         mockValidToken();
 
@@ -541,6 +598,23 @@ class TimetableControllerContractTest {
                         .header(AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void getFriendTimetable_학기형식이잘못되면실제검증메시지로_422() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(
+                ErrorCode.VALIDATION_ERROR,
+                "semester는 yyyy-1 또는 yyyy-2 형식이어야 합니다."
+        )).when(timetableSharingService)
+                .getFriendTimetable("firebase-uid", "friend-public-id", "2026-3");
+
+        mockMvc.perform(get("/v1/timetables/friends/friend-public-id")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .param("semester", "2026-3"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("semester는 yyyy-1 또는 yyyy-2 형식이어야 합니다."));
     }
 
     @Test

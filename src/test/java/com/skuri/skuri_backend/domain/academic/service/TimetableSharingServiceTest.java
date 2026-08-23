@@ -2,6 +2,7 @@ package com.skuri.skuri_backend.domain.academic.service;
 
 import com.skuri.skuri_backend.domain.academic.dto.response.FriendTimetableResponse;
 import com.skuri.skuri_backend.domain.academic.dto.response.TimetableSharingSettingsResponse;
+import com.skuri.skuri_backend.domain.academic.dto.request.UpdateTimetableShareOverrideRequest;
 import com.skuri.skuri_backend.domain.academic.dto.request.UpdateTimetableSharingSettingsRequest;
 import com.skuri.skuri_backend.domain.academic.entity.Course;
 import com.skuri.skuri_backend.domain.academic.entity.TimetableShareScope;
@@ -12,13 +13,18 @@ import com.skuri.skuri_backend.domain.academic.repository.TimetableSharingSettin
 import com.skuri.skuri_backend.domain.academic.repository.UserTimetableRepository;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.domain.friend.entity.FriendProfile;
 import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
+import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
+import com.skuri.skuri_backend.domain.friend.service.FriendMemberPair;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
 import com.skuri.skuri_backend.domain.friend.service.FriendProfileProvisioningService;
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -30,6 +36,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
@@ -70,6 +77,9 @@ class TimetableSharingServiceTest {
 
     @Mock
     private FriendshipRepository friendshipRepository;
+
+    @Mock
+    private MemberBlockRepository memberBlockRepository;
 
     @Mock
     private FriendMemberPairLockService pairLockService;
@@ -259,6 +269,31 @@ class TimetableSharingServiceTest {
                 new com.skuri.skuri_backend.domain.academic.dto.response.FriendTimetableSlotResponse(2, 5, 6)
         );
         verify(courseRepository).findAllWithSchedulesByIdIn(List.of("course-1", "course-2"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"owner,friend", "friend,owner"})
+    void 공유예외변경은_양방향차단을대상없음으로마스킹한다(String blockerId, String blockedId) {
+        FriendProfile profile = FriendProfile.create("friend", "friend-public-id", "code-id");
+        FriendMemberPair pair = FriendMemberPair.of("owner", "friend");
+        when(friendProfileRepository.findByPublicId("friend-public-id"))
+                .thenReturn(Optional.of(profile));
+        when(pairLockService.lockActivePair("owner", "friend")).thenReturn(pair);
+        when(memberBlockRepository.existsByBlockerIdAndBlockedId(anyString(), anyString()))
+                .thenAnswer(invocation -> blockerId.equals(invocation.getArgument(0))
+                        && blockedId.equals(invocation.getArgument(1)));
+
+        assertThatThrownBy(() -> timetableSharingService.updateShareOverride(
+                "owner",
+                "friend-public-id",
+                new UpdateTimetableShareOverrideRequest(TimetableShareScope.DETAILS)
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(error -> ((BusinessException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FRIEND_TARGET_NOT_FOUND);
+
+        verify(friendshipRepository, never())
+                .findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId());
     }
 
     private Course course(String id, String name) {

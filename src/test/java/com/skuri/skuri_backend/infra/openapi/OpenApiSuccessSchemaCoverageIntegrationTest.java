@@ -235,6 +235,25 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         );
     }
 
+    @Test
+    void 친구시간표_학기형식오류예시는_런타임메시지와일치한다() throws Exception {
+        JsonNode example = apiDocs("/v3/api-docs/academic")
+                .path("paths")
+                .path("/v1/timetables/friends/{friendPublicId}")
+                .path("get")
+                .path("responses")
+                .path("422")
+                .path("content")
+                .path("application/json")
+                .path("examples")
+                .path("SEMESTER_FORMAT_INVALID")
+                .path("value");
+
+        assertTrue(example.path("errorCode").asText().equals("VALIDATION_ERROR"));
+        assertTrue(example.path("message").asText()
+                .equals("semester는 yyyy-1 또는 yyyy-2 형식이어야 합니다."));
+    }
+
     private JsonNode apiDocs() throws Exception {
         return apiDocs("/v3/api-docs");
     }
