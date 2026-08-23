@@ -133,4 +133,10 @@ public interface ChatRoomInvitationRepository extends JpaRepository<ChatRoomInvi
     );
 
     long countByInviteeIdAndStatus(String inviteeId, ChatRoomInvitationStatus status);
+
+    long countByInviteeIdAndStatusAndExpiresAtAfter(
+            String inviteeId,
+            ChatRoomInvitationStatus status,
+            LocalDateTime expiresAt
+    );
 }
