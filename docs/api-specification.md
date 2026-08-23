@@ -7676,7 +7676,7 @@ cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형�
 }
 ```
 
-세 count는 내가 받은 유효 PENDING 항목만 포함하고 보낸 요청·초대는 제외한다. 조회 전에 친구 요청 만료, 택시파티 terminal 조건, 공개방 초대의 7일 만료와 terminal 조건을 lazy reconciliation한다.
+세 count는 내가 받은 유효 PENDING 항목만 포함하고 보낸 요청·초대는 제외한다. 친구 요청은 bounded lazy expiry를 적용한다. 택시파티 초대는 상태·정원·참여자·관계 변경 시 선제 만료된 PENDING을 DB에서 직접 세며, 공개방 초대는 `expiresAt > now`인 PENDING만 DB에서 직접 세고 시간 만료 저장은 한 호출당 최대 100건으로 제한한다. 받은 초대 목록과 mutation은 누락된 terminal 조건을 lazy reconciliation한다.
 
 ### 14.5 TaxiParty·공개 채팅방 친구 초대
 
@@ -7733,9 +7733,9 @@ outcome은 `SENT | ALREADY_PENDING | ALREADY_MEMBER | NOT_ELIGIBLE`다. 결과�
 | POST | `/v1/chat-room-invitations/{invitationId}/decline` | 수신자가 PENDING 초대 거절 |
 | DELETE | `/v1/chat-room-invitations/{invitationId}` | 발송자가 PENDING 초대 취소 |
 
-batch 형식과 outcome 계약은 택시파티 초대와 같다. `UNIVERSITY`, `DEPARTMENT`, `GAME`, 공개 `CUSTOM`만 허용하고 `PARTY`·비공개·1:1 방은 지원하지 않는다. 초대는 생성 후 7일에 만료되며 10분 주기 최대 100건 batch와 목록·count·mutation의 lazy reconciliation을 함께 사용한다. eligible 조회는 expiresAt이 지난 PENDING을 제외하고, 같은 대상 재발송은 기존 행을 EXPIRED + INVITATION_TIMEOUT으로 먼저 확정한 뒤 새 초대를 생성한다. 기한 뒤 취소도 CANCELED가 아니라 EXPIRED + INVITATION_TIMEOUT으로 확정한다. 방 삭제·정원 마감·초대자 이탈·기존 참여·친구 해제·차단·학과 자격 변경은 안전한 expiryReason으로 EXPIRED 처리한다. 직접 참여가 마지막 좌석을 채우면 참여자의 초대는 먼저 ALREADY_JOINED, 나머지 PENDING은 CAPACITY_FULL로 만료한다. 회원 탈퇴의 전체 방 제거에서는 발송 초대를 MEMBER_WITHDRAWN으로 만료한다. 학과 변경의 기존 학과방 제거에서는 해당 방의 발송 초대를 INVITER_LEFT, 변경 회원이 받은 학과방 PENDING 초대를 ELIGIBILITY_CHANGED로 즉시 만료한다. 관리자 공개방 삭제는 방 잠금 뒤 해당 방의 PENDING 초대를 TARGET_UNAVAILABLE로 정리한다.
+batch 형식과 outcome 계약은 택시파티 초대와 같다. `UNIVERSITY`, `DEPARTMENT`, `GAME`, 공개 `CUSTOM`만 허용하고 `PARTY`·비공개·1:1 방은 지원하지 않는다. 초대는 생성 후 7일에 만료되며 10분 주기 최대 100건 batch와 목록·mutation의 lazy reconciliation을 사용한다. count는 `expiresAt > now`인 PENDING만 DB에서 직접 집계하고 한 호출에서 최대 100건의 시간 만료만 terminal 저장한다. eligible 조회는 expiresAt이 지난 PENDING을 제외하고, 같은 대상 재발송은 기존 행을 EXPIRED + INVITATION_TIMEOUT으로 먼저 확정한 뒤 새 초대를 생성한다. 기한 뒤 취소도 CANCELED가 아니라 EXPIRED + INVITATION_TIMEOUT으로 확정한다. 방 삭제·정원 마감·초대자 이탈·기존 참여·친구 해제·차단·학과 자격 변경은 안전한 expiryReason으로 EXPIRED 처리한다. 직접 참여가 마지막 좌석을 채우면 참여자의 초대는 먼저 ALREADY_JOINED, 나머지 PENDING은 CAPACITY_FULL로 만료한다. 회원 탈퇴의 전체 방 제거에서는 발송 초대 대상 방을 먼저 잠근 뒤 해당 초대를 MEMBER_WITHDRAWN으로 만료한다. 학과 변경의 기존 학과방 제거에서는 해당 방의 발송 초대를 INVITER_LEFT, 변경 회원이 받은 학과방 PENDING 초대를 ELIGIBILITY_CHANGED로 즉시 만료한다. 관리자 공개방 삭제는 방 잠금 뒤 해당 방의 PENDING 초대를 TARGET_UNAVAILABLE로 정리한다.
 
-받은 초대 목록은 현재 조치 가능한 `PENDING`과 사유 안내가 필요한 `EXPIRED`만 반환한다. `ACCEPTED`, `DECLINED`, `CANCELED` 이력은 V1 목록에서 제외한다. inviter와 대상 aggregate가 삭제·탈퇴 등으로 안전하게 표시될 수 없거나 inviter가 현재 사용자와 양방향 차단 관계이면 해당 요약은 nullable이다.
+받은 초대 목록은 현재 조치 가능한 `PENDING`과 사유 안내가 필요한 `EXPIRED`만 반환한다. `ACCEPTED`, `DECLINED`, `CANCELED` 이력은 V1 목록에서 제외한다. inviter와 대상 aggregate가 삭제·탈퇴 등으로 안전하게 표시될 수 없거나 inviter가 현재 사용자와 양방향 차단 관계이면 해당 요약은 nullable이다. 학과방 초대 대상은 현재 학과가 다르고 그 방에 참여 중이지 않으면 방 ID·이름·인원 수를 노출하지 않고 `target: null`로 마스킹한다.
 
 초대 OpenAPI는 endpoint에서 실제 반환 가능한 오류만 예시로 제공한다. eligible 조회는 택시 `PARTY_CLOSED | PARTY_FULL | MEMBER_PROFILE_INCOMPLETE`, 공개방 `CHAT_ROOM_FULL | MEMBER_PROFILE_INCOMPLETE`를, 발송은 택시 `PARTY_CLOSED | MEMBER_PROFILE_INCOMPLETE`, 공개방 `MEMBER_PROFILE_INCOMPLETE`를 409 예시로 노출한다. 수락·거절의 403은 각 `*_RECIPIENT_REQUIRED`, 취소의 403은 각 `*_INVITER_REQUIRED`를 사용한다.
 

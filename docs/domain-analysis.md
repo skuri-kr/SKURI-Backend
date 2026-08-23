@@ -306,8 +306,9 @@ endReason 종류:
   - 일반 멤버가 `ARRIVED` 파티에 속해 있으면 정산 회피 방지를 위해 회원 탈퇴를 거부
   - 탈퇴 회원이 요청자인 `PENDING` join request는 `CANCELED`로 정리
   - 동일 파티의 PENDING 참가 요청과 친구 초대가 경쟁하면 먼저 수락된 참가 경로를 유지하고, 초대 수락은 참가 요청을 `CANCELED`, 참가 요청 수락은 초대를 `EXPIRED + ALREADY_JOINED`로 정리
-  - 회원 탈퇴·학과 변경으로 파티나 공개방 멤버십을 일괄 제거할 때 발송자가 더 이상 유효하지 않은 PENDING 친구 초대도 함께 만료
+  - 회원 탈퇴·학과 변경으로 파티나 공개방 멤버십을 일괄 제거할 때 발송자가 더 이상 유효하지 않은 PENDING 친구 초대도 함께 만료. 회원 탈퇴는 대상 aggregate ID를 먼저 모아 정렬하고 Party/ChatRoom 잠금 뒤 해당 Invitation만 잠가 수락 경로와 잠금 순서를 일치시킨다.
   - 학과 변경 시 변경 회원이 받은 기존 학과방 PENDING 초대도 `EXPIRED + ELIGIBILITY_CHANGED`로 즉시 만료
+  - Friend inbox 초대 count는 초대 수만큼 mutation transaction을 열지 않는다. 파티는 선제 terminal 전이 결과를 직접 집계하고, 공개방은 기한이 남은 PENDING만 집계하며 최대 100건의 시간 만료만 저장한다. 상세 목록·mutation은 lazy reconciliation 안전망을 유지한다.
 
 파티 채팅 특수 메시지:
   - ACCOUNT: 계좌 정보 공유
