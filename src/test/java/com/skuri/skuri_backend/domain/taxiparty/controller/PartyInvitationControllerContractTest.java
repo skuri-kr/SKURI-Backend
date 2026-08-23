@@ -2,11 +2,16 @@ package com.skuri.skuri_backend.domain.taxiparty.controller;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.domain.friend.dto.response.FriendInvitationCandidateResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationBatchResponse;
+import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationEligibleFriendsResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationMutationResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationOutcome;
+import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationReceivedResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationSendResultResponse;
+import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationTargetResponse;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import com.skuri.skuri_backend.domain.taxiparty.service.PartyInvitationService;
 import com.skuri.skuri_backend.infra.auth.config.ApiAccessDeniedHandler;
 import com.skuri.skuri_backend.infra.auth.config.ApiAuthenticationEntryPoint;
@@ -21,9 +26,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
@@ -51,6 +58,40 @@ class PartyInvitationControllerContractTest {
 
     @MockitoBean
     private FirebaseTokenVerifier firebaseTokenVerifier;
+
+    @Test
+    void 초대가능친구조회는_파티요약과후보를반환한다() throws Exception {
+        mockValidToken();
+        when(invitationService.getEligibleFriends("firebase-uid", "party-1"))
+                .thenReturn(new PartyInvitationEligibleFriendsResponse(
+                        "party-1",
+                        "정문 → 안양역",
+                        2,
+                        List.of(candidate()),
+                        1,
+                        0,
+                        0
+                ));
+
+        mockMvc.perform(get("/v1/parties/party-1/invitations/eligible-friends")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.partyId").value("party-1"))
+                .andExpect(jsonPath("$.data.remainingCapacity").value(2))
+                .andExpect(jsonPath("$.data.friends[0].friendPublicId").value("friend-public-1"));
+    }
+
+    @Test
+    void 초대가능친구조회는_파티참가자가아니면_403이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.NOT_PARTY_MEMBER))
+                .when(invitationService).getEligibleFriends("firebase-uid", "party-1");
+
+        mockMvc.perform(get("/v1/parties/party-1/invitations/eligible-friends")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("NOT_PARTY_MEMBER"));
+    }
 
     @Test
     void 초대발송은_요청순서의_개별결과를_반환한다() throws Exception {
@@ -110,6 +151,98 @@ class PartyInvitationControllerContractTest {
     }
 
     @Test
+    void 받은초대조회는_초대목록을반환한다() throws Exception {
+        mockValidToken();
+        when(invitationService.getReceived("firebase-uid")).thenReturn(List.of(
+                new PartyInvitationReceivedResponse(
+                        "invite-1",
+                        "PARTY",
+                        PartyInvitationStatus.PENDING,
+                        null,
+                        candidate(),
+                        new PartyInvitationTargetResponse(
+                                "party-1",
+                                "정문",
+                                "안양역",
+                                LocalDateTime.of(2026, 8, 24, 18, 0),
+                                2,
+                                4,
+                                PartyStatus.OPEN
+                        ),
+                        LocalDateTime.of(2026, 8, 23, 12, 0),
+                        null
+                )
+        ));
+
+        mockMvc.perform(get("/v1/party-invitations/received")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].invitationId").value("invite-1"))
+                .andExpect(jsonPath("$.data[0].target.status").value("OPEN"));
+    }
+
+    @Test
+    void 받은초대조회는_프로필미완료면_409이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.MEMBER_PROFILE_INCOMPLETE))
+                .when(invitationService).getReceived("firebase-uid");
+
+        mockMvc.perform(get("/v1/party-invitations/received")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("MEMBER_PROFILE_INCOMPLETE"));
+    }
+
+    @Test
+    void 초대거절은_DECLINED상태를반환한다() throws Exception {
+        mockValidToken();
+        when(invitationService.decline("firebase-uid", "invite-1"))
+                .thenReturn(new PartyInvitationMutationResponse(
+                        "invite-1", "party-1", PartyInvitationStatus.DECLINED
+                ));
+
+        mockMvc.perform(post("/v1/party-invitations/invite-1/decline")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("DECLINED"));
+    }
+
+    @Test
+    void 초대거절은_수신자가아니면_403이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.PARTY_INVITATION_RECIPIENT_REQUIRED))
+                .when(invitationService).decline("firebase-uid", "invite-1");
+
+        mockMvc.perform(post("/v1/party-invitations/invite-1/decline")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("PARTY_INVITATION_RECIPIENT_REQUIRED"));
+    }
+
+    @Test
+    void 초대취소는_204를반환한다() throws Exception {
+        mockValidToken();
+
+        mockMvc.perform(delete("/v1/party-invitations/invite-1")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNoContent());
+
+        verify(invitationService).cancel("firebase-uid", "invite-1");
+    }
+
+    @Test
+    void 초대취소는_발송자가아니면_403이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.PARTY_INVITATION_INVITER_REQUIRED))
+                .when(invitationService).cancel("firebase-uid", "invite-1");
+
+        mockMvc.perform(delete("/v1/party-invitations/invite-1")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("PARTY_INVITATION_INVITER_REQUIRED"));
+    }
+
+    @Test
     void 모든초대경로는_토큰없으면_401이다() throws Exception {
         mockMvc.perform(get("/v1/parties/party-1/invitations/eligible-friends")).andExpect(status().isUnauthorized());
         mockMvc.perform(post("/v1/parties/party-1/invitations")
@@ -134,5 +267,15 @@ class PartyInvitationControllerContractTest {
                         "홍길동",
                         "https://example.com/profile.jpg"
                 ));
+    }
+
+    private FriendInvitationCandidateResponse candidate() {
+        return new FriendInvitationCandidateResponse(
+                "friend-public-1",
+                "가람",
+                "컴퓨터공학과",
+                null,
+                true
+        );
     }
 }
