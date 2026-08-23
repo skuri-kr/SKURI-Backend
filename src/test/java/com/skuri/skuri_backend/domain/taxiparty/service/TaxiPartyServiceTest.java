@@ -93,6 +93,9 @@ class TaxiPartyServiceTest {
     @Mock
     private AfterCommitApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private PartyInvitationLifecycleService partyInvitationLifecycleService;
+
     @InjectMocks
     private TaxiPartyService taxiPartyService;
 

@@ -119,6 +119,9 @@ class ChatServiceTest {
     @Mock
     private ChatRoomSummaryEventPublisher chatRoomSummaryEventPublisher;
 
+    @Mock
+    private ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
+
     @InjectMocks
     private ChatService chatService;
 

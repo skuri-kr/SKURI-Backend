@@ -27,6 +27,10 @@ import com.skuri.skuri_backend.domain.minecraft.entity.MinecraftAccountRole;
 import com.skuri.skuri_backend.domain.minecraft.entity.MinecraftEdition;
 import com.skuri.skuri_backend.domain.minecraft.repository.MinecraftAccountRepository;
 import com.skuri.skuri_backend.domain.minecraft.service.FriendMinecraftProjectionService;
+import com.skuri.skuri_backend.domain.chat.service.ChatRoomInvitationInboxService;
+import com.skuri.skuri_backend.domain.chat.service.ChatRoomInvitationLifecycleService;
+import com.skuri.skuri_backend.domain.taxiparty.service.PartyInvitationInboxService;
+import com.skuri.skuri_backend.domain.taxiparty.service.PartyInvitationLifecycleService;
 import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +38,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,6 +76,18 @@ import static org.mockito.Mockito.verify;
         FriendMinecraftProjectionService.class
 })
 class FriendRelationshipServiceDataJpaTest {
+
+    @MockitoBean
+    private PartyInvitationInboxService partyInvitationInboxService;
+
+    @MockitoBean
+    private ChatRoomInvitationInboxService chatRoomInvitationInboxService;
+
+    @MockitoBean
+    private PartyInvitationLifecycleService partyInvitationLifecycleService;
+
+    @MockitoBean
+    private ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
 
     @Autowired
     private MemberRepository memberRepository;

@@ -50,6 +50,9 @@ class ChatAdminServiceTest {
     @Mock
     private ChatService chatService;
 
+    @Mock
+    private ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
+
     @InjectMocks
     private ChatAdminService chatAdminService;
 
