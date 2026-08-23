@@ -13,7 +13,7 @@
 
 - 친구 관계와 차단, 초대, 시간표 공개 범위의 최종 판단자는 백엔드다.
 - 모바일은 이 문서의 계약을 소비하며 클라이언트 상태만으로 권한을 판단하지 않는다.
-- `GET /v1/friends/me/code`, `POST /v1/friends/me/code/regenerate`, `POST /v1/friend-codes/preview`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.3의 관계 Core API와 9.5의 Minecraft projection은 런타임 API다. 시간표·초대 API는 예정 계약이며 현재 운영 API로 해석하지 않는다.
+- `GET /v1/friends/me/code`, `POST /v1/friends/me/code/regenerate`, `POST /v1/friend-codes/preview`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.3의 관계 Core API, 9.4의 시간표 공유와 9.5의 Minecraft projection은 런타임 API다. 9.6 이후의 초대·알림 API는 예정 계약이며 현재 운영 API로 해석하지 않는다.
 - 실제 구현 시 런타임 OpenAPI와 docs/api-specification.md를 같은 PR에서 동기화한다.
 - 구현 중 정책 변경이 필요하면 코드를 먼저 바꾸지 않고 이 문서의 결정 기록을 갱신한 뒤 승인을 받는다.
 
@@ -326,7 +326,7 @@ Friend 도메인은 다른 도메인의 내부 엔티티를 직접 수정하지 
 
 ## 6. 데이터 모델
 
-`friend_profiles`, `friend_code_registry`, `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`는 Foundation·관계 Core 런타임 테이블이다. 시간표 예외·택시파티 초대·공개방 초대·알림 설정 관련 표는 이후 구현 단위의 논리 모델이며 실제 컬럼명과 마이그레이션은 해당 구현 PR에서 ERD와 함께 확정한다.
+`friend_profiles`, `friend_code_registry`, `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`와 시간표 공유의 `timetable_sharing_settings`, `timetable_share_overrides`는 런타임 테이블이다. 택시파티 초대·공개방 초대·알림 설정 관련 표는 이후 구현 단위의 논리 모델이며 실제 컬럼명과 마이그레이션은 해당 구현 PR에서 ERD와 함께 확정한다.
 
 ACTIVE 닉네임 중복은 서비스 조회만으로 판단하지 않고 동시 저장도 막는 DB unique claim을 사용한다. `members.nickname_key`는 새로 가입하거나 닉네임을 변경해 정책을 통과한 ACTIVE 회원의 정규화 키이며 nullable unique다. 운영 MySQL `utf8mb4_unicode_ci` 비교로 대소문자·악센트 차이는 같은 claim으로 취급한다. 기존 중복 닉네임은 임의 변경하지 않고 grandfathering을 위해 claim을 강제로 채우지 않는다. 기존 닉네임과 동일한 값을 유지한 프로필 수정은 허용하고, 새 값으로 변경할 때는 claim이 없는 기존 ACTIVE 닉네임까지 조회해 중복을 거부한다. 탈퇴 시 claim을 해제해 닉네임 재사용을 허용한다. 실제 컬럼·인덱스는 Core 출시 준비 PR에서 `docs/erd.md`와 동기화한다.
 
@@ -566,7 +566,7 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 
 ## 9. API 계약
 
-`POST /v1/friend-codes/preview`, `GET/POST /v1/friends/me/code*`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.3의 관계 Core API와 9.5 Minecraft projection은 런타임 OpenAPI와 Contract·Service 테스트로 고정했다. 그 밖의 경로는 구현 설계를 위한 예정 계약이며 현재 운영 API가 아니다.
+`POST /v1/friend-codes/preview`, `GET/POST /v1/friends/me/code*`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.3의 관계 Core API, 9.4 시간표 공유와 9.5 Minecraft projection은 런타임 OpenAPI와 Contract·Service 테스트로 고정했다. 9.6 이후의 초대·알림 경로는 구현 설계를 위한 예정 계약이며 현재 운영 API가 아니다.
 
 ### 9.1 친구 핵심
 
