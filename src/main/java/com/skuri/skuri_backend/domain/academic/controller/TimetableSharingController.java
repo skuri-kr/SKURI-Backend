@@ -78,7 +78,10 @@ public class TimetableSharingController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "회원 없음",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "요청 검증 실패",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "DEFAULT_SCOPE_REQUIRED", value = OpenApiAcademicExamples.ERROR_TIMETABLE_SHARING_DEFAULT_SCOPE_REQUIRED),
+                            @ExampleObject(name = "TIMETABLE_SHARE_SCOPE_UNSUPPORTED", value = OpenApiAcademicExamples.ERROR_TIMETABLE_SHARE_SCOPE_UNSUPPORTED)
+                    })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
     })
@@ -107,7 +110,10 @@ public class TimetableSharingController {
                             @ExampleObject(name = "FRIENDSHIP_NOT_FOUND", value = OpenApiFriendExamples.ERROR_FRIENDSHIP_NOT_FOUND)
                     })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "요청 검증 실패",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                            @ExampleObject(name = "SCOPE_REQUIRED", value = OpenApiAcademicExamples.ERROR_TIMETABLE_SHARE_OVERRIDE_SCOPE_REQUIRED),
+                            @ExampleObject(name = "TIMETABLE_SHARE_SCOPE_UNSUPPORTED", value = OpenApiAcademicExamples.ERROR_TIMETABLE_SHARE_SCOPE_UNSUPPORTED)
+                    })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)))
     })

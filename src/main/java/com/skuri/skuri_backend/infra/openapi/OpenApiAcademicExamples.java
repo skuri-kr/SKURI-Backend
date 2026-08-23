@@ -217,6 +217,15 @@ public final class OpenApiAcademicExamples {
             }
             """;
 
+    public static final String ERROR_TIMETABLE_SHARING_DEFAULT_SCOPE_REQUIRED =
+            "{\"success\":false,\"message\":\"defaultScope: 필수입니다.\",\"errorCode\":\"VALIDATION_ERROR\",\"timestamp\":\"2026-08-23T10:00:00\"}";
+
+    public static final String ERROR_TIMETABLE_SHARE_OVERRIDE_SCOPE_REQUIRED =
+            "{\"success\":false,\"message\":\"scope: 필수입니다.\",\"errorCode\":\"VALIDATION_ERROR\",\"timestamp\":\"2026-08-23T10:00:00\"}";
+
+    public static final String ERROR_TIMETABLE_SHARE_SCOPE_UNSUPPORTED =
+            "{\"success\":false,\"message\":\"시간표 공개 범위는 PRIVATE, BUSY_ONLY, DETAILS 중 하나여야 합니다.\",\"errorCode\":\"VALIDATION_ERROR\",\"timestamp\":\"2026-08-23T10:00:00\"}";
+
     public static final String SUCCESS_FRIEND_TIMETABLE_PRIVATE = """
             {
               "success": true,
