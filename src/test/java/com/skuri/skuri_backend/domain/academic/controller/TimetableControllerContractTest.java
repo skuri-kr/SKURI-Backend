@@ -431,7 +431,23 @@ class TimetableControllerContractTest {
                         .contentType(APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isUnprocessableContent())
-                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("defaultScope: 필수입니다."));
+    }
+
+    @Test
+    void updateMySharingSettings_지원하지않는공개범위_422() throws Exception {
+        mockValidToken();
+
+        mockMvc.perform(patch("/v1/timetables/my/sharing-settings")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"defaultScope\":\"PUBLIC\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value(
+                        "시간표 공개 범위는 PRIVATE, BUSY_ONLY, DETAILS 중 하나여야 합니다."
+                ));
     }
 
     @Test
@@ -473,6 +489,34 @@ class TimetableControllerContractTest {
                         .content("{\"scope\":\"DETAILS\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("FRIEND_TARGET_NOT_FOUND"));
+    }
+
+    @Test
+    void updateShareOverride_공개범위누락_422() throws Exception {
+        mockValidToken();
+
+        mockMvc.perform(put("/v1/timetables/my/sharing-overrides/friend-public-id")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value("scope: 필수입니다."));
+    }
+
+    @Test
+    void updateShareOverride_지원하지않는공개범위_422() throws Exception {
+        mockValidToken();
+
+        mockMvc.perform(put("/v1/timetables/my/sharing-overrides/friend-public-id")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"scope\":\"PUBLIC\"}"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.message").value(
+                        "시간표 공개 범위는 PRIVATE, BUSY_ONLY, DETAILS 중 하나여야 합니다."
+                ));
     }
 
     @Test

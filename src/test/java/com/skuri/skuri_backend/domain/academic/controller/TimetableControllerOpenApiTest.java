@@ -76,6 +76,37 @@ class TimetableControllerOpenApiTest {
         ));
     }
 
+    @Test
+    void 시간표공유설정변경API는_필수값과enum검증예시를명시한다() throws NoSuchMethodException {
+        assertValidationExamples(
+                TimetableSharingController.class.getDeclaredMethod(
+                        "updateMySharingSettings",
+                        AuthenticatedMember.class,
+                        UpdateTimetableSharingSettingsRequest.class
+                ),
+                Set.of(
+                        OpenApiAcademicExamples.ERROR_TIMETABLE_SHARING_DEFAULT_SCOPE_REQUIRED,
+                        OpenApiAcademicExamples.ERROR_TIMETABLE_SHARE_SCOPE_UNSUPPORTED
+                )
+        );
+    }
+
+    @Test
+    void 친구별공유예외변경API는_필수값과enum검증예시를명시한다() throws NoSuchMethodException {
+        assertValidationExamples(
+                TimetableSharingController.class.getDeclaredMethod(
+                        "updateShareOverride",
+                        AuthenticatedMember.class,
+                        String.class,
+                        UpdateTimetableShareOverrideRequest.class
+                ),
+                Set.of(
+                        OpenApiAcademicExamples.ERROR_TIMETABLE_SHARE_OVERRIDE_SCOPE_REQUIRED,
+                        OpenApiAcademicExamples.ERROR_TIMETABLE_SHARE_SCOPE_UNSUPPORTED
+                )
+        );
+    }
+
     private void assertMemberNotFoundExample(Method method) {
         ApiResponses apiResponses = method.getAnnotation(ApiResponses.class);
         ApiResponse notFoundResponse = Arrays.stream(apiResponses.value())
@@ -87,5 +118,18 @@ class TimetableControllerOpenApiTest {
                 .collect(Collectors.toSet());
 
         assertTrue(examples.contains(OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND));
+    }
+
+    private void assertValidationExamples(Method method, Set<String> expectedExamples) {
+        ApiResponses apiResponses = method.getAnnotation(ApiResponses.class);
+        ApiResponse validationResponse = Arrays.stream(apiResponses.value())
+                .filter(response -> "422".equals(response.responseCode()))
+                .findFirst()
+                .orElseThrow();
+        Set<String> examples = Arrays.stream(validationResponse.content()[0].examples())
+                .map(ExampleObject::value)
+                .collect(Collectors.toSet());
+
+        assertEquals(expectedExamples, examples);
     }
 }
