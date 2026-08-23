@@ -5,6 +5,7 @@ import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomInvitationOutcom
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomInvitationSendResultResponse;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitation;
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomInvitationRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
@@ -44,17 +45,22 @@ public class ChatRoomInvitationSendItemService {
             String chatRoomId,
             String friendPublicId
     ) {
-        ChatRoom room = chatRoomRepository.findByIdForUpdate(chatRoomId).orElse(null);
-        if (!isInvitableRoom(room)
-                || !chatRoomMemberRepository.existsById_ChatRoomIdAndId_MemberId(chatRoomId, inviterMemberId)
-                || isFull(room)) {
-            return notEligible(friendPublicId);
-        }
-
         String inviteeMemberId;
         try {
             inviteeMemberId = friendRelationshipQueryService.requireFriendMemberId(inviterMemberId, friendPublicId);
         } catch (BusinessException exception) {
+            return notEligible(friendPublicId);
+        }
+        FriendMemberPair pair;
+        try {
+            pair = pairLockService.lockActivePair(inviterMemberId, inviteeMemberId);
+        } catch (BusinessException exception) {
+            return notEligible(friendPublicId);
+        }
+        ChatRoom room = chatRoomRepository.findByIdForUpdate(chatRoomId).orElse(null);
+        if (!isInvitableRoom(room)
+                || !chatRoomMemberRepository.existsById_ChatRoomIdAndId_MemberId(chatRoomId, inviterMemberId)
+                || isFull(room)) {
             return notEligible(friendPublicId);
         }
         if (chatRoomMemberRepository.existsById_ChatRoomIdAndId_MemberId(chatRoomId, inviteeMemberId)) {
@@ -64,13 +70,6 @@ public class ChatRoomInvitationSendItemService {
                     null
             );
         }
-
-        FriendMemberPair pair;
-        try {
-            pair = pairLockService.lockActivePair(inviterMemberId, inviteeMemberId);
-        } catch (BusinessException exception) {
-            return notEligible(friendPublicId);
-        }
         Member invitee = memberRepository.findActiveById(inviteeMemberId).orElse(null);
         if (!hasUsableFriendship(pair) || !isEligibleForRoom(room, invitee)) {
             return notEligible(friendPublicId);
@@ -78,6 +77,12 @@ public class ChatRoomInvitationSendItemService {
 
         String activeTargetKey = ChatRoomInvitation.activeTargetKey(chatRoomId, inviteeMemberId);
         ChatRoomInvitation existing = invitationRepository.findByActiveTargetKeyForUpdate(activeTargetKey).orElse(null);
+        LocalDateTime now = LocalDateTime.now();
+        if (existing != null && existing.isTimedOutAt(now)) {
+            existing.expire(ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT, now);
+            invitationRepository.flush();
+            existing = null;
+        }
         if (existing != null) {
             return new ChatRoomInvitationSendResultResponse(
                     friendPublicId,
@@ -87,7 +92,7 @@ public class ChatRoomInvitationSendItemService {
         }
 
         ChatRoomInvitation created = invitationRepository.saveAndFlush(
-                ChatRoomInvitation.create(chatRoomId, inviterMemberId, inviteeMemberId, LocalDateTime.now())
+                ChatRoomInvitation.create(chatRoomId, inviterMemberId, inviteeMemberId, now)
         );
         return new ChatRoomInvitationSendResultResponse(
                 friendPublicId,

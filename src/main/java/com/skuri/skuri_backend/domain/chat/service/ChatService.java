@@ -278,16 +278,15 @@ public class ChatService {
         member.advanceLastReadAt(initialLastReadAt(room));
         chatRoomMemberRepository.save(member);
         room.increaseMemberCount();
+        chatRoomInvitationLifecycleService.expirePendingForInviteeInRoom(
+                chatRoomId,
+                memberId,
+                ChatRoomInvitationExpiryReason.ALREADY_JOINED
+        );
         if (room.getMaxMembers() != null && room.getMemberCount() >= room.getMaxMembers()) {
             chatRoomInvitationLifecycleService.expirePendingForRoom(
                     chatRoomId,
                     ChatRoomInvitationExpiryReason.CAPACITY_FULL
-            );
-        } else {
-            chatRoomInvitationLifecycleService.expirePendingForInviteeInRoom(
-                    chatRoomId,
-                    memberId,
-                    ChatRoomInvitationExpiryReason.ALREADY_JOINED
             );
         }
         String displayName = resolveMembershipDisplayName(memberProfile);

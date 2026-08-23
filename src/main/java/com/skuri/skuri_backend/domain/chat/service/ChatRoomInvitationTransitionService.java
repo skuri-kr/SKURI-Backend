@@ -52,6 +52,17 @@ public class ChatRoomInvitationTransitionService {
             return AcceptAttempt.expired(snapshot.getChatRoomId());
         }
 
+        if (chatRoomRepository.findById(snapshot.getChatRoomId()).isEmpty()) {
+            expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.TARGET_UNAVAILABLE);
+            return AcceptAttempt.expired(snapshot.getChatRoomId());
+        }
+        FriendMemberPair pair;
+        try {
+            pair = pairLockService.lockActivePair(snapshot.getInviterId(), snapshot.getInviteeId());
+        } catch (BusinessException exception) {
+            expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN);
+            return AcceptAttempt.expired(snapshot.getChatRoomId());
+        }
         ChatRoom room = chatRoomRepository.findByIdForUpdate(snapshot.getChatRoomId()).orElse(null);
         if (room == null) {
             expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.TARGET_UNAVAILABLE);
@@ -60,14 +71,6 @@ public class ChatRoomInvitationTransitionService {
         Member inviter = memberRepository.findActiveById(snapshot.getInviterId()).orElse(null);
         Member invitee = memberRepository.findActiveById(snapshot.getInviteeId()).orElse(null);
         if (inviter == null || invitee == null || !inviter.isProfileComplete() || !invitee.isProfileComplete()) {
-            expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN);
-            return AcceptAttempt.expired(snapshot.getChatRoomId());
-        }
-
-        FriendMemberPair pair;
-        try {
-            pair = pairLockService.lockActivePair(snapshot.getInviterId(), snapshot.getInviteeId());
-        } catch (BusinessException exception) {
             expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN);
             return AcceptAttempt.expired(snapshot.getChatRoomId());
         }
@@ -117,7 +120,12 @@ public class ChatRoomInvitationTransitionService {
         if (!invitation.isPending()) {
             return false;
         }
-        invitation.cancel(LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        if (invitation.isTimedOutAt(now)) {
+            invitation.expire(ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT, now);
+            return false;
+        }
+        invitation.cancel(now);
         return true;
     }
 
@@ -131,6 +139,17 @@ public class ChatRoomInvitationTransitionService {
             expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT);
             return;
         }
+        if (chatRoomRepository.findById(snapshot.getChatRoomId()).isEmpty()) {
+            expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.TARGET_UNAVAILABLE);
+            return;
+        }
+        FriendMemberPair pair;
+        try {
+            pair = pairLockService.lockActivePair(snapshot.getInviterId(), snapshot.getInviteeId());
+        } catch (BusinessException exception) {
+            expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN);
+            return;
+        }
         ChatRoom room = chatRoomRepository.findByIdForUpdate(snapshot.getChatRoomId()).orElse(null);
         if (room == null) {
             expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.TARGET_UNAVAILABLE);
@@ -139,13 +158,6 @@ public class ChatRoomInvitationTransitionService {
         Member inviter = memberRepository.findActiveById(snapshot.getInviterId()).orElse(null);
         Member invitee = memberRepository.findActiveById(snapshot.getInviteeId()).orElse(null);
         if (inviter == null || invitee == null || !inviter.isProfileComplete() || !invitee.isProfileComplete()) {
-            expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN);
-            return;
-        }
-        FriendMemberPair pair;
-        try {
-            pair = pairLockService.lockActivePair(snapshot.getInviterId(), snapshot.getInviteeId());
-        } catch (BusinessException exception) {
             expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN);
             return;
         }

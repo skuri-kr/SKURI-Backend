@@ -84,10 +84,12 @@ public interface ChatRoomInvitationRepository extends JpaRepository<ChatRoomInvi
             from ChatRoomInvitation invitation
             where invitation.chatRoomId = :chatRoomId
               and invitation.status = com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationStatus.PENDING
+              and invitation.expiresAt > :now
               and invitation.inviteeId in :candidateMemberIds
             """)
     List<String> findPendingInviteeIds(
             @Param("chatRoomId") String chatRoomId,
+            @Param("now") LocalDateTime now,
             @Param("candidateMemberIds") Collection<String> candidateMemberIds
     );
 

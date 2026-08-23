@@ -68,7 +68,11 @@ public class ChatRoomInvitationService {
         Set<String> memberIds = Set.copyOf(chatRoomMemberRepository
                 .findMemberIdsByChatRoomIdAndCandidateMemberIds(chatRoomId, candidateMemberIds));
         Set<String> pendingInviteeIds = Set.copyOf(
-                invitationRepository.findPendingInviteeIds(chatRoomId, candidateMemberIds)
+                invitationRepository.findPendingInviteeIds(
+                        chatRoomId,
+                        LocalDateTime.now(),
+                        candidateMemberIds
+                )
         );
 
         int alreadyMemberCount = 0;
