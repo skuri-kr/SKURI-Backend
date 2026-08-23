@@ -37,6 +37,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
@@ -390,6 +391,18 @@ class TimetableControllerContractTest {
     }
 
     @Test
+    void getMySharingSettings_프로필미완료_409() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.MEMBER_PROFILE_INCOMPLETE))
+                .when(timetableSharingService).getMySharingSettings("firebase-uid");
+
+        mockMvc.perform(get("/v1/timetables/my/sharing-settings")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("MEMBER_PROFILE_INCOMPLETE"));
+    }
+
+    @Test
     void updateMySharingSettings_정상요청_200() throws Exception {
         mockValidToken();
         when(timetableSharingService.updateMySharingSettings(eq("firebase-uid"), any(UpdateTimetableSharingSettingsRequest.class)))
@@ -420,6 +433,15 @@ class TimetableControllerContractTest {
     }
 
     @Test
+    void updateMySharingSettings_비인증요청_401() throws Exception {
+        mockMvc.perform(patch("/v1/timetables/my/sharing-settings")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"defaultScope\":\"BUSY_ONLY\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+    }
+
+    @Test
     void updateShareOverride_정상요청_200() throws Exception {
         mockValidToken();
         when(timetableSharingService.updateShareOverride(
@@ -436,6 +458,31 @@ class TimetableControllerContractTest {
     }
 
     @Test
+    void updateShareOverride_대상이없으면_404() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.FRIEND_TARGET_NOT_FOUND))
+                .when(timetableSharingService).updateShareOverride(
+                        eq("firebase-uid"), eq("friend-public-id"), any(UpdateTimetableShareOverrideRequest.class)
+                );
+
+        mockMvc.perform(put("/v1/timetables/my/sharing-overrides/friend-public-id")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"scope\":\"DETAILS\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("FRIEND_TARGET_NOT_FOUND"));
+    }
+
+    @Test
+    void updateShareOverride_비인증요청_401() throws Exception {
+        mockMvc.perform(put("/v1/timetables/my/sharing-overrides/friend-public-id")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"scope\":\"DETAILS\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+    }
+
+    @Test
     void deleteShareOverride_정상요청_204() throws Exception {
         mockValidToken();
 
@@ -444,6 +491,25 @@ class TimetableControllerContractTest {
                 .andExpect(status().isNoContent());
 
         verify(timetableSharingService).deleteShareOverride("firebase-uid", "friend-public-id");
+    }
+
+    @Test
+    void deleteShareOverride_친구관계가없으면_404() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.FRIENDSHIP_NOT_FOUND))
+                .when(timetableSharingService).deleteShareOverride("firebase-uid", "friend-public-id");
+
+        mockMvc.perform(delete("/v1/timetables/my/sharing-overrides/friend-public-id")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("FRIENDSHIP_NOT_FOUND"));
+    }
+
+    @Test
+    void deleteShareOverride_비인증요청_401() throws Exception {
+        mockMvc.perform(delete("/v1/timetables/my/sharing-overrides/friend-public-id"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
     }
 
     @Test
@@ -475,6 +541,28 @@ class TimetableControllerContractTest {
                         .header(AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void getFriendTimetable_친구관계가없으면_404() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.FRIENDSHIP_NOT_FOUND))
+                .when(timetableSharingService)
+                .getFriendTimetable("firebase-uid", "friend-public-id", "2026-1");
+
+        mockMvc.perform(get("/v1/timetables/friends/friend-public-id")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .param("semester", "2026-1"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("FRIENDSHIP_NOT_FOUND"));
+    }
+
+    @Test
+    void getFriendTimetable_비인증요청_401() throws Exception {
+        mockMvc.perform(get("/v1/timetables/friends/friend-public-id")
+                        .param("semester", "2026-1"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
     }
 
     @Test

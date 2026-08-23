@@ -6,6 +6,7 @@ import com.skuri.skuri_backend.common.config.JpaAuditingConfig;
 import com.skuri.skuri_backend.domain.academic.entity.TimetableShareOverride;
 import com.skuri.skuri_backend.domain.academic.entity.TimetableShareScope;
 import com.skuri.skuri_backend.domain.academic.repository.TimetableShareOverrideRepository;
+import com.skuri.skuri_backend.domain.academic.service.TimetableSharingRelationshipCleanupService;
 import com.skuri.skuri_backend.domain.academic.service.TimetableSharingScopeResolver;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRelationshipState;
 import com.skuri.skuri_backend.domain.friend.entity.FriendCodeRegistry;
@@ -57,6 +58,7 @@ import static org.mockito.Mockito.verify;
         FriendProfileProvisioningService.class,
         FriendMemberPairLockService.class,
         TimetableSharingScopeResolver.class,
+        TimetableSharingRelationshipCleanupService.class,
         FriendSummarySnapshotFactory.class,
         FriendRequestTransitionPreflightService.class,
         FriendRequestTransitionMutationService.class,
@@ -540,6 +542,23 @@ class FriendRelationshipServiceDataJpaTest {
 
         assertThat(friendshipRepository.count()).isZero();
         assertThat(friendPreferenceRepository.count()).isZero();
+        assertThat(timetableShareOverrideRepository.count()).isZero();
+    }
+
+    @Test
+    void 차단은_양방향시간표공유예외를_정리한다() {
+        FriendPair pair = createPair();
+        String requestId = friendRelationshipService.createRequest(pair.firstMemberId(), pair.secondPublicId()).requestId();
+        friendRelationshipService.acceptRequest(pair.secondMemberId(), requestId);
+        timetableShareOverrideRepository.saveAndFlush(TimetableShareOverride.create(
+                pair.firstMemberId(), pair.secondMemberId(), TimetableShareScope.DETAILS
+        ));
+        timetableShareOverrideRepository.saveAndFlush(TimetableShareOverride.create(
+                pair.secondMemberId(), pair.firstMemberId(), TimetableShareScope.BUSY_ONLY
+        ));
+
+        friendRelationshipService.blockMember(pair.firstMemberId(), pair.secondPublicId());
+
         assertThat(timetableShareOverrideRepository.count()).isZero();
     }
 

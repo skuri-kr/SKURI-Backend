@@ -1,6 +1,7 @@
 package com.skuri.skuri_backend.domain.academic.service;
 
 import com.skuri.skuri_backend.domain.academic.dto.response.FriendTimetableResponse;
+import com.skuri.skuri_backend.domain.academic.dto.response.TimetableSharingSettingsResponse;
 import com.skuri.skuri_backend.domain.academic.dto.request.UpdateTimetableSharingSettingsRequest;
 import com.skuri.skuri_backend.domain.academic.entity.Course;
 import com.skuri.skuri_backend.domain.academic.entity.TimetableShareScope;
@@ -13,6 +14,7 @@ import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
+import com.skuri.skuri_backend.domain.friend.service.FriendProfileProvisioningService;
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,10 +49,16 @@ class TimetableSharingServiceTest {
     private TimetableSharingSettingsMutationService timetableSharingSettingsMutationService;
 
     @Mock
+    private TimetableSharingSettingsReadService timetableSharingSettingsReadService;
+
+    @Mock
     private UserTimetableRepository userTimetableRepository;
 
     @Mock
     private FriendRelationshipQueryService friendRelationshipQueryService;
+
+    @Mock
+    private FriendProfileProvisioningService friendProfileProvisioningService;
 
     @Mock
     private FriendProfileRepository friendProfileRepository;
@@ -154,22 +162,41 @@ class TimetableSharingServiceTest {
         UpdateTimetableSharingSettingsRequest request = new UpdateTimetableSharingSettingsRequest(
                 TimetableShareScope.BUSY_ONLY
         );
-        when(timetableSharingScopeResolver.defaultScope("owner"))
-                .thenReturn(TimetableShareScope.BUSY_ONLY);
-        when(friendRelationshipQueryService.getFriends("owner")).thenReturn(List.of());
-        when(timetableShareOverrideRepository.findAllByOwnerMemberId("owner")).thenReturn(List.of());
+        var settings = new TimetableSharingSettingsResponse(
+                TimetableShareScope.BUSY_ONLY,
+                List.of()
+        );
+        when(timetableSharingSettingsReadService.getForProvisionedMember("owner"))
+                .thenReturn(settings);
 
         var response = timetableSharingService.updateMySharingSettings("owner", request);
 
         InOrder inOrder = inOrder(
                 timetableSharingSettingsMutationService,
-                timetableSharingScopeResolver,
-                friendRelationshipQueryService
+                friendProfileProvisioningService,
+                timetableSharingSettingsReadService
         );
         inOrder.verify(timetableSharingSettingsMutationService).updateDefaultScope("owner", request);
-        inOrder.verify(timetableSharingScopeResolver).defaultScope("owner");
-        inOrder.verify(friendRelationshipQueryService).getFriends("owner");
+        inOrder.verify(friendProfileProvisioningService).ensureForActiveMember("owner");
+        inOrder.verify(timetableSharingSettingsReadService).getForProvisionedMember("owner");
         assertThat(response.defaultScope()).isEqualTo(TimetableShareScope.BUSY_ONLY);
+    }
+
+    @Test
+    void 설정조회는_읽기트랜잭션을열기전에_프로필을준비한다() {
+        var settings = new TimetableSharingSettingsResponse(
+                TimetableShareScope.PRIVATE,
+                List.of()
+        );
+        when(timetableSharingSettingsReadService.getForProvisionedMember("owner"))
+                .thenReturn(settings);
+
+        var response = timetableSharingService.getMySharingSettings("owner");
+
+        InOrder inOrder = inOrder(friendProfileProvisioningService, timetableSharingSettingsReadService);
+        inOrder.verify(friendProfileProvisioningService).ensureForActiveMember("owner");
+        inOrder.verify(timetableSharingSettingsReadService).getForProvisionedMember("owner");
+        assertThat(response).isEqualTo(settings);
     }
 
     @Test
