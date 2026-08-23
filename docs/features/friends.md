@@ -197,6 +197,8 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 - 정원이 다시 생기거나 파티가 다시 열려도 EXPIRED 초대는 복원하지 않으며 새 초대를 발송해야 한다.
 - 수신자가 다른 활성 파티에 참여 중인 상태는 대상 파티가 여전히 OPEN이고 자리가 있으며 친구 관계가 유효한 동안에만 PENDING을 유지할 수 있는 일시적 수락 실패다.
 - 파티 상태·정원·참여자·친구 관계 변경 시 선제적으로 만료시키고, 받은 초대 목록·badge count·수락 처리에서도 누락된 만료를 재검증한다.
+- 관리자 `CLOSE`, `CANCEL`, `END`도 PENDING 초대를 EXPIRED + TARGET_UNAVAILABLE로 정리한다. 이후 `REOPEN`해도 만료된 초대는 복원하지 않는다.
+- 관리자가 일반 참가자를 제거하면 그 참가자가 해당 파티에 보낸 PENDING 초대는 EXPIRED + INVITER_LEFT로 정리한다.
 - 같은 파티에 대한 참가 요청과 친구 초대가 동시에 PENDING이면 먼저 수락된 경로만 참가를 확정한다. 초대 수락 시 참가 요청은 CANCELED, 참가 요청 수락 시 초대는 EXPIRED + ALREADY_JOINED로 같은 트랜잭션에서 정리한다.
 - 다중 선택 발송은 batch 전체 원자성이 아니라 수신자별 원자성을 사용한다. 각 수신자는 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE 중 하나의 결과를 가진다.
 - 응답 item 순서는 요청의 friendPublicId 순서를 유지하고 SENT item만 새 초대를 생성한다. 차단·친구 관계 상실·다른 활성 파티처럼 민감하거나 변동 가능한 사유는 NOT_ELIGIBLE로 통합한다.
@@ -214,7 +216,9 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 - 방 삭제, 비공개 전환, 정원 마감, 기존 참여, 친구 해제, 차단, 초대자 탈퇴 시 PENDING 초대를 EXPIRED로 확정한다.
 - 정원이 다시 생기거나 최대 인원이 늘어나도 EXPIRED 초대는 복원하지 않으며 새 초대를 발송해야 한다.
 - 방 상태·정원·참여자·친구 관계 변경 시 선제적으로 만료시키고, 받은 초대 목록·badge count·수락 처리에서도 누락된 만료를 재검증한다.
-- 회원 탈퇴로 모든 방에서 제거될 때 해당 회원이 보낸 PENDING 초대는 EXPIRED + MEMBER_WITHDRAWN, 학과 변경으로 기존 학과방에서 제거될 때 그 방에서 보낸 PENDING 초대는 EXPIRED + INVITER_LEFT로 정리한다.
+- 회원 탈퇴로 모든 방에서 제거될 때 해당 회원이 보낸 PENDING 초대는 EXPIRED + MEMBER_WITHDRAWN으로 정리한다.
+- 학과 변경으로 기존 학과방에서 제거될 때 그 방에서 보낸 PENDING 초대는 EXPIRED + INVITER_LEFT, 해당 회원이 받은 모든 학과방 PENDING 초대는 EXPIRED + ELIGIBILITY_CHANGED로 정리한다.
+- 관리자 공개방 삭제는 방 행을 먼저 잠그고 그 방의 PENDING 초대를 EXPIRED + TARGET_UNAVAILABLE로 정리한 뒤 메시지·멤버십·방을 삭제한다.
 - 다중 선택 발송은 택시파티와 같은 수신자별 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE 결과를 요청 순서대로 반환한다.
 - 공개 non-PARTY 방 여부, 초대자 참여와 방 전체 자격이 실패하면 전체 4xx이며, 수신자별 관계·차단·입장 자격 경쟁은 NOT_ELIGIBLE로 처리해 다른 SENT 결과를 되돌리지 않는다.
 
@@ -481,7 +485,7 @@ member_low_id + member_high_id는 unique다.
 - INVITATION_TIMEOUT, TARGET_UNAVAILABLE, CAPACITY_FULL, INVITER_LEFT, ALREADY_JOINED, RELATIONSHIP_UNAVAILABLE, ELIGIBILITY_CHANGED, MEMBER_WITHDRAWN을 외부 안전 enum으로 사용한다.
 - expires_at 경과는 INVITATION_TIMEOUT, 파티 비OPEN·방 삭제·비공개 전환 등 대상 aggregate 사용 불가는 TARGET_UNAVAILABLE, 정원 마감은 CAPACITY_FULL, 초대자의 파티·방 이탈은 INVITER_LEFT, 수신자의 기존 참여는 ALREADY_JOINED로 기록한다.
 - 차단 여부와 구체적인 관계 상실 원인은 RELATIONSHIP_UNAVAILABLE로 통합한다.
-- 관계 외 학과방 자격 같은 입장 조건 변경은 ELIGIBILITY_CHANGED, 초대자·수신자 탈퇴는 MEMBER_WITHDRAWN으로 기록한다. 택시 수신자의 다른 활성 파티 참여는 앞선 terminal 조건이 없는 동안 재시도 가능한 상태이므로 expiry_reason을 기록하지 않고 PENDING을 유지한다.
+- 관계 외 학과방 자격 같은 입장 조건 변경은 ELIGIBILITY_CHANGED, 초대자·수신자 탈퇴는 MEMBER_WITHDRAWN으로 기록한다. 학과 변경 시 수신자가 받은 기존 학과방 초대도 ELIGIBILITY_CHANGED로 즉시 만료한다. 택시 수신자의 다른 활성 파티 참여는 앞선 terminal 조건이 없는 동안 재시도 가능한 상태이므로 expiry_reason을 기록하지 않고 PENDING을 유지한다.
 - PENDING에서 EXPIRED로 전이하는 트랜잭션이 expiry_reason과 responded_at을 함께 한 번만 기록하며 이후 상태 회복이나 lazy reconciliation이 값을 덮어쓰지 않는다.
 - 공개방 초대는 expires_at 경과를 취소보다 먼저 판정하므로 기한 뒤 취소 요청도 CANCELED가 아니라 EXPIRED + INVITATION_TIMEOUT으로 확정한다. eligible 조회는 기한이 지난 PENDING을 제외하고, 같은 대상 재발송은 기존 행을 먼저 timeout 만료한 뒤 새 초대를 만든다.
 - 공개방에 직접 참여하면서 마지막 좌석을 채우면 참여한 회원의 초대를 먼저 EXPIRED + ALREADY_JOINED로 정리하고, 남은 다른 PENDING 초대만 EXPIRED + CAPACITY_FULL로 정리한다.
@@ -542,6 +546,8 @@ PENDING ── 수락 성공 ──> ACCEPTED + 파티 참여
 
 정원 확인과 파티 참여는 같은 트랜잭션과 잠금 경계에서 처리한다. 정원이 가득 차는 순간 남아 있는 PENDING 초대를 EXPIRED로 전환하며, 초대 목록·badge count·수락 진입 시에도 lazy reconciliation으로 같은 terminal 조건을 적용한다. EXPIRED는 파티 재개방이나 자리 발생으로 복원하지 않는다. 수신자의 다른 활성 파티 참여만 대상 초대의 다른 terminal 조건이 충족되지 않은 동안 PENDING을 유지할 수 있는 재시도 가능 사유다.
 
+관리자 `CLOSE`, `CANCEL`, `END`도 같은 만료 규칙을 적용하고 `REOPEN`은 기존 EXPIRED 초대를 복원하지 않는다. 관리자 멤버 제거는 제거된 참가자가 보낸 해당 파티의 PENDING 초대를 INVITER_LEFT로 만료한다.
+
 같은 회원이 동일 파티에 PENDING 참가 요청과 PENDING 친구 초대를 함께 가진 경우, 초대 수락은 참가 요청을 CANCELED로 만들고 참가 요청 수락은 초대를 EXPIRED + ALREADY_JOINED로 만든다. 두 흐름 중 실제 참가를 먼저 확정한 경로가 승리하며 경쟁 경로는 다시 처리할 수 없는 terminal 상태로 정리한다.
 
 ### 7.4 공개방 초대
@@ -555,6 +561,8 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 ~~~
 
 정원 제한이 있는 공개방이 가득 차는 순간 남아 있는 PENDING 초대를 EXPIRED로 전환한다. 초대 목록·badge count·수락 진입 시에도 lazy reconciliation으로 같은 terminal 조건을 적용하며, 자리 발생이나 최대 인원 증가로 EXPIRED를 복원하지 않는다.
+
+학과 변경은 기존 학과방에서 발송한 초대뿐 아니라 변경 회원이 받은 모든 학과방 PENDING 초대도 ELIGIBILITY_CHANGED로 만료한다. 관리자 공개방 삭제는 방 잠금 뒤 PENDING 초대를 TARGET_UNAVAILABLE로 먼저 만료하고 방을 제거한다.
 
 ---
 
@@ -762,7 +770,7 @@ batch 요청과 응답:
 - 시간 기준 만료 batch처럼 Member pair가 필요 없는 경로는 FriendRequest 행만 잠그고 그 뒤 Member pair 잠금을 추가로 획득하지 않아 잠금 순서를 역전하지 않는다.
 - 잠금 획득 후 차단, 유효 PENDING 요청과 friendship을 다시 조회하고 조건을 재검증한다. 즐겨찾기와 시간표 override는 ACTIVE friendship이 없으면 쓰지 않는다. unique constraint는 마지막 중복 방어선이며 공통 잠금을 대체하지 않는다.
 - 택시파티·공개방 초대의 accept·decline·cancel·expire도 Invitation 행을 PESSIMISTIC_WRITE로 잠그고 PENDING을 재확인한 트랜잭션만 terminal 상태와 참여 부수효과를 확정한다.
-- 초대 생성·수락과 파티·방 상태가 필요한 선제 만료의 잠금 순서는 ordered Member pair, Party 또는 ChatRoom aggregate, Invitation 행 순서로 고정한다. decline·cancel·시간 만료처럼 Invitation만 잠그는 경로는 이후 aggregate나 Member pair 잠금을 추가로 얻지 않는다.
+- 초대 생성·수락과 파티·방 상태가 필요한 선제 만료의 잠금 순서는 ordered Member pair, Party 또는 ChatRoom aggregate, Invitation 행 순서로 고정한다. 참가 요청 수락도 requester Member를 먼저 잠그고 Party를 잠근다. 관리자 파티 상태 변경·멤버 제거와 공개방 삭제도 aggregate를 먼저 잠근 뒤 관련 Invitation을 정리한다. decline·cancel·시간 만료처럼 Invitation만 잠그는 경로는 이후 aggregate나 Member pair 잠금을 추가로 얻지 않는다.
 - 친구 관계를 전제로 하는 택시파티·공개방 초대 생성과 수락은 위 고정 순서 안에서 친구·차단 상태를 재검증한다.
 - 친구 코드 발급·재발급과 lazy provisioning은 해당 Member row를 PESSIMISTIC_WRITE로 잠근 뒤 ACTIVE를 재확인한다. 탈퇴가 먼저 확정됐다면 FriendProfile이나 ACTIVE 코드 registry row를 생성하지 않는다.
 - 양방향 동시 요청은 friendship 한 건만 만든다.

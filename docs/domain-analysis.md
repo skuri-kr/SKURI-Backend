@@ -256,9 +256,11 @@ Hooks:
     - `CANCEL`: `OPEN | CLOSED`에서만 가능
     - `END`: `ARRIVED`에서만 가능 (`forceEnd()` 재사용)
   - 상태 변경 후 파티 채팅방 시스템 메시지/SSE/Notification event는 기존 public service와 동일한 규칙을 재사용한다.
+  - 관리자 `CLOSE`, `CANCEL`, `END`는 파티 잠금 뒤 PENDING 친구 초대를 `EXPIRED + TARGET_UNAVAILABLE`로 정리한다. 이후 `REOPEN`은 이미 만료된 초대를 복원하지 않는다.
   - 관리자 audit snapshot은 최소 상태 필드(`id`, `status`, `endReason`, `settlementStatus`, `endedAt`)만 저장한다.
   - 운영 응답에서는 현재 도메인에 없는 `gender`, `lastStatusChangedAt` 같은 파생 필드를 억지로 만들지 않는다.
   - 관리자 멤버 제거는 기존 `party.removeMember(...)` + 채팅방 membership sync + leave 시스템 메시지 + SSE `KICKED` + `PartyMemberKicked` notification event를 재사용한다.
+    - 제거된 참가자가 해당 파티에 발송한 PENDING 친구 초대는 `EXPIRED + INVITER_LEFT`로 정리한다.
     - leader 제거는 `PARTY_LEADER_REMOVAL_NOT_ALLOWED`로 차단한다.
     - `ARRIVED`, `ENDED` 상태에서는 멤버 제거를 허용하지 않는다.
   - 관리자 시스템 메시지는 party chat room이 있을 때만 생성되며, 서버 내부적으로 `SYSTEM` + `ADMIN_SYSTEM` source를 사용해 leader/member 사칭을 피한다.
@@ -305,6 +307,7 @@ endReason 종류:
   - 탈퇴 회원이 요청자인 `PENDING` join request는 `CANCELED`로 정리
   - 동일 파티의 PENDING 참가 요청과 친구 초대가 경쟁하면 먼저 수락된 참가 경로를 유지하고, 초대 수락은 참가 요청을 `CANCELED`, 참가 요청 수락은 초대를 `EXPIRED + ALREADY_JOINED`로 정리
   - 회원 탈퇴·학과 변경으로 파티나 공개방 멤버십을 일괄 제거할 때 발송자가 더 이상 유효하지 않은 PENDING 친구 초대도 함께 만료
+  - 학과 변경 시 변경 회원이 받은 기존 학과방 PENDING 초대도 `EXPIRED + ELIGIBILITY_CHANGED`로 즉시 만료
 
 파티 채팅 특수 메시지:
   - ACCOUNT: 계좌 정보 공유
@@ -384,7 +387,7 @@ Hooks:
     - 이미지 tombstone은 활성 참조와 신고 증거가 없을 때만 재시도 가능한 storage cleanup task로 처리한다. 원본·썸네일은 하나의 내부 이미지 자산으로 묶어 동일한 작업 잠금으로 참조 생성·신고 snapshot·정리를 직렬화하고, `chat_messages`·`reports`에는 같은 정규화 자산 키를 저장해 최신 커밋 기준의 인덱스 조회로 참조를 판정한다. 정리 완료 URL은 새 업로드 전까지 다시 전송하지 못하며, 새 `IMAGE` 메시지는 업로드 응답의 원본 `url`만 허용한다.
     - 메시지 저장, 공개방 입·퇴장, 파티 멤버 동기화·탈퇴는 채팅방 행 잠금 뒤 최신 `memberCount`·마지막 메시지 요약을 갱신한다. 목록 요약은 행 잠금 아래에서 snapshot을 만든 뒤 트랜잭션 종료 후 전송하며, `lastReadAt`이 있는 멤버의 unread는 한 번의 집계 조회로 계산한다. 단일 인스턴스에서는 같은 방의 발행 순서와 STOMP outbound publish 순서를 보장한다. `lastMessageText`는 목록 미리보기여서 최대 500 code point만 저장하고 메시지 원문은 `chat_messages.text`에 보존한다. `remember=true` 계좌 저장은 회원 잠금을 먼저 얻고 채팅방 잠금으로 진행해 회원 탈퇴와 같은 순서를 사용한다.
   - 멤버 입장 직후 생성된 join `SYSTEM` 메시지는 해당 신규 멤버의 `lastReadAt`을 서버가 최신 메시지 시각으로 맞춰 unread가 0으로 유지되게 한다
-  - 회원 프로필 학과 변경 시 기존 학과방 membership은 자동 제거하고, 새 학과방은 자동 참여시키지 않는다
+  - 회원 프로필 학과 변경 시 기존 학과방 membership은 자동 제거하고, 새 학과방은 자동 참여시키지 않는다. 기존 학과방에서 발송한 PENDING 초대는 `INVITER_LEFT`, 변경 회원이 받은 학과방 PENDING 초대는 `ELIGIBILITY_CHANGED`로 만료한다.
   - 채팅방 목록 실시간: `/user/queue/chat-rooms` 사용자 전용 요약 채널 1개 구독
   - 채팅방 상세 실시간: `/topic/chat/{chatRoomId}` 방 단위 구독
   - 채팅방 메시지 전송: `/app/chat/{chatRoomId}`
@@ -906,7 +909,7 @@ Member ◄── Friend ──► Notification
 | Support | 독립 | 공용 데이터, 다른 도메인과 직접 의존 없음 |
 | Friend → Member | 약결합, 관계 Core 구현 | 관계 생성·변경은 공개 ID 해석 뒤 ordered ACTIVE Member 잠금을 획득하고 요청자·대상을 재확인한다. 이미 생성된 요청의 만료 terminal 정리는 탈퇴 회원도 처리할 수 있도록 기존 Member 행을 상태와 무관하게 잠근다. 내부 회원 ID는 외부에 노출하지 않는다. |
 | Academic → Friend | 정책 확인, 런타임 구현 | friendship·차단을 확인한 뒤 Academic이 시간표 공개 projection과 관계 종료 시 공유 예외 정리를 결정 |
-| TaxiParty, Chat → Friend | 정책 확인, 런타임 구현 | 초대 생성·수락 시 friendship·차단을 재검증하되 초대 상태는 각 도메인이 소유한다. 잠금 순서는 ordered Member pair → Party/ChatRoom aggregate → Invitation으로 통일한다. |
+| TaxiParty, Chat → Friend | 정책 확인, 런타임 구현 | 초대 생성·수락 시 friendship·차단을 재검증하되 초대 상태는 각 도메인이 소유한다. 잠금 순서는 ordered Member pair 또는 requester Member → Party/ChatRoom aggregate → Invitation으로 통일한다. 관리자 상태 변경·멤버 제거·방 삭제도 aggregate를 먼저 잠근 뒤 Invitation을 정리한다. |
 | Minecraft → Friend | 정책 확인, 런타임 구현 | friendship·차단 확인 후 Minecraft가 SELF·FRIEND 안전 계정 projection을 생성 |
 | Friend, TaxiParty, Chat → Notification | 이벤트, Phase 14 계획 | 친구 요청·수락과 친구 기반 초대를 인박스·SSE·FCM으로 전달 |
 

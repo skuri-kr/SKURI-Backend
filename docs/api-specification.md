@@ -1507,6 +1507,7 @@ FCM 토큰 삭제
 #### 학과 변경 정책
 
 - `PATCH /v1/members/me`에서 `department`가 바뀌면 기존 학과방 membership은 자동 제거합니다.
+- 기존 학과방에서 발송한 PENDING 초대는 `EXPIRED + INVITER_LEFT`, 변경 회원이 받은 모든 학과방 PENDING 초대는 `EXPIRED + ELIGIBILITY_CHANGED`로 정리합니다.
 - 새 학과방 membership은 자동 생성하지 않습니다.
 - 다음 refresh/재진입 시 기존 학과방은 목록에서 제거되고 접근할 수 없습니다.
 
@@ -5921,6 +5922,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 - 존재하지 않는 채팅방: `404 CHAT_ROOM_NOT_FOUND`
 - `PARTY` 타입 삭제 시도: `400 INVALID_REQUEST`
 - 비공개 채팅방 삭제 시도: `400 INVALID_REQUEST`
+- 삭제할 공개방을 잠근 뒤 해당 방의 PENDING 친구 초대를 `EXPIRED + TARGET_UNAVAILABLE`로 정리하고 메시지·멤버십·방을 삭제합니다.
 
 **Response (200 OK):**
 ```json
@@ -6846,6 +6848,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 - 관리자라도 `END`는 `ARRIVED` 상태에서만 가능하다.
 - 관리자라도 `CANCEL`은 `OPEN`, `CLOSED`에서만 가능하다.
 - 임의 상태 점프(예: `OPEN -> ENDED(FORCE_ENDED)`)는 허용하지 않는다.
+- `CLOSE`, `CANCEL`, `END`는 해당 파티의 PENDING 친구 초대를 `EXPIRED + TARGET_UNAVAILABLE`로 정리한다. 이후 `REOPEN`해도 만료된 초대는 복원하지 않는다.
 - 감사 로그는 최소 snapshot(`id`, `status`, `endReason`, `settlementStatus`, `endedAt`)만 저장한다.
 
 **Response (200 OK, CLOSE 예시):**
@@ -6896,6 +6899,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
   - leave 시스템 메시지 생성
   - SSE `KICKED` 이벤트
   - `PartyMemberKicked` notification event
+  - 제거된 참가자가 해당 파티에 발송한 PENDING 친구 초대 `EXPIRED + INVITER_LEFT`
 
 **Response (200 OK):**
 ```json
@@ -7729,7 +7733,7 @@ outcome은 `SENT | ALREADY_PENDING | ALREADY_MEMBER | NOT_ELIGIBLE`다. 결과�
 | POST | `/v1/chat-room-invitations/{invitationId}/decline` | 수신자가 PENDING 초대 거절 |
 | DELETE | `/v1/chat-room-invitations/{invitationId}` | 발송자가 PENDING 초대 취소 |
 
-batch 형식과 outcome 계약은 택시파티 초대와 같다. `UNIVERSITY`, `DEPARTMENT`, `GAME`, 공개 `CUSTOM`만 허용하고 `PARTY`·비공개·1:1 방은 지원하지 않는다. 초대는 생성 후 7일에 만료되며 10분 주기 최대 100건 batch와 목록·count·mutation의 lazy reconciliation을 함께 사용한다. eligible 조회는 expiresAt이 지난 PENDING을 제외하고, 같은 대상 재발송은 기존 행을 EXPIRED + INVITATION_TIMEOUT으로 먼저 확정한 뒤 새 초대를 생성한다. 기한 뒤 취소도 CANCELED가 아니라 EXPIRED + INVITATION_TIMEOUT으로 확정한다. 방 삭제·정원 마감·초대자 이탈·기존 참여·친구 해제·차단·학과 자격 변경은 안전한 expiryReason으로 EXPIRED 처리한다. 직접 참여가 마지막 좌석을 채우면 참여자의 초대는 먼저 ALREADY_JOINED, 나머지 PENDING은 CAPACITY_FULL로 만료한다. 회원 탈퇴의 전체 방 제거에서는 발송 초대를 MEMBER_WITHDRAWN, 학과 변경의 기존 학과방 제거에서는 해당 방의 발송 초대를 INVITER_LEFT로 즉시 만료한다.
+batch 형식과 outcome 계약은 택시파티 초대와 같다. `UNIVERSITY`, `DEPARTMENT`, `GAME`, 공개 `CUSTOM`만 허용하고 `PARTY`·비공개·1:1 방은 지원하지 않는다. 초대는 생성 후 7일에 만료되며 10분 주기 최대 100건 batch와 목록·count·mutation의 lazy reconciliation을 함께 사용한다. eligible 조회는 expiresAt이 지난 PENDING을 제외하고, 같은 대상 재발송은 기존 행을 EXPIRED + INVITATION_TIMEOUT으로 먼저 확정한 뒤 새 초대를 생성한다. 기한 뒤 취소도 CANCELED가 아니라 EXPIRED + INVITATION_TIMEOUT으로 확정한다. 방 삭제·정원 마감·초대자 이탈·기존 참여·친구 해제·차단·학과 자격 변경은 안전한 expiryReason으로 EXPIRED 처리한다. 직접 참여가 마지막 좌석을 채우면 참여자의 초대는 먼저 ALREADY_JOINED, 나머지 PENDING은 CAPACITY_FULL로 만료한다. 회원 탈퇴의 전체 방 제거에서는 발송 초대를 MEMBER_WITHDRAWN으로 만료한다. 학과 변경의 기존 학과방 제거에서는 해당 방의 발송 초대를 INVITER_LEFT, 변경 회원이 받은 학과방 PENDING 초대를 ELIGIBILITY_CHANGED로 즉시 만료한다. 관리자 공개방 삭제는 방 잠금 뒤 해당 방의 PENDING 초대를 TARGET_UNAVAILABLE로 정리한다.
 
 받은 초대 목록은 현재 조치 가능한 `PENDING`과 사유 안내가 필요한 `EXPIRED`만 반환한다. `ACCEPTED`, `DECLINED`, `CANCELED` 이력은 V1 목록에서 제외한다. inviter와 대상 aggregate가 삭제·탈퇴 등으로 안전하게 표시될 수 없거나 inviter가 현재 사용자와 양방향 차단 관계이면 해당 요약은 nullable이다.
 
