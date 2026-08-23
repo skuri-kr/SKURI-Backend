@@ -16,6 +16,7 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatAccountData;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessage;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMemberId;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
@@ -534,6 +535,11 @@ class ChatServiceTest {
         assertEquals(ChatMessage.SOURCE_MEMBER_LEAVE, departmentLeaveCaptor.getValue().getSource());
         assertEquals("홍길동님이 나갔어요.", departmentLeaveCaptor.getValue().getText());
         verify(messagingTemplate).convertAndSend(eq("/topic/chat/public:department:cs"), any(ChatMessageResponse.class));
+        verify(chatRoomInvitationLifecycleService).expirePendingByInviterInRoom(
+                "public:department:cs",
+                "member-1",
+                ChatRoomInvitationExpiryReason.INVITER_LEFT
+        );
     }
 
     @Test
@@ -579,6 +585,10 @@ class ChatServiceTest {
         verify(chatRoomMemberRepository).delete(remainingMembership);
         verify(chatRoomMemberRepository, times(1)).delete(any(ChatRoomMember.class));
         verify(chatRoomSummaryEventPublisher).publishCurrent("room-1");
+        verify(chatRoomInvitationLifecycleService).expirePendingByInviter(
+                "member-1",
+                ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
     }
 
     @Test
