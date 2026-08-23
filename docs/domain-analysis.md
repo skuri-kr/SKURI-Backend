@@ -906,7 +906,7 @@ Member ◄── Friend ──► Notification
 | Support | 독립 | 공용 데이터, 다른 도메인과 직접 의존 없음 |
 | Friend → Member | 약결합, 관계 Core 구현 | 관계 생성·변경은 공개 ID 해석 뒤 ordered ACTIVE Member 잠금을 획득하고 요청자·대상을 재확인한다. 이미 생성된 요청의 만료 terminal 정리는 탈퇴 회원도 처리할 수 있도록 기존 Member 행을 상태와 무관하게 잠근다. 내부 회원 ID는 외부에 노출하지 않는다. |
 | Academic → Friend | 정책 확인, 런타임 구현 | friendship·차단을 확인한 뒤 Academic이 시간표 공개 projection과 관계 종료 시 공유 예외 정리를 결정 |
-| TaxiParty, Chat → Friend | 정책 확인, Phase 14 계획 | 초대 생성·수락 시 friendship·차단을 재검증하되 초대 상태는 각 도메인이 소유 |
+| TaxiParty, Chat → Friend | 정책 확인, 런타임 구현 | 초대 생성·수락 시 friendship·차단을 재검증하되 초대 상태는 각 도메인이 소유한다. 잠금 순서는 ordered Member pair → Party/ChatRoom aggregate → Invitation으로 통일한다. |
 | Minecraft → Friend | 정책 확인, 런타임 구현 | friendship·차단 확인 후 Minecraft가 SELF·FRIEND 안전 계정 projection을 생성 |
 | Friend, TaxiParty, Chat → Notification | 이벤트, Phase 14 계획 | 친구 요청·수락과 친구 기반 초대를 인박스·SSE·FCM으로 전달 |
 

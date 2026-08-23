@@ -483,7 +483,10 @@ member_low_id + member_high_id는 unique다.
 - 차단 여부와 구체적인 관계 상실 원인은 RELATIONSHIP_UNAVAILABLE로 통합한다.
 - 관계 외 학과방 자격 같은 입장 조건 변경은 ELIGIBILITY_CHANGED, 초대자·수신자 탈퇴는 MEMBER_WITHDRAWN으로 기록한다. 택시 수신자의 다른 활성 파티 참여는 앞선 terminal 조건이 없는 동안 재시도 가능한 상태이므로 expiry_reason을 기록하지 않고 PENDING을 유지한다.
 - PENDING에서 EXPIRED로 전이하는 트랜잭션이 expiry_reason과 responded_at을 함께 한 번만 기록하며 이후 상태 회복이나 lazy reconciliation이 값을 덮어쓰지 않는다.
+- 공개방 초대는 expires_at 경과를 취소보다 먼저 판정하므로 기한 뒤 취소 요청도 CANCELED가 아니라 EXPIRED + INVITATION_TIMEOUT으로 확정한다. eligible 조회는 기한이 지난 PENDING을 제외하고, 같은 대상 재발송은 기존 행을 먼저 timeout 만료한 뒤 새 초대를 만든다.
+- 공개방에 직접 참여하면서 마지막 좌석을 채우면 참여한 회원의 초대를 먼저 EXPIRED + ALREADY_JOINED로 정리하고, 남은 다른 PENDING 초대만 EXPIRED + CAPACITY_FULL로 정리한다.
 - 받은 초대 응답은 status가 EXPIRED일 때만 expiryReason을 제공하고 현재 파티·방 상태로 과거 사유를 재계산하지 않는다.
+- 받은 초대 이력의 inviter가 현재 사용자와 양방향 차단 관계이면 프로필 요약을 nullable로 마스킹한다.
 
 ### 6.10 기존 회원 알림 설정 확장
 
@@ -759,7 +762,7 @@ batch 요청과 응답:
 - 시간 기준 만료 batch처럼 Member pair가 필요 없는 경로는 FriendRequest 행만 잠그고 그 뒤 Member pair 잠금을 추가로 획득하지 않아 잠금 순서를 역전하지 않는다.
 - 잠금 획득 후 차단, 유효 PENDING 요청과 friendship을 다시 조회하고 조건을 재검증한다. 즐겨찾기와 시간표 override는 ACTIVE friendship이 없으면 쓰지 않는다. unique constraint는 마지막 중복 방어선이며 공통 잠금을 대체하지 않는다.
 - 택시파티·공개방 초대의 accept·decline·cancel·expire도 Invitation 행을 PESSIMISTIC_WRITE로 잠그고 PENDING을 재확인한 트랜잭션만 terminal 상태와 참여 부수효과를 확정한다.
-- 초대 생성·수락과 파티·방 상태가 필요한 선제 만료의 잠금 순서는 Party 또는 ChatRoom aggregate, 필요한 ordered Member pair, Invitation 행 순서로 고정한다. decline·cancel·시간 만료처럼 Invitation만 잠그는 경로는 이후 aggregate나 Member pair 잠금을 추가로 얻지 않는다.
+- 초대 생성·수락과 파티·방 상태가 필요한 선제 만료의 잠금 순서는 ordered Member pair, Party 또는 ChatRoom aggregate, Invitation 행 순서로 고정한다. decline·cancel·시간 만료처럼 Invitation만 잠그는 경로는 이후 aggregate나 Member pair 잠금을 추가로 얻지 않는다.
 - 친구 관계를 전제로 하는 택시파티·공개방 초대 생성과 수락은 위 고정 순서 안에서 친구·차단 상태를 재검증한다.
 - 친구 코드 발급·재발급과 lazy provisioning은 해당 Member row를 PESSIMISTIC_WRITE로 잠근 뒤 ACTIVE를 재확인한다. 탈퇴가 먼저 확정됐다면 FriendProfile이나 ACTIVE 코드 registry row를 생성하지 않는다.
 - 양방향 동시 요청은 friendship 한 건만 만든다.
