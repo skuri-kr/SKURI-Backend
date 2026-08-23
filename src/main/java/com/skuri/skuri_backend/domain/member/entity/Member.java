@@ -199,10 +199,6 @@ public class Member extends BaseTimeEntity {
                 && hasText(department);
     }
 
-    public boolean hasUnchangedDefaultNickname() {
-        return DEFAULT_NICKNAME.equals(nickname) && nicknameKey == null;
-    }
-
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }

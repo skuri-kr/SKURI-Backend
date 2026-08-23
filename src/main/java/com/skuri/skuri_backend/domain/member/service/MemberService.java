@@ -114,7 +114,7 @@ public class MemberService {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "지원하지 않는 department입니다.");
             }
         }
-        validateInitialNicknameForProfileCompletion(
+        validateReservedNicknameForProfileCompletion(
                 member,
                 profileWasComplete,
                 normalizedNickname,
@@ -249,14 +249,16 @@ public class MemberService {
         return normalizedNickname;
     }
 
-    private void validateInitialNicknameForProfileCompletion(
+    private void validateReservedNicknameForProfileCompletion(
             Member member,
             boolean profileWasComplete,
             String normalizedNickname,
             String normalizedStudentId,
             String normalizedDepartment
     ) {
-        if (profileWasComplete || normalizedNickname != null || !member.hasUnchangedDefaultNickname()) {
+        if (profileWasComplete
+                || normalizedNickname != null
+                || !MemberNicknamePolicy.isReserved(member.getNickname())) {
             return;
         }
 
