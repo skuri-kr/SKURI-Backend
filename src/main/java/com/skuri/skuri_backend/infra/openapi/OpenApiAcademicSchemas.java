@@ -128,30 +128,45 @@ public final class OpenApiAcademicSchemas {
 
     @Schema(name = "AcademicTimetableSharingSettingsApiResponse", description = "공통 API 응답 포맷")
     public record TimetableSharingSettingsApiResponse(
+            @Schema(description = "요청 성공 여부")
             boolean success,
+            @Schema(description = "성공 시 응답 데이터", nullable = true)
             TimetableSharingSettingsResponse data,
+            @Schema(description = "에러 메시지", nullable = true)
             String message,
+            @Schema(description = "에러 코드", nullable = true)
             String errorCode,
+            @Schema(description = "에러 발생 시각", nullable = true)
             LocalDateTime timestamp
     ) {
     }
 
     @Schema(name = "AcademicTimetableShareOverrideApiResponse", description = "공통 API 응답 포맷")
     public record TimetableShareOverrideApiResponse(
+            @Schema(description = "요청 성공 여부")
             boolean success,
+            @Schema(description = "성공 시 응답 데이터", nullable = true)
             TimetableShareOverrideResponse data,
+            @Schema(description = "에러 메시지", nullable = true)
             String message,
+            @Schema(description = "에러 코드", nullable = true)
             String errorCode,
+            @Schema(description = "에러 발생 시각", nullable = true)
             LocalDateTime timestamp
     ) {
     }
 
     @Schema(name = "AcademicFriendTimetableApiResponse", description = "공통 API 응답 포맷")
     public record FriendTimetableApiResponse(
+            @Schema(description = "요청 성공 여부")
             boolean success,
+            @Schema(description = "성공 시 응답 데이터", nullable = true)
             FriendTimetableResponse data,
+            @Schema(description = "에러 메시지", nullable = true)
             String message,
+            @Schema(description = "에러 코드", nullable = true)
             String errorCode,
+            @Schema(description = "에러 발생 시각", nullable = true)
             LocalDateTime timestamp
     ) {
     }
