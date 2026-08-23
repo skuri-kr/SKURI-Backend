@@ -1,7 +1,7 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유 전달 완료. 택시파티·공개 채팅방 친구 초대는 현재 런타임 구현 단계이며 알림·회원 탈퇴 cleanup은 후속 단계다.
-> 기준일: 2026-08-23
+> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유 전달 완료. 택시파티·공개 채팅방 친구 초대는 Backend [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85)·Frontend [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27) 리뷰 중이며 알림·회원 탈퇴 cleanup은 후속 단계다.
+> 기준일: 2026-08-24
 > 다음 구현 단위: 현재 친구 초대 Backend·Frontend 전달을 완료한 뒤 알림·회원 탈퇴 cleanup을 구현한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
@@ -814,9 +814,9 @@ batch 요청과 응답:
 11. Backend #84 시간표 공유 API
 12. Frontend #26 시간표 공유 UX
 
-시간표 공유는 Backend #84·Frontend #26에서 구현·테스트·문서 정합성 점검과 리뷰 보완을 마쳐 전달을 완료했다. 현재 친구 초대 단계를 구현 중이며, 그 뒤 남는 승인 구현은 알림·탈퇴 정리 한 단계다.
+시간표 공유는 Backend #84·Frontend #26에서 구현·테스트·문서 정합성 점검과 리뷰 보완을 마쳐 전달을 완료했다. 친구 초대는 Backend #85·Frontend #27에서 리뷰 중이며, 그 뒤 남는 승인 구현은 알림·탈퇴 정리 한 단계다.
 
-1. 친구 초대 (현재 구현 단계)
+1. 친구 초대 (Backend #85·Frontend #27 리뷰 중)
    - TaxiParty와 공개 Chat 수신자별 부분 성공 초대
    - FriendHub 초대 탭과 공통 친구 선택 UX
 2. 알림·탈퇴 정리 (후속)
