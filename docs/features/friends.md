@@ -313,7 +313,7 @@ Friend 기능을 하나의 거대한 서비스에 모으지 않고 각 도메인
 | 도메인 | 책임 |
 | --- | --- |
 | friend 신규 도메인 | ACTIVE·RETIRED 친구 코드 registry, 검색 허용, 요청, 상호 관계, 즐겨찾기, 친구 끊기, 차단 |
-| academic | 시간표 공개 기본값·친구별 예외, 권한에 맞춘 친구 시간표 projection |
+| academic | 시간표 공개 기본값·친구별 예외, 권한에 맞춘 친구 시간표 projection, 관계 종료·차단 시 양방향 예외 정리 |
 | taxiparty | 초대 생성, OPEN·정원·참여 상태 검증, 수락 동시성 |
 | chat | 공개방 초대 생성, 방 유형·공개 여부·입장 자격 검증 |
 | minecraft | 친구에게 제공 가능한 계정 projection |
@@ -682,7 +682,7 @@ semester는 `2026-1` 형식의 필수 query parameter다. 친구 시간표 응�
 
 - 기본 범위의 저장 레코드가 없으면 `PRIVATE`를 적용한다.
 - 친구별 예외는 기본 범위보다 우선하며, 현재 상호 친구인 대상만 설정·조회할 수 있다.
-- 친구 끊기 또는 차단 시 양방향 시간표 공유 예외를 삭제한다.
+- 친구 끊기 또는 차단 시 Friend가 관계 전이를 orchestration하고, 같은 트랜잭션에 참여하는 Academic cleanup 서비스가 양방향 시간표 공유 예외를 삭제한다.
 - `PRIVATE`는 시간표 존재 여부도 공개하지 않아 `hasTimetable=false`, 빈 `courses`·`slots`만 반환한다.
 - `BUSY_ONLY`는 점유 시간만 반환하고, `DETAILS`에서만 강의 상세를 반환한다. 직접 입력 강의는 `courseId=null`이다.
 
