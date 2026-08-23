@@ -6,8 +6,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import jakarta.persistence.LockModeType;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -87,6 +90,11 @@ public interface PartyRepository extends JpaRepository<Party, String> {
     @Query("select p from Party p where p.id = :id")
     java.util.Optional<Party> findDetailById(@Param("id") String id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"members"})
+    @Query("select p from Party p where p.id = :id")
+    java.util.Optional<Party> findDetailByIdForUpdate(@Param("id") String id);
+
     @Query("""
             select count(p) > 0
             from Party p
@@ -99,6 +107,18 @@ public interface PartyRepository extends JpaRepository<Party, String> {
             @Param("memberId") String memberId,
             @Param("statuses") Collection<PartyStatus> statuses,
             @Param("excludePartyId") String excludePartyId
+    );
+
+    @Query("""
+            select distinct pm.id.memberId
+            from Party p
+            join p.members pm
+            where pm.id.memberId in :candidateMemberIds
+              and p.status in :statuses
+            """)
+    List<String> findActivePartyMemberIds(
+            @Param("candidateMemberIds") Collection<String> candidateMemberIds,
+            @Param("statuses") Collection<PartyStatus> statuses
     );
 
     @EntityGraph(attributePaths = {"members"})

@@ -40,6 +40,7 @@ public class ChatAdminService {
     private final ChatMessageRepository chatMessageRepository;
     private final MemberRepository memberRepository;
     private final ChatService chatService;
+    private final ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
 
     @Transactional(readOnly = true)
     public List<ChatRoomSummaryResponse> getPublicChatRooms(ChatRoomType type) {
@@ -112,6 +113,10 @@ public class ChatAdminService {
             throw new BusinessException(ErrorCode.INVALID_REQUEST, "공개 채팅방만 관리자 API로 삭제할 수 있습니다.");
         }
 
+        chatRoomInvitationLifecycleService.expirePendingForRoom(
+                chatRoomId,
+                com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationExpiryReason.TARGET_UNAVAILABLE
+        );
         chatMessageRepository.deleteByChatRoomId(chatRoomId);
         chatRoomMemberRepository.deleteById_ChatRoomId(chatRoomId);
         chatRoomRepository.delete(room);

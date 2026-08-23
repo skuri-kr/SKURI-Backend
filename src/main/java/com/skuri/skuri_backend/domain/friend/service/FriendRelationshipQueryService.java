@@ -6,6 +6,7 @@ import com.skuri.skuri_backend.domain.academic.entity.TimetableShareScope;
 import com.skuri.skuri_backend.domain.academic.service.TimetableSharingScopeResolver;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendBlockResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendInboxCountsResponse;
+import com.skuri.skuri_backend.domain.friend.dto.response.FriendInvitationCandidateResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRequestItemResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRequestPageResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRelationshipState;
@@ -25,6 +26,8 @@ import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.domain.minecraft.service.FriendMinecraftProjectionService;
+import com.skuri.skuri_backend.domain.chat.service.ChatRoomInvitationInboxService;
+import com.skuri.skuri_backend.domain.taxiparty.service.PartyInvitationInboxService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -41,6 +44,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -63,6 +67,8 @@ public class FriendRelationshipQueryService {
     private final FriendRequestExpiryService friendRequestExpiryService;
     private final FriendMinecraftProjectionService friendMinecraftProjectionService;
     private final TimetableSharingScopeResolver timetableSharingScopeResolver;
+    private final PartyInvitationInboxService partyInvitationInboxService;
+    private final ChatRoomInvitationInboxService chatRoomInvitationInboxService;
 
     @Transactional
     public List<FriendSummaryResponse> getFriends(String ownerMemberId) {
@@ -134,6 +140,87 @@ public class FriendRelationshipQueryService {
         PublicMember friend = resolvePublicMember(friendPublicId);
         requireFriendship(ownerMemberId, friend);
         return friend.memberId();
+    }
+
+    @Transactional
+    public List<InvitationCandidate> getInvitationCandidates(String ownerMemberId) {
+        provisioningService.ensureForActiveMember(ownerMemberId);
+        List<Friendship> friendships = friendshipRepository.findAllByMemberId(ownerMemberId);
+        Set<String> friendMemberIds = friendships.stream()
+                .map(friendship -> friendship.otherMemberId(ownerMemberId))
+                .collect(Collectors.toSet());
+        Map<String, PublicMember> members = getPublicMembers(friendMemberIds);
+        Set<String> favorites = friendPreferenceRepository
+                .findAllByOwnerMemberIdAndFriendMemberIdIn(ownerMemberId, friendMemberIds)
+                .stream()
+                .filter(FriendPreference::isFavorite)
+                .map(FriendPreference::getFriendMemberId)
+                .collect(Collectors.toSet());
+        Set<String> blockedFriendMemberIds = friendMemberIds.isEmpty()
+                ? Set.of()
+                : Set.copyOf(memberBlockRepository.findBlockedCounterpartIdsByOwnerMemberIdAndCandidateMemberIds(
+                        ownerMemberId,
+                        friendMemberIds
+                ));
+
+        Collator koreanCollator = Collator.getInstance(java.util.Locale.KOREAN);
+        return friendMemberIds.stream()
+                .map(members::get)
+                .filter(Objects::nonNull)
+                .filter(member -> !blockedFriendMemberIds.contains(member.memberId()))
+                .sorted(Comparator.<PublicMember, Boolean>comparing(member -> favorites.contains(member.memberId())).reversed()
+                        .thenComparing(PublicMember::nickname, koreanCollator)
+                        .thenComparing(PublicMember::memberId))
+                .map(member -> new InvitationCandidate(
+                        member.memberId(),
+                        new FriendInvitationCandidateResponse(
+                                member.publicId(),
+                                member.nickname(),
+                                member.department(),
+                                member.photoUrl(),
+                                favorites.contains(member.memberId())
+                        )
+                ))
+                .toList();
+    }
+
+    @Transactional
+    public Optional<FriendInvitationCandidateResponse> findInvitationCandidateByMemberId(
+            String ownerMemberId,
+            String counterpartMemberId
+    ) {
+        return Optional.ofNullable(findInvitationCandidatesByMemberIds(
+                ownerMemberId,
+                Set.of(counterpartMemberId)
+        ).get(counterpartMemberId));
+    }
+
+    @Transactional
+    public Map<String, FriendInvitationCandidateResponse> findInvitationCandidatesByMemberIds(
+            String ownerMemberId,
+            Collection<String> counterpartMemberIds
+    ) {
+        provisioningService.ensureForActiveMember(ownerMemberId);
+        if (counterpartMemberIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, PublicMember> counterparts = getPublicMembers(counterpartMemberIds);
+        Set<String> favorites = friendPreferenceRepository
+                .findAllByOwnerMemberIdAndFriendMemberIdIn(ownerMemberId, counterpartMemberIds)
+                .stream()
+                .filter(FriendPreference::isFavorite)
+                .map(FriendPreference::getFriendMemberId)
+                .collect(Collectors.toSet());
+        return counterparts.values().stream().collect(Collectors.toMap(
+                PublicMember::memberId,
+                counterpart -> new FriendInvitationCandidateResponse(
+                        counterpart.publicId(),
+                        counterpart.nickname(),
+                        counterpart.department(),
+                        counterpart.photoUrl(),
+                        favorites.contains(counterpart.memberId())
+                )
+        ));
     }
 
     private FriendSummaryResponse getFriendSummary(String ownerMemberId, PublicMember friend) {
@@ -270,7 +357,14 @@ public class FriendRelationshipQueryService {
                 .forEach(friendRequestExpiryService::expireRequestIfNeeded);
         int incomingRequestCount = Math.toIntExact(friendRequestRepository
                 .countActionablePendingReceivedByRecipientId(memberId, now));
-        return new FriendInboxCountsResponse(incomingRequestCount, 0, 0, incomingRequestCount);
+        int partyInvitationCount = partyInvitationInboxService.countActionablePending(memberId);
+        int chatRoomInvitationCount = chatRoomInvitationInboxService.countActionablePending(memberId);
+        return new FriendInboxCountsResponse(
+                incomingRequestCount,
+                partyInvitationCount,
+                chatRoomInvitationCount,
+                incomingRequestCount + partyInvitationCount + chatRoomInvitationCount
+        );
     }
 
     @Transactional(readOnly = true)
@@ -505,6 +599,12 @@ public class FriendRelationshipQueryService {
     public enum FriendRequestDirection {
         RECEIVED,
         SENT
+    }
+
+    public record InvitationCandidate(
+            String memberId,
+            FriendInvitationCandidateResponse response
+    ) {
     }
 
     private record PublicMember(String memberId, String publicId, String nickname, String department, String photoUrl) {

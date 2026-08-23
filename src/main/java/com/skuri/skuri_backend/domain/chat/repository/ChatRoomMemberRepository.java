@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 
 public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, ChatRoomMemberId> {
@@ -65,6 +66,17 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
     List<ChatRoomMemberUnreadCountProjection> countUnreadByChatRoomId(@Param("chatRoomId") String chatRoomId);
 
     boolean existsById_ChatRoomIdAndId_MemberId(String chatRoomId, String memberId);
+
+    @Query("""
+            select member.id.memberId
+            from ChatRoomMember member
+            where member.id.chatRoomId = :chatRoomId
+              and member.id.memberId in :candidateMemberIds
+            """)
+    List<String> findMemberIdsByChatRoomIdAndCandidateMemberIds(
+            @Param("chatRoomId") String chatRoomId,
+            @Param("candidateMemberIds") Collection<String> candidateMemberIds
+    );
 
     void deleteById_ChatRoomIdAndId_MemberId(String chatRoomId, String memberId);
 

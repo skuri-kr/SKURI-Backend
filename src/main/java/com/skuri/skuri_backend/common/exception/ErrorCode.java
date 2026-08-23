@@ -93,6 +93,10 @@ public enum ErrorCode {
     PARTY_LEADER_REMOVAL_NOT_ALLOWED(HttpStatus.CONFLICT, "PARTY_LEADER_REMOVAL_NOT_ALLOWED", "리더는 관리자 멤버 제거 API로 제거할 수 없습니다."),
     INVALID_PARTY_STATE_TRANSITION(HttpStatus.CONFLICT, "INVALID_PARTY_STATE_TRANSITION", "허용되지 않는 파티 상태 전이입니다."),
     PARTY_CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "PARTY_CONCURRENT_MODIFICATION", "동시 요청 충돌이 발생했습니다. 다시 시도해주세요."),
+    PARTY_INVITATION_NOT_FOUND(HttpStatus.NOT_FOUND, "PARTY_INVITATION_NOT_FOUND", "택시파티 초대를 찾을 수 없습니다."),
+    PARTY_INVITATION_STATE_NOT_ALLOWED(HttpStatus.CONFLICT, "PARTY_INVITATION_STATE_NOT_ALLOWED", "현재 상태에서는 택시파티 초대를 처리할 수 없습니다."),
+    PARTY_INVITATION_RECIPIENT_REQUIRED(HttpStatus.FORBIDDEN, "PARTY_INVITATION_RECIPIENT_REQUIRED", "택시파티 초대 수신자만 처리할 수 있습니다."),
+    PARTY_INVITATION_INVITER_REQUIRED(HttpStatus.FORBIDDEN, "PARTY_INVITATION_INVITER_REQUIRED", "택시파티 초대 발송자만 취소할 수 있습니다."),
 
     // 채팅(Chat) 도메인 에러.
     // 채팅방 참여 자격, 정원 제한, WebSocket 인증 실패 등 채팅 통신 관련 오류를 다룬다.
@@ -109,6 +113,10 @@ public enum ErrorCode {
     CHAT_MESSAGE_MUTATION_NOT_ALLOWED(HttpStatus.CONFLICT, "CHAT_MESSAGE_MUTATION_NOT_ALLOWED", "이 메시지는 수정하거나 삭제할 수 없습니다."),
     CHAT_IMAGE_UNAVAILABLE(HttpStatus.CONFLICT, "CHAT_IMAGE_UNAVAILABLE", "정리된 채팅 이미지는 새로 업로드해야 합니다."),
     STOMP_AUTH_FAILED(HttpStatus.UNAUTHORIZED, "STOMP_AUTH_FAILED", "WebSocket 인증에 실패했습니다."),
+    CHAT_ROOM_INVITATION_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_ROOM_INVITATION_NOT_FOUND", "채팅방 초대를 찾을 수 없습니다."),
+    CHAT_ROOM_INVITATION_STATE_NOT_ALLOWED(HttpStatus.CONFLICT, "CHAT_ROOM_INVITATION_STATE_NOT_ALLOWED", "현재 상태에서는 채팅방 초대를 처리할 수 없습니다."),
+    CHAT_ROOM_INVITATION_RECIPIENT_REQUIRED(HttpStatus.FORBIDDEN, "CHAT_ROOM_INVITATION_RECIPIENT_REQUIRED", "채팅방 초대 수신자만 처리할 수 있습니다."),
+    CHAT_ROOM_INVITATION_INVITER_REQUIRED(HttpStatus.FORBIDDEN, "CHAT_ROOM_INVITATION_INVITER_REQUIRED", "채팅방 초대 발송자만 취소할 수 있습니다."),
 
     // 마인크래프트(Minecraft) 도메인 에러.
     // 마인크래프트 계정 등록, 화이트리스트 브리지 인증, 서버 상태 조회에서 발생하는 오류를 다룬다.

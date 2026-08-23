@@ -21,6 +21,7 @@ public class PartyTimeoutCommandService {
     private final PartyRepository partyRepository;
     private final PartySseService partySseService;
     private final AfterCommitApplicationEventPublisher eventPublisher;
+    private final PartyInvitationLifecycleService partyInvitationLifecycleService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean endExpiredParty(String partyId) {
@@ -36,6 +37,10 @@ public class PartyTimeoutCommandService {
 
         try {
             partyRepository.saveAndFlush(party);
+            partyInvitationLifecycleService.expirePendingForParty(
+                    partyId,
+                    com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.TARGET_UNAVAILABLE
+            );
             partySseService.publishPartyStatusChanged(party);
             eventPublisher.publish(new NotificationDomainEvent.PartyStatusChanged(party.getId(), beforeStatus, party.getStatus()));
             return true;

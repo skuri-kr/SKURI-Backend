@@ -26,6 +26,7 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatMessage;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessageDirection;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
@@ -100,6 +101,7 @@ public class ChatService {
     private final StorageRepository storageRepository;
     private final MediaCleanupTaskService mediaCleanupTaskService;
     private final ChatRoomSummaryEventPublisher chatRoomSummaryEventPublisher;
+    private final ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
 
     @Transactional
     public void createPartyChatRoom(Party party) {
@@ -252,6 +254,19 @@ public class ChatService {
         validatePublicRoomMembershipAction(room, "참여");
         validateDepartmentRoomVisibility(room, memberProfile.getDepartment());
 
+        return joinPublicRoomMember(room, memberProfile);
+    }
+
+    ChatRoomDetailResponse joinInvitedMemberWithLockedRoom(ChatRoom room, Member memberProfile) {
+        validatePublicRoomMembershipAction(room, "참여");
+        validateDepartmentRoomVisibility(room, memberProfile.getDepartment());
+        return joinPublicRoomMember(room, memberProfile);
+    }
+
+    private ChatRoomDetailResponse joinPublicRoomMember(ChatRoom room, Member memberProfile) {
+        String memberId = memberProfile.getId();
+        String chatRoomId = room.getId();
+
         if (findMembership(chatRoomId, memberId) != null) {
             throw new BusinessException(ErrorCode.ALREADY_CHAT_ROOM_MEMBER);
         }
@@ -263,6 +278,18 @@ public class ChatService {
         member.advanceLastReadAt(initialLastReadAt(room));
         chatRoomMemberRepository.save(member);
         room.increaseMemberCount();
+        if (room.getMaxMembers() != null && room.getMemberCount() >= room.getMaxMembers()) {
+            chatRoomInvitationLifecycleService.expirePendingForRoom(
+                    chatRoomId,
+                    ChatRoomInvitationExpiryReason.CAPACITY_FULL
+            );
+        } else {
+            chatRoomInvitationLifecycleService.expirePendingForInviteeInRoom(
+                    chatRoomId,
+                    memberId,
+                    ChatRoomInvitationExpiryReason.ALREADY_JOINED
+            );
+        }
         String displayName = resolveMembershipDisplayName(memberProfile);
         createMembershipSystemMessage(
                 room,
@@ -284,6 +311,11 @@ public class ChatService {
 
         ChatRoomMember member = requireChatRoomMember(findMembership(chatRoomId, memberId));
         removeMembership(member, room, true, false);
+        chatRoomInvitationLifecycleService.expirePendingByInviterInRoom(
+                chatRoomId,
+                memberId,
+                ChatRoomInvitationExpiryReason.INVITER_LEFT
+        );
         String displayName = resolveMembershipDisplayName(memberProfile);
         createMembershipSystemMessage(
                 room,

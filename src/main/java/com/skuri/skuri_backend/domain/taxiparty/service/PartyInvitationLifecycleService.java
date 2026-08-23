@@ -1,0 +1,59 @@
+package com.skuri.skuri_backend.domain.taxiparty.service;
+
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus;
+import com.skuri.skuri_backend.domain.taxiparty.repository.PartyInvitationRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+
+@Service
+@RequiredArgsConstructor
+public class PartyInvitationLifecycleService {
+
+    private final PartyInvitationRepository partyInvitationRepository;
+
+    @Transactional
+    public void expirePendingForParty(String partyId, PartyInvitationExpiryReason reason) {
+        LocalDateTime now = LocalDateTime.now();
+        partyInvitationRepository.findPendingByPartyIdForUpdate(partyId)
+                .forEach(invitation -> invitation.expire(reason, now));
+    }
+
+    @Transactional
+    public void expirePendingByInviter(String inviterId, PartyInvitationExpiryReason reason) {
+        LocalDateTime now = LocalDateTime.now();
+        partyInvitationRepository.findPendingByInviterIdForUpdate(inviterId)
+                .forEach(invitation -> invitation.expire(reason, now));
+    }
+
+    @Transactional
+    public void expirePendingByInviterInParty(
+            String partyId,
+            String inviterId,
+            PartyInvitationExpiryReason reason
+    ) {
+        LocalDateTime now = LocalDateTime.now();
+        partyInvitationRepository.findPendingByPartyIdAndInviterIdForUpdate(partyId, inviterId)
+                .forEach(invitation -> invitation.expire(reason, now));
+    }
+
+    @Transactional
+    public void expirePendingForMemberPair(
+            String firstMemberId,
+            String secondMemberId,
+            PartyInvitationExpiryReason reason
+    ) {
+        LocalDateTime now = LocalDateTime.now();
+        partyInvitationRepository.findPendingByMemberPairForUpdate(firstMemberId, secondMemberId)
+                .forEach(invitation -> invitation.expire(reason, now));
+    }
+
+    @Transactional(readOnly = true)
+    public long countPendingReceived(String memberId) {
+        return partyInvitationRepository.countByInviteeIdAndStatus(memberId, PartyInvitationStatus.PENDING);
+    }
+}
