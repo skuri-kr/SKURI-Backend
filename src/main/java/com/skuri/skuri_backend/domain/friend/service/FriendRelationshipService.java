@@ -2,6 +2,7 @@ package com.skuri.skuri_backend.domain.friend.service;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.domain.academic.service.TimetableSharingRelationshipCleanupService;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendSummaryResponse;
 import com.skuri.skuri_backend.domain.friend.entity.FriendPreference;
 import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
@@ -35,6 +36,7 @@ public class FriendRelationshipService {
     private final FriendRequestExpiryService friendRequestExpiryService;
     private final FriendSummarySnapshotFactory friendSummarySnapshotFactory;
     private final MemberRepository memberRepository;
+    private final TimetableSharingRelationshipCleanupService timetableSharingRelationshipCleanupService;
 
     @Transactional
     public FriendRequestCreationResult createRequest(String requesterMemberId, String targetFriendPublicId) {
@@ -122,6 +124,7 @@ public class FriendRelationshipService {
         friendshipRepository.delete(friendship);
         friendPreferenceRepository.deleteByOwnerMemberIdAndFriendMemberId(ownerMemberId, friendMemberId);
         friendPreferenceRepository.deleteByOwnerMemberIdAndFriendMemberId(friendMemberId, ownerMemberId);
+        timetableSharingRelationshipCleanupService.deleteOverridesForMemberPair(ownerMemberId, friendMemberId);
     }
 
     @Transactional
@@ -146,6 +149,7 @@ public class FriendRelationshipService {
         friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId()).ifPresent(friendshipRepository::delete);
         friendPreferenceRepository.deleteByOwnerMemberIdAndFriendMemberId(blockerMemberId, blockedMemberId);
         friendPreferenceRepository.deleteByOwnerMemberIdAndFriendMemberId(blockedMemberId, blockerMemberId);
+        timetableSharingRelationshipCleanupService.deleteOverridesForMemberPair(blockerMemberId, blockedMemberId);
         memberBlockRepository.save(MemberBlock.create(blockerMemberId, blockedMemberId));
     }
 

@@ -114,6 +114,13 @@ public class MemberService {
                 throw new BusinessException(ErrorCode.VALIDATION_ERROR, "지원하지 않는 department입니다.");
             }
         }
+        validateReservedNicknameForProfileCompletion(
+                member,
+                profileWasComplete,
+                normalizedNickname,
+                normalizedStudentId,
+                normalizedDepartment
+        );
         profileImageStorageService.validateProfilePhotoReference(memberId, member.getPhotoUrl(), request.photoUrl());
         member.updateProfile(
                 normalizedNickname,
@@ -240,6 +247,26 @@ public class MemberService {
             throw new BusinessException(ErrorCode.NICKNAME_RESERVED);
         }
         return normalizedNickname;
+    }
+
+    private void validateReservedNicknameForProfileCompletion(
+            Member member,
+            boolean profileWasComplete,
+            String normalizedNickname,
+            String normalizedStudentId,
+            String normalizedDepartment
+    ) {
+        if (profileWasComplete
+                || normalizedNickname != null
+                || !MemberNicknamePolicy.isReserved(member.getNickname())) {
+            return;
+        }
+
+        String nextStudentId = normalizedStudentId != null ? normalizedStudentId : member.getStudentId();
+        String nextDepartment = normalizedDepartment != null ? normalizedDepartment : member.getDepartment();
+        if (StringUtils.hasText(nextStudentId) && StringUtils.hasText(nextDepartment)) {
+            throw new BusinessException(ErrorCode.NICKNAME_RESERVED);
+        }
     }
 
     private String normalizeRequiredOptionalField(String requestedValue, String fieldName) {

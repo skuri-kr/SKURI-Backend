@@ -2,6 +2,8 @@ package com.skuri.skuri_backend.domain.friend.service;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.domain.academic.service.TimetableSharingRelationshipCleanupService;
+import com.skuri.skuri_backend.domain.academic.service.TimetableSharingScopeResolver;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendCodePreviewResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendCodeResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRelationshipState;
@@ -42,6 +44,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         FriendProfileProvisioningService.class,
         FriendCodeRegenerationAttemptService.class,
         FriendMemberPairLockService.class,
+        TimetableSharingScopeResolver.class,
+        TimetableSharingRelationshipCleanupService.class,
         FriendSummarySnapshotFactory.class,
         FriendRequestTransitionPreflightService.class,
         FriendRequestTransitionMutationService.class,

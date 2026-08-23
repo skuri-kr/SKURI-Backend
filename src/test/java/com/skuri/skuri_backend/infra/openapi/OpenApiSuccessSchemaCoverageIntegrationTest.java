@@ -2,6 +2,7 @@ package com.skuri.skuri_backend.infra.openapi;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -205,6 +206,54 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         assertPageSchemaMetadata(schemas.path("FriendSearchPageResponse"));
     }
 
+    @Test
+    void 시간표공유_공통응답필드는_설명과nullable선언을제공한다() throws Exception {
+        JsonNode schemas = apiDocs("/v3/api-docs/academic").path("components").path("schemas");
+
+        for (String schemaName : List.of(
+                "AcademicTimetableSharingSettingsApiResponse",
+                "AcademicTimetableShareOverrideApiResponse",
+                "AcademicFriendTimetableApiResponse"
+        )) {
+            JsonNode schema = schemas.path(schemaName);
+            assertPropertiesHaveDescription(
+                    schema,
+                    "success", "data", "message", "errorCode", "timestamp"
+            );
+        }
+        assertRecordComponentsAreNullable(
+                OpenApiAcademicSchemas.TimetableSharingSettingsApiResponse.class,
+                "data", "message", "errorCode", "timestamp"
+        );
+        assertRecordComponentsAreNullable(
+                OpenApiAcademicSchemas.TimetableShareOverrideApiResponse.class,
+                "data", "message", "errorCode", "timestamp"
+        );
+        assertRecordComponentsAreNullable(
+                OpenApiAcademicSchemas.FriendTimetableApiResponse.class,
+                "data", "message", "errorCode", "timestamp"
+        );
+    }
+
+    @Test
+    void 친구시간표_학기형식오류예시는_런타임메시지와일치한다() throws Exception {
+        JsonNode example = apiDocs("/v3/api-docs/academic")
+                .path("paths")
+                .path("/v1/timetables/friends/{friendPublicId}")
+                .path("get")
+                .path("responses")
+                .path("422")
+                .path("content")
+                .path("application/json")
+                .path("examples")
+                .path("SEMESTER_FORMAT_INVALID")
+                .path("value");
+
+        assertTrue(example.path("errorCode").asText().equals("VALIDATION_ERROR"));
+        assertTrue(example.path("message").asText()
+                .equals("semester는 yyyy-1 또는 yyyy-2 형식이어야 합니다."));
+    }
+
     private JsonNode apiDocs() throws Exception {
         return apiDocs("/v3/api-docs");
     }
@@ -245,6 +294,20 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
             assertTrue(
                     schema.path("properties").path(propertyName).has("example"),
                     () -> schema + "의 " + propertyName + " 예시가 없습니다."
+            );
+        }
+    }
+
+    private void assertRecordComponentsAreNullable(Class<?> recordType, String... componentNames) {
+        Set<String> nullableComponents = Set.of(componentNames);
+        for (var component : recordType.getRecordComponents()) {
+            if (!nullableComponents.contains(component.getName())) {
+                continue;
+            }
+            Schema schema = component.getAccessor().getAnnotation(Schema.class);
+            assertTrue(
+                    schema != null && schema.nullable(),
+                    () -> recordType.getSimpleName() + "의 " + component.getName() + " nullable 선언이 없습니다."
             );
         }
     }

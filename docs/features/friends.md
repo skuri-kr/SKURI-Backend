@@ -1,8 +1,8 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성 구현 완료. 시간표 공유·친구 초대·알림·회원 탈퇴 cleanup의 후속 3단계 구현 계획 승인
-> 기준일: 2026-08-22
-> 다음 구현 단위: 시간표 공유를 먼저 수행한 뒤 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
+> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유 Backend [#84](https://github.com/skuri-kr/SKURI-Backend/pull/84)·Frontend [#26](https://github.com/skuri-kr/SKURI-Frontend/pull/26) 전달 완료. 친구 초대·알림·회원 탈퇴 cleanup은 후속 단계다.
+> 기준일: 2026-08-23
+> 다음 구현 단위: 시간표 공유 실제 기기 QA 후 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
 ---
@@ -13,7 +13,7 @@
 
 - 친구 관계와 차단, 초대, 시간표 공개 범위의 최종 판단자는 백엔드다.
 - 모바일은 이 문서의 계약을 소비하며 클라이언트 상태만으로 권한을 판단하지 않는다.
-- `GET /v1/friends/me/code`, `POST /v1/friends/me/code/regenerate`, `POST /v1/friend-codes/preview`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.3의 관계 Core API와 9.5의 Minecraft projection은 런타임 API다. 시간표·초대 API는 예정 계약이며 현재 운영 API로 해석하지 않는다.
+- `GET /v1/friends/me/code`, `POST /v1/friends/me/code/regenerate`, `POST /v1/friend-codes/preview`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.3의 관계 Core API, 9.4의 시간표 공유와 9.5의 Minecraft projection은 런타임 API다. 9.6 이후의 초대·알림 API는 예정 계약이며 현재 운영 API로 해석하지 않는다.
 - 실제 구현 시 런타임 OpenAPI와 docs/api-specification.md를 같은 PR에서 동기화한다.
 - 구현 중 정책 변경이 필요하면 코드를 먼저 바꾸지 않고 이 문서의 결정 기록을 갱신한 뒤 승인을 받는다.
 
@@ -38,10 +38,12 @@
 | Backend | [#81](https://github.com/skuri-kr/SKURI-Backend/pull/81) | 프로필 완료 eligibility, ACTIVE 닉네임 정책, Friend 데이터 lifecycle, 관계 상태와 출시 전 데이터 정리 절차 |
 | Backend | [#82](https://github.com/skuri-kr/SKURI-Backend/pull/82) | 친구 출시 운영 postcheck CTE 검증 보정 |
 | Backend | [#83](https://github.com/skuri-kr/SKURI-Backend/pull/83) | 친구 목록·수락 응답 Minecraft 요약과 SELF·FRIEND 안전 projection |
+| Backend | [#84](https://github.com/skuri-kr/SKURI-Backend/pull/84) | 시간표 공개 범위·친구별 예외·친구 시간표 projection과 관계 종료 cleanup |
 | Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 모바일 친구 기능 정보 구조·화면·상태·검증 계획 문서화 |
 | Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings와 관계 Core 연동 |
 | Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX, 회원가입·프로필 닉네임 정책과 관계 Core 수동 QA 보완 |
 | Frontend | [#25](https://github.com/skuri-kr/SKURI-Frontend/pull/25) | 친구 QR 생성·스캔과 친구 Minecraft SELF·FRIEND 계정 표시 |
+| Frontend | [#26](https://github.com/skuri-kr/SKURI-Frontend/pull/26) | 시간표 공유 설정과 친구 시간표 accordion·공통 공강·같이 듣는 수업 |
 
 PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색·요청 상태 문제는 #81·#24에서 보완했다. 이는 기존 완료 범위를 되돌린 것이 아니라 실제 배포 전에 회원과 Friend 데이터의 생성 자격을 바로잡은 출시 준비 작업이다.
 
@@ -88,7 +90,7 @@ PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색�
 - 사용자가 확인 화면에서 발송을 누른 뒤 preview 응답의 friendPublicId로 별도 친구 요청을 생성한다.
 - 요청자와 대상 사이 어느 방향으로든 차단이 있으면 preview를 거부하고, 잘못되거나 폐기된 코드와 같은 일반적인 대상 없음 응답을 사용해 차단 여부를 노출하지 않는다.
 - URL 딥링크는 QR payload에 포함하지 않는다.
-- FriendProfile과 최초 ACTIVE 코드는 프로필을 완료한 ACTIVE 회원에게만 발급한다. 최초 소셜 로그인으로 Member row만 만들어지고 학번·학과·유효 닉네임이 없는 회원에게는 발급하지 않는다.
+- FriendProfile과 최초 ACTIVE 코드는 프로필을 완료한 ACTIVE 회원에게만 발급한다. 최초 소셜 로그인으로 Member row만 만들어지고 학번·학과·유효 닉네임이 없는 회원에게는 발급하지 않는다. 프로필 미완료 회원은 현재 예약어 닉네임을 변경하지 않은 채 학번·학과만 부분 수정해 프로필을 완료할 수 없다.
 - 친구 API의 lazy provisioning과 기동 backfill도 같은 가입 완료 판정을 사용하며, 미완료 회원을 Friend 데이터로 복원하지 않는다.
 - 일반적인 완료 회원의 재발급·탈퇴 코드는 RETIRED로 영구 보존한다. 단, 친구 모바일 기능 첫 배포 전에는 실제 사용자에게 공유·사용된 친구 코드가 없고 기존 데이터가 테스트 데이터라는 전제에서, 일회성 운영 cleanup으로 미완료 회원의 FriendProfile·소유 ACTIVE 코드와 당시 존재하는 모든 RETIRED 코드를 완전히 삭제한다. 이 예외는 첫 출시 전 한 번만 적용하며 이후 정상 코드 수명주기에 적용하지 않는다.
 
@@ -116,14 +118,15 @@ PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색�
 가입 완료 판정은 다음을 모두 만족하는 경우다.
 
 - Member 상태가 ACTIVE다.
-- nickname이 Java `String.isBlank()` 기준으로 null·빈 문자열·공백 문자열이 아니며 예약어 정책을 통과한다.
+- nickname이 Java `String.isBlank()` 기준으로 null·빈 문자열·공백 문자열이 아니다.
 - studentId가 Java `String.isBlank()` 기준으로 null·빈 문자열·공백 문자열이 아니다.
 - department가 Java `String.isBlank()` 기준으로 null·빈 문자열·공백 문자열이 아니다.
 - photoUrl은 선택값이므로 완료 판정에 포함하지 않는다.
 
 - 프로필 완료의 공백 판정은 Java `String.isBlank()` 의미를 기준으로 backfill·검색 repository query와 운영 preflight·cleanup·postcheck SQL에서 동일해야 한다.
+- 프로필 미완료 회원의 최초 완료 전환에서는 현재 닉네임이 예약어인 채로 학번·학과만 채우는 부분 수정을 `NICKNAME_RESERVED`로 거부한다. 이미 완료된 기존 예약어 닉네임 회원은 grandfathering 대상이므로 일반 완료 판정과 Friend 기능에서 제외하지 않는다.
 
-예약어 판정에 사용하는 Unicode 공백 제거 기준은 Java 정책, backfill·검색 repository query, 운영 preflight·cleanup·postcheck SQL에서 동일해야 한다.
+예약어 판정에 사용하는 Unicode 공백 제거 기준은 Java 닉네임 입력 검증과 회원가입·프로필 편집 API에서 동일해야 한다. 가입 완료 판정, backfill·검색 repository query, 운영 preflight·cleanup·postcheck SQL에는 예약어 조건을 넣지 않는다.
 
 검색·친구 코드 preview의 요청 행동 상태는 Boolean 하나로 축약하지 않고 다음 enum을 사용한다.
 
@@ -313,7 +316,7 @@ Friend 기능을 하나의 거대한 서비스에 모으지 않고 각 도메인
 | 도메인 | 책임 |
 | --- | --- |
 | friend 신규 도메인 | ACTIVE·RETIRED 친구 코드 registry, 검색 허용, 요청, 상호 관계, 즐겨찾기, 친구 끊기, 차단 |
-| academic | 시간표 공개 기본값·친구별 예외, 권한에 맞춘 친구 시간표 projection |
+| academic | 시간표 공개 기본값·친구별 예외, 권한에 맞춘 친구 시간표 projection, 관계 종료·차단 시 양방향 예외 정리 |
 | taxiparty | 초대 생성, OPEN·정원·참여 상태 검증, 수락 동시성 |
 | chat | 공개방 초대 생성, 방 유형·공개 여부·입장 자격 검증 |
 | minecraft | 친구에게 제공 가능한 계정 projection |
@@ -326,7 +329,7 @@ Friend 도메인은 다른 도메인의 내부 엔티티를 직접 수정하지 
 
 ## 6. 데이터 모델
 
-`friend_profiles`, `friend_code_registry`, `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`는 Foundation·관계 Core 런타임 테이블이다. 시간표 예외·택시파티 초대·공개방 초대·알림 설정 관련 표는 이후 구현 단위의 논리 모델이며 실제 컬럼명과 마이그레이션은 해당 구현 PR에서 ERD와 함께 확정한다.
+`friend_profiles`, `friend_code_registry`, `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`와 시간표 공유의 `timetable_sharing_settings`, `timetable_share_overrides`는 런타임 테이블이다. 택시파티 초대·공개방 초대·알림 설정 관련 표는 이후 구현 단위의 논리 모델이며 실제 컬럼명과 마이그레이션은 해당 구현 PR에서 ERD와 함께 확정한다.
 
 ACTIVE 닉네임 중복은 서비스 조회만으로 판단하지 않고 동시 저장도 막는 DB unique claim을 사용한다. `members.nickname_key`는 새로 가입하거나 닉네임을 변경해 정책을 통과한 ACTIVE 회원의 정규화 키이며 nullable unique다. 운영 MySQL `utf8mb4_unicode_ci` 비교로 대소문자·악센트 차이는 같은 claim으로 취급한다. 기존 중복 닉네임은 임의 변경하지 않고 grandfathering을 위해 claim을 강제로 채우지 않는다. 기존 닉네임과 동일한 값을 유지한 프로필 수정은 허용하고, 새 값으로 변경할 때는 claim이 없는 기존 ACTIVE 닉네임까지 조회해 중복을 거부한다. 탈퇴 시 claim을 해제해 닉네임 재사용을 허용한다. 실제 컬럼·인덱스는 Core 출시 준비 PR에서 `docs/erd.md`와 동기화한다.
 
@@ -423,7 +426,7 @@ member_low_id + member_high_id는 unique다.
 
 두 ID 조합은 unique다.
 
-### 6.6 timetable_share_settings
+### 6.6 timetable_sharing_settings
 
 | 필드 | 설명 |
 | --- | --- |
@@ -566,7 +569,7 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 
 ## 9. API 계약
 
-`POST /v1/friend-codes/preview`, `GET/POST /v1/friends/me/code*`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.3의 관계 Core API와 9.5 Minecraft projection은 런타임 OpenAPI와 Contract·Service 테스트로 고정했다. 그 밖의 경로는 구현 설계를 위한 예정 계약이며 현재 운영 API가 아니다.
+`POST /v1/friend-codes/preview`, `GET/POST /v1/friends/me/code*`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.3의 관계 Core API, 9.4 시간표 공유와 9.5 Minecraft projection은 런타임 OpenAPI와 Contract·Service 테스트로 고정했다. 9.6 이후의 초대·알림 경로는 구현 설계를 위한 예정 계약이며 현재 운영 API가 아니다.
 
 ### 9.1 친구 핵심
 
@@ -592,7 +595,7 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 - photoUrl
 - favorite
 
-친구 목록·상세는 위 다섯 필드와 nullable `primaryMinecraftGameName`, `minecraftAccountCount`를 반환한다. 대표 SELF 계정이 없으면 게임명은 null이고, 계정 수는 등록된 SELF·FRIEND 전체 수다. `effectiveTimetableScope`는 시간표 공유 단계에서 additive field로 추가한다. 아직 구현되지 않은 도메인의 기본값이나 추측한 값을 친구 목록에 반환하지 않는다.
+친구 목록·상세는 위 다섯 필드와 nullable `primaryMinecraftGameName`, `minecraftAccountCount`, `effectiveTimetableScope`를 반환한다. 대표 SELF 계정이 없으면 게임명은 null이고, 계정 수는 등록된 SELF·FRIEND 전체 수다. `effectiveTimetableScope`는 **해당 친구가 나에게 공개하는 실제 범위**이며, 친구별 예외가 있으면 예외가 기본값보다 우선한다.
 
 관계 Core의 HTTP 응답은 다음처럼 고정한다.
 
@@ -677,6 +680,14 @@ semester는 `2026-1` 형식의 필수 query parameter다. 친구 시간표 응�
 - PRIVATE: 시간표 필드는 비우고 공개되지 않았음을 표현한다.
 - BUSY_ONLY: slots만 제공하고 course 식별·이름 필드는 제공하지 않는다.
 - DETAILS: 허용된 course와 slot 상세를 제공한다.
+
+구현 규칙:
+
+- 기본 범위의 저장 레코드가 없으면 `PRIVATE`를 적용한다.
+- 친구별 예외는 기본 범위보다 우선하며, 현재 상호 친구인 대상만 설정·조회할 수 있다.
+- 친구 끊기 또는 차단 시 Friend가 관계 전이를 orchestration하고, 같은 트랜잭션에 참여하는 Academic cleanup 서비스가 양방향 시간표 공유 예외를 삭제한다.
+- `PRIVATE`는 시간표 존재 여부도 공개하지 않아 `hasTimetable=false`, 빈 `courses`·`slots`만 반환한다.
+- `BUSY_ONLY`는 점유 시간만 반환하고, `DETAILS`에서만 강의 상세를 반환한다. 직접 입력 강의는 `courseId=null`이다.
 
 ### 9.5 마인크래프트
 
@@ -796,20 +807,19 @@ batch 요청과 응답:
 8. Frontend #23 관계 Core 모바일
 9. Frontend #24 Core 출시 준비 UX
 10. Frontend #25 친구 화면 완성 UX
+11. Backend #84 시간표 공유 API
+12. Frontend #26 시간표 공유 UX
 
-남은 승인 구현은 다음 3단계다.
+남은 승인 구현은 다음 2단계다. 시간표 공유는 Backend #84·Frontend #26에서 구현·테스트·문서 정합성 점검과 리뷰 보완을 마쳐 전달을 완료했고, 실기기 QA만 남아 있다.
 
-1. 시간표 공유
-   - Academic 공개 범위·친구별 예외·친구 시간표 projection
-   - 모바일 아코디언·공통 공강·같이 듣는 수업
-2. 친구 초대
+1. 친구 초대
    - TaxiParty와 공개 Chat 수신자별 부분 성공 초대
    - FriendHub 초대 탭과 공통 친구 선택 UX
-3. 알림·탈퇴 정리
+2. 알림·탈퇴 정리
    - 친구 요청·수락·거절과 초대 인박스·FCM·SSE·화면 이동
    - 모든 Friend·공유·초대 파생 데이터의 회원 탈퇴 cleanup
 
-각 단계는 저장소당 최대 1개 PR로 진행한다. Backend와 Frontend에 각각 3개의 후속 PR을 만들며 Admin 친구 관계망 UI는 V1 제외 범위라 PR을 만들지 않는다. 단계 내부에서 서로 다른 도메인·테스트·문서는 작은 Conventional Commit으로 구분하고, 변경량 때문에 PR 분리가 필요하면 먼저 사용자 승인을 받는다.
+각 단계는 저장소당 최대 1개 PR로 진행한다. 시간표 공유 Backend #84·Frontend #26 이후 Backend와 Frontend에 각각 2개의 후속 PR을 만들며 Admin 친구 관계망 UI는 V1 제외 범위라 PR을 만들지 않는다. 단계 내부에서 서로 다른 도메인·테스트·문서는 작은 Conventional Commit으로 구분하고, 변경량 때문에 PR 분리가 필요하면 먼저 사용자 승인을 받는다.
 
 Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 친구 FE가 아직 배포되지 않았으므로 구버전 호환 field를 유지하지 않는다. 이후 단계는 가능한 한 additive API로 Backend를 먼저 배포하고, 모바일 노출은 필요한 API 배포 확인 후 진행한다.
 
@@ -886,10 +896,10 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 
 ## 16. 문서 검토 결과
 
-검토일: 2026-08-22
+검토일: 2026-08-23
 
-- [x] Backend #78·#79·#80·#81·#82·#83과 Frontend #22·#23·#24·#25의 완료 범위가 후속 단계와 구분되어 있다.
-- [x] 승인 V1의 1·2단계 완료와 남은 3단계·저장소별 단계당 최대 1개 PR 계획이 구분되어 있다.
+- [x] Backend #78·#79·#80·#81·#82·#83·#84와 Frontend #22·#23·#24·#25·#26의 완료 범위가 후속 단계와 구분되어 있다.
+- [x] 승인 V1의 1·2·3단계 전달 완료, 남은 2단계와 저장소별 단계당 최대 1개 PR 계획이 구분되어 있다.
 - [x] 가입 완료 판정과 미완료 회원 Friend 데이터 비생성·일회성 cleanup이 명시되어 있다.
 - [x] ACTIVE 닉네임 예약·중복·탈퇴 후 재사용과 기존 중복 grandfathering이 명시되어 있다.
 - [x] 검색 기본 true·1글자와 관계 상태 enum 계약이 명시되어 있다.
@@ -921,7 +931,7 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 - [x] 예정 API가 현재 운영 API와 구분되어 있다.
 - [x] Foundation과 관계 Core의 실제 코드 구현 범위가 현재 런타임 상태로 전환되어 있다.
 
-docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 런타임 도메인으로 표시하고 Foundation·관계 Core와 후속 Phase 14 협력 책임을 구분한다. Foundation·관계 Core의 런타임 엔티티와 API는 docs/api-specification.md·docs/erd.md에 동기화했으며, 아직 구현하지 않은 친구 기능은 각 런타임 PR에서 실제 구현과 함께 현재형으로 전환한다.
+docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 런타임 도메인으로 표시하고 Foundation·관계 Core와 후속 Phase 14 협력 책임을 구분한다. Foundation·관계 Core와 시간표 공유의 런타임 엔티티·API는 docs/api-specification.md·docs/erd.md에 동기화했으며, 아직 구현하지 않은 친구 기능은 각 런타임 PR에서 실제 구현과 함께 현재형으로 전환한다.
 
 ---
 
@@ -968,3 +978,8 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-21 | 친구 요청 거절 알림은 알림 단계에서 원 요청자에게 제공하고 FriendHub 요청 탭으로 이동 |
 | 2026-08-21 | 각 구현 단계의 최종 PR 전에는 런타임·친구 명세·모바일 계획·OpenAPI·ERD·운영 문서를 대조하고 drift를 같은 PR에서 해소 |
 | 2026-08-22 | Core 출시 준비(#81·#24)와 친구 화면 완성(#83·#25)을 완료 이력으로 고정하고, 다음 구현 단위를 시간표 공유로 전환 |
+| 2026-08-22 | 시간표 공유 Backend·Frontend 구현과 문서 정합성 점검을 현재 PR 범위에서 완료하고, 친구 초대를 다음 승인 구현 단위로 전환 |
+| 2026-08-22 | 가입 완료 판정은 ACTIVE와 비어 있지 않은 nickname·studentId·department만 사용하고, 예약어 검사는 신규·변경 닉네임 입력과 미완료 회원의 최초 완료 전환에만 적용 |
+| 2026-08-23 | 프로필 미완료 회원은 예약어 닉네임을 변경하지 않은 부분 수정으로 최초 완료 상태가 될 수 없고, 이미 완료된 기존 예약어 닉네임 회원은 계속 허용 |
+| 2026-08-23 | 시간표 공유 예외의 friend→owner 역방향 조회에 `(friend_member_id, owner_member_id)` 인덱스 사용 |
+| 2026-08-23 | 시간표 공유 Backend #84·Frontend #26의 리뷰 보완과 문서 정합성 점검을 마쳐 3단계 전달 완료로 전환 |
