@@ -230,7 +230,7 @@ Spring 서버 처리:
 > 정책: 회원 생성 시 `members.photoUrl`은 `null`로 저장한다.  
 > 소셜 계정 프로필 이미지(`picture`)는 `linked_accounts.photo_url`에만 저장한다.
 > 회원 생성 시 `members.realname`은 provider 프로필 이름(`linked_accounts.provider_display_name`)으로 초기화한다.
-> 이 시점의 `스쿠리 유저`는 가입 진행 중 placeholder다. 신규 회원은 이 값을 한 번도 변경하지 않은 채 `studentId`·`department`만 부분 수정해 프로필을 완료할 수 없으며, FriendProfile과 친구 코드를 발급하지 않는다.
+> 이 시점의 `스쿠리 유저`는 가입 진행 중 placeholder다. 프로필 미완료 회원은 현재 예약어 닉네임을 변경하지 않은 채 `studentId`·`department`만 부분 수정해 프로필을 완료할 수 없으며, FriendProfile과 친구 코드를 발급하지 않는다.
 >
 > 용어 구분:
 > - API 요청/응답의 `nickname` = `members.nickname` (앱 내 닉네임)
@@ -344,7 +344,7 @@ Spring 서버 처리:
 - `nickname`은 `members.nickname`을 수정합니다.
 - `nickname`은 앞뒤 공백 제거와 Unicode NFC 정규화 후 저장합니다.
 - 공백 차이로 우회한 경우까지 포함해 `스쿠리 유저`, `운영자`를 포함한 닉네임은 `422 NICKNAME_RESERVED`로 거부합니다.
-- 신규 회원이 초기 `스쿠리 유저` 닉네임을 한 번도 변경하지 않고 `studentId`·`department`만 채워 최초 프로필 완료를 시도해도 `422 NICKNAME_RESERVED`로 거부합니다. 이미 완료된 기존 예약어 닉네임 회원의 다른 프로필 필드 부분 수정은 허용합니다.
+- 프로필 미완료 회원이 현재 예약어 닉네임을 변경하지 않고 `studentId`·`department`만 채워 최초 프로필 완료를 시도해도 `422 NICKNAME_RESERVED`로 거부합니다. 이미 완료된 기존 예약어 닉네임 회원의 다른 프로필 필드 부분 수정은 허용합니다.
 - 신규·변경 닉네임은 ACTIVE 회원 사이에서만 고유해야 합니다. 중복이면 `409 NICKNAME_ALREADY_EXISTS`이며, 탈퇴 회원의 닉네임은 재사용할 수 있습니다.
 - 닉네임 고유 비교는 운영 MySQL `utf8mb4_unicode_ci` 규칙을 사용하므로 대소문자와 악센트 차이도 중복입니다. 예를 들어 `Jose`와 `José`를 함께 저장할 수 없습니다.
 - 기존 ACTIVE 회원의 중복 닉네임은 임의 변경하지 않습니다. 해당 회원이 닉네임을 변경할 때부터 신규 정책을 적용합니다.
@@ -7410,7 +7410,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 > Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), 친구 Minecraft projection 및 시간표 공유는 현재 운영 API다. 택시·공개방 초대·알림은 아직 구현되지 않았다.
 
-모든 Friend 런타임 API(Foundation·관계 Core)는 인증된 프로필 완료 ACTIVE 회원만 호출할 수 있다. 완료 기준은 비어 있지 않은 닉네임, 학번, 학과이며 프로필 사진은 선택이다. 신규 회원은 초기 placeholder `스쿠리 유저`를 한 번도 변경하지 않은 채 학번·학과만 채워 완료 상태로 전환할 수 없다. 예약어 검사는 신규 가입·프로필 편집에서만 적용하므로, 이미 완료된 기존 예약어 닉네임 회원은 다른 완료 조건을 만족하면 Friend 기능을 사용할 수 있다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`, 프로필 미완료 회원은 `409 MEMBER_PROFILE_INCOMPLETE`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
+모든 Friend 런타임 API(Foundation·관계 Core)는 인증된 프로필 완료 ACTIVE 회원만 호출할 수 있다. 완료 기준은 비어 있지 않은 닉네임, 학번, 학과이며 프로필 사진은 선택이다. 프로필 미완료 회원은 현재 예약어 닉네임을 변경하지 않은 채 학번·학과만 채워 완료 상태로 전환할 수 없다. 이미 완료된 기존 예약어 닉네임 회원은 다른 완료 조건을 만족하면 Friend 기능을 사용할 수 있다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`, 프로필 미완료 회원은 `409 MEMBER_PROFILE_INCOMPLETE`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
 
 ### 14.1 내 친구 코드
 
@@ -7740,7 +7740,7 @@ cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형�
 ---
 
 > **문서 이력**
-> - 2026-08-23: 신규 회원의 초기 `스쿠리 유저` placeholder를 유지한 부분 프로필 완료 요청 거부와 기존 완료 예약어 회원 grandfathering을 명시
+> - 2026-08-23: 예약어 닉네임을 유지한 미완료 회원의 최초 프로필 완료 요청 거부와 기존 완료 예약어 회원 grandfathering을 명시
 > - 2026-02-03: 초안 작성
 > - 2026-02-03: SSE 명세 추가 (§10)
 > - 2026-02-19: Image API 추가 (§11, 방식 A - 서버 경유 업로드)

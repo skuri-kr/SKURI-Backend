@@ -88,7 +88,7 @@ PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색�
 - 사용자가 확인 화면에서 발송을 누른 뒤 preview 응답의 friendPublicId로 별도 친구 요청을 생성한다.
 - 요청자와 대상 사이 어느 방향으로든 차단이 있으면 preview를 거부하고, 잘못되거나 폐기된 코드와 같은 일반적인 대상 없음 응답을 사용해 차단 여부를 노출하지 않는다.
 - URL 딥링크는 QR payload에 포함하지 않는다.
-- FriendProfile과 최초 ACTIVE 코드는 프로필을 완료한 ACTIVE 회원에게만 발급한다. 최초 소셜 로그인으로 Member row만 만들어지고 학번·학과·유효 닉네임이 없는 회원에게는 발급하지 않는다. 신규 회원은 초기 placeholder `스쿠리 유저`를 한 번도 변경하지 않은 채 학번·학과만 부분 수정해 프로필을 완료할 수 없다.
+- FriendProfile과 최초 ACTIVE 코드는 프로필을 완료한 ACTIVE 회원에게만 발급한다. 최초 소셜 로그인으로 Member row만 만들어지고 학번·학과·유효 닉네임이 없는 회원에게는 발급하지 않는다. 프로필 미완료 회원은 현재 예약어 닉네임을 변경하지 않은 채 학번·학과만 부분 수정해 프로필을 완료할 수 없다.
 - 친구 API의 lazy provisioning과 기동 backfill도 같은 가입 완료 판정을 사용하며, 미완료 회원을 Friend 데이터로 복원하지 않는다.
 - 일반적인 완료 회원의 재발급·탈퇴 코드는 RETIRED로 영구 보존한다. 단, 친구 모바일 기능 첫 배포 전에는 실제 사용자에게 공유·사용된 친구 코드가 없고 기존 데이터가 테스트 데이터라는 전제에서, 일회성 운영 cleanup으로 미완료 회원의 FriendProfile·소유 ACTIVE 코드와 당시 존재하는 모든 RETIRED 코드를 완전히 삭제한다. 이 예외는 첫 출시 전 한 번만 적용하며 이후 정상 코드 수명주기에 적용하지 않는다.
 
@@ -122,7 +122,7 @@ PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색�
 - photoUrl은 선택값이므로 완료 판정에 포함하지 않는다.
 
 - 프로필 완료의 공백 판정은 Java `String.isBlank()` 의미를 기준으로 backfill·검색 repository query와 운영 preflight·cleanup·postcheck SQL에서 동일해야 한다.
-- 신규 회원의 최초 완료 전환에서는 초기 placeholder 닉네임을 그대로 둔 부분 수정을 `NICKNAME_RESERVED`로 거부한다. 이미 완료된 기존 예약어 닉네임 회원은 grandfathering 대상이므로 일반 완료 판정과 Friend 기능에서 제외하지 않는다.
+- 프로필 미완료 회원의 최초 완료 전환에서는 현재 닉네임이 예약어인 채로 학번·학과만 채우는 부분 수정을 `NICKNAME_RESERVED`로 거부한다. 이미 완료된 기존 예약어 닉네임 회원은 grandfathering 대상이므로 일반 완료 판정과 Friend 기능에서 제외하지 않는다.
 
 예약어 판정에 사용하는 Unicode 공백 제거 기준은 Java 닉네임 입력 검증과 회원가입·프로필 편집 API에서 동일해야 한다. 가입 완료 판정, backfill·검색 repository query, 운영 preflight·cleanup·postcheck SQL에는 예약어 조건을 넣지 않는다.
 
@@ -975,6 +975,6 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-21 | 각 구현 단계의 최종 PR 전에는 런타임·친구 명세·모바일 계획·OpenAPI·ERD·운영 문서를 대조하고 drift를 같은 PR에서 해소 |
 | 2026-08-22 | Core 출시 준비(#81·#24)와 친구 화면 완성(#83·#25)을 완료 이력으로 고정하고, 다음 구현 단위를 시간표 공유로 전환 |
 | 2026-08-22 | 시간표 공유 Backend·Frontend 구현과 문서 정합성 점검을 현재 PR 범위에서 완료하고, 친구 초대를 다음 승인 구현 단위로 전환 |
-| 2026-08-22 | 가입 완료 판정은 ACTIVE와 비어 있지 않은 nickname·studentId·department만 사용하고, 예약어 검사는 신규·변경 닉네임 입력 검증에만 적용 |
-| 2026-08-23 | 신규 회원은 초기 `스쿠리 유저` placeholder를 변경하지 않은 부분 수정으로 최초 프로필 완료 상태가 될 수 없고, 이미 완료된 기존 예약어 닉네임 회원은 계속 허용 |
+| 2026-08-22 | 가입 완료 판정은 ACTIVE와 비어 있지 않은 nickname·studentId·department만 사용하고, 예약어 검사는 신규·변경 닉네임 입력과 미완료 회원의 최초 완료 전환에만 적용 |
+| 2026-08-23 | 프로필 미완료 회원은 예약어 닉네임을 변경하지 않은 부분 수정으로 최초 완료 상태가 될 수 없고, 이미 완료된 기존 예약어 닉네임 회원은 계속 허용 |
 | 2026-08-23 | 시간표 공유 예외의 friend→owner 역방향 조회에 `(friend_member_id, owner_member_id)` 인덱스 사용 |

@@ -123,7 +123,7 @@ Hooks:
   - 인증 필터에서 `email` 도메인(`@sungkyul.ac.kr`)을 강제 검증
   - 보호 API는 활성 회원(`members.status = ACTIVE`)만 접근 가능하며, 탈퇴 회원은 `403 MEMBER_WITHDRAWN`으로 차단
   - 회원 생성 시 `nickname`은 기본값 `스쿠리 유저`로 저장
-  - 기본 닉네임은 가입 진행 중 placeholder다. 신규 회원이 `스쿠리 유저`를 한 번도 변경하지 않은 채 부분 수정으로 학번·학과만 채우면 최초 프로필 완료를 거부한다. 유효 닉네임·학번·학과가 Java `String.isBlank()` 기준으로 모두 채워져야 프로필 완료로 전환하며 프로필 사진은 완료 조건이 아니다. 예약어 검사는 신규 가입·프로필 편집의 닉네임 입력 검증에만 적용하고, 이미 완료된 기존 예약어 닉네임 회원의 완료 판정에는 사용하지 않는다.
+  - 기본 닉네임은 가입 진행 중 placeholder다. 프로필 미완료 회원이 현재 예약어 닉네임을 변경하지 않은 채 부분 수정으로 학번·학과만 채우면 최초 프로필 완료를 거부한다. 유효 닉네임·학번·학과가 Java `String.isBlank()` 기준으로 모두 채워져야 프로필 완료로 전환하며 프로필 사진은 완료 조건이 아니다. 예약어 검사는 신규 가입·프로필 편집의 닉네임 입력과 최초 완료 전환에만 적용하고, 이미 완료된 기존 예약어 닉네임 회원의 완료 판정에는 사용하지 않는다.
   - 신규·변경 닉네임은 trim·Unicode NFC 정규화 후 ACTIVE 회원 사이에서만 고유해야 하며, 운영 MySQL `utf8mb4_unicode_ci` 비교에 따라 대소문자·악센트 차이도 중복으로 취급한다. `스쿠리 유저`·`운영자` 포함 닉네임은 중간 공백 우회까지 차단한다. 탈퇴 시 고유 키를 해제해 재사용을 허용하고 기존 중복 닉네임은 임의 변경하지 않는다.
   - 회원 생성 시 `realname`은 provider 프로필 이름(`linked_accounts.provider_display_name`)으로 초기화
   - 회원 생성 시 `members.photo_url`은 `null`, 소셜 프로필 이미지(`picture`)는 `linked_accounts.photo_url`에만 저장
@@ -1760,7 +1760,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
 ---
 
 > **문서 이력**
-> - 2026-08-23: 초기 기본 닉네임을 유지한 신규 회원의 부분 프로필 완료 전환 거부와 기존 완료 예약어 회원 grandfathering을 반영
+> - 2026-08-23: 예약어 닉네임을 유지한 미완료 회원의 최초 프로필 완료 전환 거부와 기존 완료 예약어 회원 grandfathering을 반영
 > - 2026-08-23: Phase 14 Academic 시간표 공유 협력을 런타임 상태로 동기화하고, 초대·알림만 후속 범위로 분리
 > - 2026-08-18: Phase 14 Friend 관계 Core 구현 반영 — 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록을 현재 런타임으로 전환하고 후속 도메인 협력 범위를 분리
 > - 2026-08-18: Phase 14 Friend Foundation 구현 반영 — FriendProfile·FriendCodeRegistry, 코드 preview·재발급, 검색 공개 설정과 Member lifecycle 연계를 현재 런타임으로 전환
