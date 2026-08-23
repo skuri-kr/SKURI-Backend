@@ -1,8 +1,8 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성 구현 완료. 시간표 공유 Backend [#84](https://github.com/skuri-kr/SKURI-Backend/pull/84)·Frontend [#26](https://github.com/skuri-kr/SKURI-Frontend/pull/26) 구현은 PR 검토 대기이며, 친구 초대·알림·회원 탈퇴 cleanup은 후속 단계다.
-> 기준일: 2026-08-22
-> 다음 구현 단위: 시간표 공유 PR 병합·실기기 QA 후 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
+> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유 Backend [#84](https://github.com/skuri-kr/SKURI-Backend/pull/84)·Frontend [#26](https://github.com/skuri-kr/SKURI-Frontend/pull/26) 전달 완료. 친구 초대·알림·회원 탈퇴 cleanup은 후속 단계다.
+> 기준일: 2026-08-23
+> 다음 구현 단위: 시간표 공유 실제 기기 QA 후 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
 ---
@@ -38,10 +38,12 @@
 | Backend | [#81](https://github.com/skuri-kr/SKURI-Backend/pull/81) | 프로필 완료 eligibility, ACTIVE 닉네임 정책, Friend 데이터 lifecycle, 관계 상태와 출시 전 데이터 정리 절차 |
 | Backend | [#82](https://github.com/skuri-kr/SKURI-Backend/pull/82) | 친구 출시 운영 postcheck CTE 검증 보정 |
 | Backend | [#83](https://github.com/skuri-kr/SKURI-Backend/pull/83) | 친구 목록·수락 응답 Minecraft 요약과 SELF·FRIEND 안전 projection |
+| Backend | [#84](https://github.com/skuri-kr/SKURI-Backend/pull/84) | 시간표 공개 범위·친구별 예외·친구 시간표 projection과 관계 종료 cleanup |
 | Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 모바일 친구 기능 정보 구조·화면·상태·검증 계획 문서화 |
 | Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings와 관계 Core 연동 |
 | Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX, 회원가입·프로필 닉네임 정책과 관계 Core 수동 QA 보완 |
 | Frontend | [#25](https://github.com/skuri-kr/SKURI-Frontend/pull/25) | 친구 QR 생성·스캔과 친구 Minecraft SELF·FRIEND 계정 표시 |
+| Frontend | [#26](https://github.com/skuri-kr/SKURI-Frontend/pull/26) | 시간표 공유 설정과 친구 시간표 accordion·공통 공강·같이 듣는 수업 |
 
 PR #23 수동 QA에서 발견한 가입 완료 판정, 닉네임 정책, 검색·요청 상태 문제는 #81·#24에서 보완했다. 이는 기존 완료 범위를 되돌린 것이 아니라 실제 배포 전에 회원과 Friend 데이터의 생성 자격을 바로잡은 출시 준비 작업이다.
 
@@ -805,8 +807,10 @@ batch 요청과 응답:
 8. Frontend #23 관계 Core 모바일
 9. Frontend #24 Core 출시 준비 UX
 10. Frontend #25 친구 화면 완성 UX
+11. Backend #84 시간표 공유 API
+12. Frontend #26 시간표 공유 UX
 
-남은 승인 구현은 다음 2단계다. 시간표 공유는 Backend #84·Frontend #26에서 구현·테스트·문서 정합성 점검을 마쳤고, PR 검토·병합과 실기기 QA만 남아 있다.
+남은 승인 구현은 다음 2단계다. 시간표 공유는 Backend #84·Frontend #26에서 구현·테스트·문서 정합성 점검과 리뷰 보완을 마쳐 전달을 완료했고, 실기기 QA만 남아 있다.
 
 1. 친구 초대
    - TaxiParty와 공개 Chat 수신자별 부분 성공 초대
@@ -892,10 +896,10 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 
 ## 16. 문서 검토 결과
 
-검토일: 2026-08-22
+검토일: 2026-08-23
 
-- [x] Backend #78·#79·#80·#81·#82·#83과 Frontend #22·#23·#24·#25의 완료 범위가 후속 단계와 구분되어 있다.
-- [x] 승인 V1의 1·2단계 병합 완료, 시간표 공유 구현 완료·PR 검토 대기, 남은 2단계와 저장소별 단계당 최대 1개 PR 계획이 구분되어 있다.
+- [x] Backend #78·#79·#80·#81·#82·#83·#84와 Frontend #22·#23·#24·#25·#26의 완료 범위가 후속 단계와 구분되어 있다.
+- [x] 승인 V1의 1·2·3단계 전달 완료, 남은 2단계와 저장소별 단계당 최대 1개 PR 계획이 구분되어 있다.
 - [x] 가입 완료 판정과 미완료 회원 Friend 데이터 비생성·일회성 cleanup이 명시되어 있다.
 - [x] ACTIVE 닉네임 예약·중복·탈퇴 후 재사용과 기존 중복 grandfathering이 명시되어 있다.
 - [x] 검색 기본 true·1글자와 관계 상태 enum 계약이 명시되어 있다.
@@ -978,3 +982,4 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-22 | 가입 완료 판정은 ACTIVE와 비어 있지 않은 nickname·studentId·department만 사용하고, 예약어 검사는 신규·변경 닉네임 입력과 미완료 회원의 최초 완료 전환에만 적용 |
 | 2026-08-23 | 프로필 미완료 회원은 예약어 닉네임을 변경하지 않은 부분 수정으로 최초 완료 상태가 될 수 없고, 이미 완료된 기존 예약어 닉네임 회원은 계속 허용 |
 | 2026-08-23 | 시간표 공유 예외의 friend→owner 역방향 조회에 `(friend_member_id, owner_member_id)` 인덱스 사용 |
+| 2026-08-23 | 시간표 공유 Backend #84·Frontend #26의 리뷰 보완과 문서 정합성 점검을 마쳐 3단계 전달 완료로 전환 |

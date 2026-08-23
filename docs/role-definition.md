@@ -107,7 +107,7 @@ Spring 백엔드는 마인크래프트 기능도 예외 없이 최종 판단한�
 
 ### 4.5 Phase 14 Friend 도메인과 협력 책임
 
-> 상태: Foundation과 친구 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·PENDING 목록), Minecraft 안전 projection, 시간표 공유 구현 완료(각 PR 검토 대기). 초대·알림은 후속 구현 예정
+> 상태: Foundation과 친구 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·PENDING 목록), Minecraft 안전 projection, 시간표 공유 전달 완료. 초대·알림은 후속 구현 예정
 
 Friend는 Supporting 도메인으로서 영구 미재사용 친구 코드 registry·요청·상호 관계·즐겨찾기·친구 끊기·차단을 소유한다. FriendProfile·최초 코드는 유효 닉네임·학번·학과를 갖춘 프로필 완료 ACTIVE 회원에게만 발급한다. 모든 mutation과 lazy provisioning은 Member 잠금 후 요청자·대상이 이 조건을 만족하는지 다시 확인한다. Minecraft는 friendship·차단 확인 뒤 안전한 SELF·FRIEND 계정 projection을 제공한다. 다른 기능의 최종 규칙은 해당 도메인이 계속 소유하며 Friend가 내부 엔티티를 직접 수정하지 않는다. 친구 끊기·차단은 Friend가 관계 전이를 orchestration하되, 양방향 시간표 공유 예외 삭제는 같은 트랜잭션에 참여하는 Academic cleanup 서비스가 수행한다.
 
