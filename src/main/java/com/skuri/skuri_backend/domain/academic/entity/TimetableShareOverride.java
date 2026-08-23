@@ -7,6 +7,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -18,7 +19,13 @@ import java.io.Serializable;
 
 @Getter
 @Entity
-@Table(name = "timetable_share_overrides")
+@Table(
+        name = "timetable_share_overrides",
+        indexes = @Index(
+                name = "idx_timetable_share_overrides_friend_owner",
+                columnList = "friend_member_id,owner_member_id"
+        )
+)
 @IdClass(TimetableShareOverride.Key.class)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TimetableShareOverride extends BaseTimeEntity {
