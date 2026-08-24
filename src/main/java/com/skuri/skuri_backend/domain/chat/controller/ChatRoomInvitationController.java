@@ -52,7 +52,10 @@ public class ChatRoomInvitationController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "공개 non-PARTY 방이 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiInvitationExamples.ERROR_CHAT_INVITATION_INVALID_ROOM))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "방 참가자가 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiChatExamples.ERROR_NOT_CHAT_ROOM_MEMBER))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 회원 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiChatExamples.ERROR_CHAT_ROOM_NOT_FOUND))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 회원 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                    @ExampleObject(name = "CHAT_ROOM_NOT_FOUND", value = OpenApiChatExamples.ERROR_CHAT_ROOM_NOT_FOUND),
+                    @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND)
+            })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "정원 또는 회원 프로필 조건 불충족", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
                     @ExampleObject(name = "CHAT_ROOM_FULL", value = OpenApiChatExamples.ERROR_CHAT_ROOM_FULL),
                     @ExampleObject(name = "MEMBER_PROFILE_INCOMPLETE", value = OpenApiCommonExamples.ERROR_MEMBER_PROFILE_INCOMPLETE)
@@ -74,7 +77,10 @@ public class ChatRoomInvitationController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "공개 non-PARTY 방이 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiInvitationExamples.ERROR_CHAT_INVITATION_INVALID_ROOM))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "방 참가자가 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiChatExamples.ERROR_NOT_CHAT_ROOM_MEMBER))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 회원 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiChatExamples.ERROR_CHAT_ROOM_NOT_FOUND))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "채팅방 또는 회원 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                    @ExampleObject(name = "CHAT_ROOM_NOT_FOUND", value = OpenApiChatExamples.ERROR_CHAT_ROOM_NOT_FOUND),
+                    @ExampleObject(name = "MEMBER_NOT_FOUND", value = OpenApiCommonExamples.ERROR_MEMBER_NOT_FOUND)
+            })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "회원 프로필 조건 불충족", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "MEMBER_PROFILE_INCOMPLETE", value = OpenApiCommonExamples.ERROR_MEMBER_PROFILE_INCOMPLETE))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "batch 입력 검증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION)))
     })
