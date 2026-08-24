@@ -919,6 +919,8 @@ Taxi history 계약 메모:
 | status | VARCHAR(20) | NOT NULL | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
 | expiry_reason | VARCHAR(40) | NULL | EXPIRED terminal 사유 |
 | responded_at | DATETIME | NULL | terminal 처리 시각 |
+| acceptance_result | VARCHAR(32) | NULL | ACCEPTED 최초 결과: JOINED 또는 LEADER_APPROVAL_PENDING |
+| accepted_join_request_id | VARCHAR(36) | NULL | LEADER_APPROVAL_PENDING 최초 수락에서 생성한 동승 요청 ID |
 | active_target_key | VARCHAR(73) | UK, NULL | `{partyId}:{inviteeId}`. PENDING일 때만 non-null |
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |

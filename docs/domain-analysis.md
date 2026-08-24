@@ -216,7 +216,7 @@ Hooks:
 상태 머신:
   Party:
     OPEN → CLOSED       (리더: 모집 마감)
-    CLOSED → OPEN       (리더: 모집 재개)
+    CLOSED → OPEN       (리더: 모집 재개, currentMembers < maxMembers)
     OPEN|CLOSED 내 정보 수정 (리더: departureTime/detail만)
     OPEN|CLOSED → ARRIVED  (리더: 도착 처리 → 정산 시작)
     ARRIVED 상태에서 멤버 정산 완료 처리 (모든 멤버 완료 시 settlementStatus=COMPLETED)

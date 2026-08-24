@@ -116,13 +116,13 @@ Friend는 Supporting 도메인으로서 영구 미재사용 친구 코드 regist
 | Friend | ACTIVE·RETIRED 코드 registry와 preview, PENDING cursor 검색, 요청, friendship, 즐겨찾기, 친구 끊기, 차단 |
 | Member | ACTIVE·프로필 완료 판정, ACTIVE 닉네임 고유·예약어 정책, 공개 프로필, 친구·초대 알림 설정, WITHDRAWN 선확정과 Phase 14 cleanup orchestration |
 | Academic | friendship·차단 확인 후 공개 범위별 친구 시간표 projection, 관계 종료·차단 시 양방향 공유 예외 정리 |
-| TaxiParty | OPEN·정원·참여 조건을 포함한 택시파티 초대 상태와 수락, 파티장 초대 즉시 참가·참가자 초대 리더 승인, 파티원 목록·리더 강퇴 |
+| TaxiParty | OPEN·정원·참여 조건을 포함한 택시파티 초대 상태와 수락, 최초 수락 결과 영속화·재시도, 파티장 초대 즉시 참가·참가자 초대 리더 승인, 파티원 목록·리더 강퇴 |
 | Chat | 공개 non-PARTY 방의 자격·정원·초대 상태와 수락 |
 | Minecraft | friendship·차단 확인 후 SELF·FRIEND 계정 안전 projection |
 | Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, PARTY_INVITATION, CHAT_ROOM_INVITATION의 인박스·SSE·FCM 전달 |
 | Support | 기존 신고 저장·중복 정책·운영 처리 |
 
-Friend Foundation과 관계 Core, Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대의 API·DB 조회는 현재 런타임에 존재한다. 친구 요청은 30일 PENDING·역방향 자동 수락·수락 멱등성·terminal 409을 서버가 강제하며, 차단은 일반 대상 없음으로 마스킹한다. 시간표 공유는 `PRIVATE` 기본값, 친구별 예외 우선, friendship 종료·차단 시 양방향 예외 정리를 서버가 강제한다. 초대는 수신자별 부분 성공, 수락 시 자격·정원 재검증, terminal EXPIRED 사유와 공개방 7일 만료를 각 소유 도메인이 강제한다. 파티장 초대는 수신자 수락 즉시 참가하고 일반 참가자 초대는 동승 요청으로 전환해 파티장 승인을 받으며, 정원 도달 시 남은 PENDING 동승 요청은 EXPIRED + CAPACITY_FULL로 종료한다. 알림은 아직 계획 상태이며 상세 정책은 `docs/features/friends.md`를 기준으로 한다.
+Friend Foundation과 관계 Core, Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대의 API·DB 조회는 현재 런타임에 존재한다. 친구 요청은 30일 PENDING·역방향 자동 수락·수락 멱등성·terminal 409을 서버가 강제하며, 차단은 일반 대상 없음으로 마스킹한다. 시간표 공유는 `PRIVATE` 기본값, 친구별 예외 우선, friendship 종료·차단 시 양방향 예외 정리를 서버가 강제한다. 초대는 수신자별 부분 성공, 수락 시 자격·정원 재검증, terminal EXPIRED 사유와 공개방 7일 만료를 각 소유 도메인이 강제한다. 택시 초대는 최초 수락 결과와 동승 요청 ID를 저장해 재시도에도 같은 응답을 반환하며, 파티장 초대는 수신자 수락 즉시 참가하고 일반 참가자 초대는 동승 요청으로 전환해 파티장 승인을 받는다. 정원 도달 시 남은 PENDING 동승 요청은 EXPIRED + CAPACITY_FULL로 종료하며, 정원에 도달한 CLOSED 파티는 리더·관리자 모두 모집을 재개할 수 없다. 알림은 아직 계획 상태이며 상세 정책은 `docs/features/friends.md`를 기준으로 한다.
 
 ---
 

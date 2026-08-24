@@ -777,7 +777,7 @@ batch 요청과 응답:
 - 친구 관계를 전제로 하는 택시파티·공개방 초대 생성과 수락은 위 고정 순서 안에서 친구·차단 상태를 재검증한다.
 - 친구 코드 발급·재발급과 lazy provisioning은 해당 Member row를 PESSIMISTIC_WRITE로 잠근 뒤 ACTIVE를 재확인한다. 탈퇴가 먼저 확정됐다면 FriendProfile이나 ACTIVE 코드 registry row를 생성하지 않는다.
 - 양방향 동시 요청은 friendship 한 건만 만든다.
-- 같은 요청·초대의 accept 재호출은 이미 성공한 동일 수신자라면 멱등 응답을 우선한다.
+- 같은 요청·초대의 accept 재호출은 이미 성공한 동일 수신자라면 멱등 응답을 우선한다. 택시 초대는 최초 수락 결과(`JOINED` 또는 `LEADER_APPROVAL_PENDING`)와 후자의 `joinRequestId`를 초대 행에 확정 저장해, 이후 동승 요청 처리·파티 상태 변화와 무관하게 동일 응답을 반환한다.
 - 택시 초대 수락은 기존 TaxiParty 참여 로직과 같은 잠금 경계를 사용한다.
 - 공개방 초대 수락은 기존 joinChatRoom 자격 검증을 재사용한다.
 - 발송량 제한은 두지 않지만 입력 검증, PENDING 중복 방지와 payload 크기 제한은 적용한다.
