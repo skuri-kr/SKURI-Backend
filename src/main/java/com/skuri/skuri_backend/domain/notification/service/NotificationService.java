@@ -47,9 +47,10 @@ public class NotificationService {
             NotificationType.MEMBER_KICKED,
             NotificationType.SETTLEMENT_COMPLETED
     );
-    private static final List<NotificationType> FRIEND_REQUEST_RELATED_TYPES = List.of(
+    private static final List<NotificationType> FRIEND_RELATED_TYPES = List.of(
             NotificationType.FRIEND_REQUEST,
-            NotificationType.FRIEND_DECLINED
+            NotificationType.FRIEND_DECLINED,
+            NotificationType.FRIEND_ACCEPTED
     );
 
     private final UserNotificationRepository userNotificationRepository;
@@ -155,11 +156,14 @@ public class NotificationService {
     }
 
     /**
-     * 회원 탈퇴로 hard delete되는 친구 요청을 참조하는 상대방의 인앱 알림을 함께 정리한다.
+     * 회원 탈퇴로 유효하지 않아지는 상대방의 친구 인앱 알림을 함께 정리한다.
      * 호출자는 탈퇴 트랜잭션 안에서 이 메서드를 호출해야 하며, unread-count SSE는 outer transaction commit 뒤에만 발행된다.
      */
     @Transactional
-    public void deleteFriendRequestRelatedNotifications(Map<String, Set<String>> requestIdsByMemberId) {
+    public void deleteFriendRelatedNotifications(
+            Map<String, Set<String>> requestIdsByMemberId,
+            String withdrawnFriendPublicId
+    ) {
         Map<String, Set<String>> validRequestIdsByMemberId = resolveFriendRequestIdsByMemberId(requestIdsByMemberId);
         if (validRequestIdsByMemberId.isEmpty()) {
             return;
@@ -167,13 +171,14 @@ public class NotificationService {
 
         List<UserNotification> targets = userNotificationRepository.findByUserIdInAndTypeIn(
                         validRequestIdsByMemberId.keySet(),
-                        FRIEND_REQUEST_RELATED_TYPES
+                        FRIEND_RELATED_TYPES
                 ).stream()
-                .filter(notification -> FRIEND_REQUEST_RELATED_TYPES.contains(notification.getType()))
-                .filter(notification -> validRequestIdsByMemberId
-                        .getOrDefault(notification.getUserId(), Set.of())
-                        .stream()
-                        .anyMatch(notification::matchesFriendRequest))
+                .filter(notification -> FRIEND_RELATED_TYPES.contains(notification.getType()))
+                .filter(notification -> matchesWithdrawnFriendNotification(
+                        notification,
+                        validRequestIdsByMemberId,
+                        withdrawnFriendPublicId
+                ))
                 .toList();
 
         if (targets.isEmpty()) {
@@ -308,6 +313,23 @@ public class NotificationService {
             }
         });
         return validRequestIdsByMemberId;
+    }
+
+    private boolean matchesWithdrawnFriendNotification(
+            UserNotification notification,
+            Map<String, Set<String>> requestIdsByMemberId,
+            String withdrawnFriendPublicId
+    ) {
+        if (notification.getType() == NotificationType.FRIEND_ACCEPTED) {
+            return withdrawnFriendPublicId != null
+                    && !withdrawnFriendPublicId.isBlank()
+                    && notification.matchesFriendPublicId(withdrawnFriendPublicId);
+        }
+
+        return requestIdsByMemberId
+                .getOrDefault(notification.getUserId(), Set.of())
+                .stream()
+                .anyMatch(notification::matchesFriendRequest);
     }
 
     private long countUnreadNotifications(String memberId) {

@@ -113,4 +113,8 @@ public class UserNotification {
     public boolean matchesFriendRequest(String requestId) {
         return data != null && data.matchesFriendRequest(requestId);
     }
+
+    public boolean matchesFriendPublicId(String friendPublicId) {
+        return data != null && data.matchesFriendPublicId(friendPublicId);
+    }
 }

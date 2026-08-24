@@ -38,9 +38,14 @@ public class FriendWithdrawalCleanupService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void cleanupWithdrawnMember(String memberId, LocalDateTime withdrawnAt) {
-        friendProfileProvisioningService.retireForWithdrawnMember(memberId, withdrawnAt);
+        String withdrawnFriendPublicId = friendProfileProvisioningService
+                .retireForWithdrawnMember(memberId, withdrawnAt)
+                .orElse(null);
         List<FriendRequest> friendRequests = friendRequestRepository.findByRequesterIdOrRecipientId(memberId, memberId);
-        notificationService.deleteFriendRequestRelatedNotifications(resolveCounterpartRequestIds(memberId, friendRequests));
+        notificationService.deleteFriendRelatedNotifications(
+                resolveCounterpartRequestIds(memberId, friendRequests),
+                withdrawnFriendPublicId
+        );
         friendRequestRepository.deleteByRequesterIdOrRecipientId(memberId, memberId);
         friendshipRepository.deleteByMemberLowIdOrMemberHighId(memberId, memberId);
         friendPreferenceRepository.deleteByOwnerMemberIdOrFriendMemberId(memberId, memberId);

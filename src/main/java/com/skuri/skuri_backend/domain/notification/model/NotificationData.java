@@ -107,6 +107,10 @@ public record NotificationData(
         return targetRequestId != null && targetRequestId.equals(requestId);
     }
 
+    public boolean matchesFriendPublicId(String targetFriendPublicId) {
+        return targetFriendPublicId != null && targetFriendPublicId.equals(friendPublicId);
+    }
+
     private static void putIfPresent(Map<String, String> data, String key, String value) {
         if (value != null && !value.isBlank()) {
             data.put(key, value);
