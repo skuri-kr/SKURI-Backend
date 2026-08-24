@@ -301,6 +301,7 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         assertTrue(exampleNames(partyPaths, "/v1/parties/{id}/reopen", "patch", "409").contains("party_full"));
         assertTrue(exampleNames(partyPaths, "/v1/admin/parties/{partyId}/status", "patch", "409").contains("party_full"));
         assertTrue(exampleNames(partyPaths, "/v1/parties/{partyId}/join-requests", "post", "409").contains("party_full"));
+        assertJoinRequestListExampleHasExpiryReason(partyPaths);
 
         assertJoinRequestSseExpiryExample(partyPaths, "/v1/sse/parties/{partyId}/join-requests");
         assertJoinRequestSseExpiryExample(partyPaths, "/v1/sse/members/me/join-requests");
@@ -339,6 +340,25 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         assertTrue(snapshot.contains("\"expiryReason\": null"));
         assertTrue(updated.contains("\"status\": \"EXPIRED\""));
         assertTrue(updated.contains("\"expiryReason\": \"CAPACITY_FULL\""));
+    }
+
+    private void assertJoinRequestListExampleHasExpiryReason(JsonNode paths) throws Exception {
+        JsonNode example = paths.path("/v1/parties/{partyId}/join-requests")
+                .path("get")
+                .path("responses")
+                .path("200")
+                .path("content")
+                .path("application/json")
+                .path("examples")
+                .path("default")
+                .path("value");
+        JsonNode items = (example.isTextual() ? objectMapper.readTree(example.asText()) : example)
+                .path("data");
+
+        assertEquals(2, items.size());
+        for (JsonNode item : items) {
+            assertTrue(item.has("expiryReason"));
+        }
     }
 
     private JsonNode apiDocs() throws Exception {
