@@ -516,7 +516,8 @@ public final class OpenApiTaxiPartyExamples {
               "success": true,
               "data": {
                 "id": "request-20260304-001",
-                "status": "PENDING"
+                "status": "PENDING",
+                "expiryReason": null
               }
             }
             """;
@@ -537,7 +538,8 @@ public final class OpenApiTaxiPartyExamples {
               "success": true,
               "data": {
                 "id": "request-20260304-001",
-                "status": "DECLINED"
+                "status": "DECLINED",
+                "expiryReason": null
               }
             }
             """;
@@ -547,7 +549,8 @@ public final class OpenApiTaxiPartyExamples {
               "success": true,
               "data": {
                 "id": "request-20260304-001",
-                "status": "CANCELED"
+                "status": "CANCELED",
+                "expiryReason": null
               }
             }
             """;
@@ -563,6 +566,7 @@ public final class OpenApiTaxiPartyExamples {
                   "requesterName": "스쿠리 유저",
                   "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-1.png",
                   "status": "PENDING",
+                  "expiryReason": null,
                   "createdAt": "2026-03-04T19:05:00"
                 }
               ]
@@ -580,6 +584,7 @@ public final class OpenApiTaxiPartyExamples {
                   "requesterName": "이영희",
                   "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-3.png",
                   "status": "PENDING",
+                  "expiryReason": null,
                   "createdAt": "2026-03-04T19:12:00"
                 },
                 {

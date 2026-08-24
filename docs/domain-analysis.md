@@ -224,10 +224,11 @@ Hooks:
     OPEN|CLOSED → ENDED     (리더 취소)
     OPEN|CLOSED|ARRIVED → ENDED (스케줄러 timeout 자동 종료)
 
-  JoinRequest: PENDING → ACCEPTED | DECLINED | CANCELED
+  JoinRequest: PENDING → ACCEPTED | DECLINED | CANCELED | EXPIRED
     - CANCELED: 요청자 본인만 취소 가능 (PENDING 상태에서만)
     - 리더는 DECLINE으로 거절 (CANCEL 아님)
     - ACCEPTED 처리로 멤버가 정원(`maxMembers`)에 도달하면 Party 상태를 자동으로 CLOSED 전이
+    - 정원이 가득 차면 남은 PENDING 요청은 EXPIRED + CAPACITY_FULL로 종료하며 자리 발생 후 복원하지 않음
 
 동시성 제어:
   - Party 엔티티의 `@Version` 기반 Optimistic Lock으로 동시 동승 요청/수락 충돌을 방어
@@ -814,7 +815,7 @@ Hooks:
 
 ### 3.9 Friend (친구, Phase 14 관계 Core 구현)
 
-> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유 전달 완료. TaxiParty·Chat 초대는 런타임 구현 단계이며 알림은 후속 구현 예정
+> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대 전달 완료. 초대·정원·파티원 UX 보완 진행 중이며 알림은 후속 구현 예정
 > 상세 기준: `docs/features/friends.md`
 
 ```
@@ -1451,6 +1452,9 @@ public class JoinRequest extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     private JoinRequestStatus status = JoinRequestStatus.PENDING;
 
+    @Enumerated(EnumType.STRING)
+    private JoinRequestExpiryReason expiryReason;
+
     public void accept() {
         validatePending();
         this.status = JoinRequestStatus.ACCEPTED;
@@ -1466,6 +1470,12 @@ public class JoinRequest extends BaseTimeEntity {
         this.status = JoinRequestStatus.CANCELED;
     }
 
+    public void expire(JoinRequestExpiryReason reason) {
+        validatePending();
+        this.status = JoinRequestStatus.EXPIRED;
+        this.expiryReason = reason;
+    }
+
     private void validatePending() {
         if (this.status != JoinRequestStatus.PENDING) {
             throw new AlreadyProcessedException();
@@ -1474,7 +1484,7 @@ public class JoinRequest extends BaseTimeEntity {
 }
 
 public enum JoinRequestStatus {
-    PENDING, ACCEPTED, DECLINED, CANCELED
+    PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED
 }
 ```
 
@@ -1750,8 +1760,9 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
   - [x] 관계 Core OpenAPI·ERD·Contract·Service 테스트 동기화
   - [x] Academic 시간표 공유·Minecraft projection 협력 구현
   - [x] Academic·Minecraft 협력 API의 OpenAPI·ERD·Contract·Service 테스트 동기화
-  - [ ] TaxiParty·Chat 초대와 Notification 협력 구현
-  - [ ] 남은 후속 도메인 협력 API의 OpenAPI·ERD·Contract·Service 테스트 동기화
+  - [x] TaxiParty·Chat 초대 협력 구현
+  - [x] TaxiParty·Chat 초대 API의 OpenAPI·ERD·Contract·Service 테스트 동기화
+  - [ ] Notification과 남은 회원 탈퇴 cleanup 협력 구현·문서 동기화
 
 ---
 
@@ -1766,6 +1777,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
 ---
 
 > **문서 이력**
+> - 2026-08-24: 친구 초대 보완 반영 — 파티장·참가자 초대 수락 경로 분리, 정원 도달 JoinRequest 만료, 파티원 조회·리더 강퇴 책임을 현재 런타임으로 동기화
 > - 2026-08-23: 예약어 닉네임을 유지한 미완료 회원의 최초 프로필 완료 전환 거부와 기존 완료 예약어 회원 grandfathering을 반영
 > - 2026-08-23: Phase 14 Academic 시간표 공유 협력을 런타임 상태로 동기화하고, TaxiParty·Chat 초대를 런타임 구현 단계로 전환
 > - 2026-08-18: Phase 14 Friend 관계 Core 구현 반영 — 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록을 현재 런타임으로 전환하고 후속 도메인 협력 범위를 분리

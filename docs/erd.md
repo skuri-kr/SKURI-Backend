@@ -130,7 +130,8 @@ erDiagram
         varchar(36) party_id FK "NOT NULL"
         varchar(36) leader_id FK "NOT NULL"
         varchar(36) requester_id FK "NOT NULL"
-        enum status "PENDING,ACCEPTED,DECLINED,CANCELED"
+        enum status "PENDING,ACCEPTED,DECLINED,CANCELED,EXPIRED"
+        enum expiry_reason "CAPACITY_FULL, nullable"
         datetime created_at
         datetime updated_at
     }
@@ -902,7 +903,8 @@ Taxi history 계약 메모:
 | party_id | VARCHAR(36) | FK, NOT NULL | 파티 ID |
 | leader_id | VARCHAR(36) | FK, NOT NULL | 파티장 ID |
 | requester_id | VARCHAR(36) | FK, NOT NULL | 요청자 ID |
-| status | ENUM | NOT NULL | PENDING, ACCEPTED, DECLINED, CANCELED |
+| status | ENUM | NOT NULL | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
+| expiry_reason | VARCHAR(40) | NULL | EXPIRED 사유. 현재 CAPACITY_FULL |
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
 
@@ -1584,6 +1586,7 @@ CREATE UNIQUE INDEX uk_friendships_member_pair ON friendships(member_low_id, mem
 ---
 
 > **문서 이력**
+> - 2026-08-24: 택시파티 정원 보완 반영 — `join_requests.status`의 EXPIRED와 nullable `expiry_reason=CAPACITY_FULL`을 추가
 > - 2026-08-18: Friend 관계 Core 테이블 추가 — `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`와 PENDING pair unique·cursor 인덱스를 반영
 > - 2026-08-18: Friend Foundation 테이블 추가 — `friend_profiles`, `friend_code_registry`의 공개 식별자·ACTIVE/RETIRED 영구 코드 registry와 unique 제약을 반영
 > - 2026-08-21: Friend Core 출시 준비 반영 — nullable `members.nickname_key`(VARCHAR(255)), 프로필 완료 ACTIVE 회원 eligibility, `nickname_searchable` 기본 true를 반영
