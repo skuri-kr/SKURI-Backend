@@ -135,7 +135,7 @@ ALTER TABLE members
 - `FriendProfile`과 `publicId`, `nicknameSearchable`은 삭제한다.
 - 현재 활성 친구 코드는 단일 `FriendCodeRegistry`에서 `RETIRED`로 바꾸고 소유 회원 연결을 제거한다. `normalizedCode` tombstone은 영구 보존하며 재발급·탈퇴로 폐기된 코드는 다른 회원에게 다시 할당하지 않는다. ACTIVE 코드의 `ownerMemberId`는 non-null unique이고 RETIRED row만 null을 허용한다.
 - 받은·보낸 친구 요청, friendship, 양방향 즐겨찾기, 차단·피차단 관계, 시간표 공개 기본값과 친구별 override를 정리한다.
-- hard delete되는 친구 요청 ID를 payload로 참조하는 상대방의 `FRIEND_REQUEST`·`FRIEND_DECLINED` 인앱 알림도 같은 탈퇴 트랜잭션에서 삭제한다. 실제 미읽음 알림이 제거된 상대방에게만 커밋 후 unread-count SSE를 발행한다.
+- hard delete되는 친구 요청 ID를 payload로 참조하는 상대방의 `FRIEND_REQUEST`·`FRIEND_DECLINED`와, 삭제되는 FriendProfile의 `friendPublicId`를 참조하는 `FRIEND_ACCEPTED` 인앱 알림도 같은 탈퇴 트랜잭션에서 삭제한다. 실제 미읽음 알림이 제거된 상대방에게만 커밋 후 unread-count SSE를 발행한다.
 - TaxiParty와 Chat이 소유한 발송·수신 `PENDING` 초대는 각각 `EXPIRED + MEMBER_WITHDRAWN`으로 전이하고 `respondedAt`을 기록한다. 이미 terminal인 초대와 한 번 기록된 `expiryReason`은 변경하지 않는다.
 - Support의 inquiry/report record는 기존 보존 정책을 유지한다.
 - 탈퇴와 경쟁해 대기하던 Friend mutation·초대 처리·lazy provisioning은 같은 Member 잠금 획득 후 요청자와 대상의 `ACTIVE`·프로필 완료 상태를 다시 확인하고, 하나라도 조건을 만족하지 않으면 새 Friend row나 파생 데이터를 생성·복원하지 않는다.

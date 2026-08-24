@@ -272,7 +272,7 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 알림 정책:
 
 - 기존 회원 알림 설정 요청·응답에 `friendAndInvitationNotifications` 단일 Boolean 필드를 추가한다.
-- 신규 회원 기본값은 true이며, 기존 null 값은 true로 해석한다. 기동 시 null인 알림 기본값만 조건부 bulk update로 true를 채우며, 응답에는 항상 유효 Boolean 값을 반환한다.
+- 신규 회원의 일반 알림과 친구·초대·학사 일정 알림 기본값은 true이고, `academicScheduleAllEventsEnabled` 기본값은 false다. 기존 회원의 어느 알림 컬럼이라도 null이면 기동 시 조건부 bulk update가 전체 기본값을 채우며, 공지 상세 기본값(`news`·`academy`·`scholarship`)도 true로 복원한다. 명시적으로 저장된 false와 공지 상세 설정은 변경하지 않으며, 응답에는 항상 유효 Boolean 값을 반환한다.
 - 부분 PATCH에서 필드가 null 또는 생략되면 기존 값을 유지한다.
 - 친구·초대 알림의 유효 수신 조건은 `allNotifications && friendAndInvitationNotifications`다.
 - `partyNotifications`는 최초 PARTY_INVITATION을 제어하지 않고, 초대 수락 후 기존 파티 활동 알림에만 적용한다.
@@ -284,7 +284,7 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 - FRIEND_DECLINED payload는 requestId를 포함하되 V1 terminal 이력을 카드로 재구성하지 않는다.
 - PARTY_INVITATION과 CHAT_ROOM_INVITATION payload는 invitationId와 invitationType을 포함한다.
 - FRIEND_REQUEST와 FRIEND_DECLINED는 친구 허브 요청 탭, FRIEND_ACCEPTED는 수락한 친구 상세, 초대 알림은 친구 허브 초대 탭의 해당 invitationId 카드로 이동한다.
-- 회원 탈퇴로 FriendRequest를 hard delete할 때, 해당 requestId를 참조하는 상대방의 `FRIEND_REQUEST`·`FRIEND_DECLINED` 인앱 알림도 같은 트랜잭션에서 삭제한다. 실제 미읽음 행이 제거된 상대방에게만 커밋 후 unread-count SSE를 발행한다.
+- 회원 탈퇴로 FriendRequest를 hard delete할 때, 해당 requestId를 참조하는 상대방의 `FRIEND_REQUEST`·`FRIEND_DECLINED`와 탈퇴 회원의 `friendPublicId`를 참조하는 `FRIEND_ACCEPTED` 인앱 알림도 같은 트랜잭션에서 삭제한다. 실제 미읽음 행이 제거된 상대방에게만 커밋 후 unread-count SSE를 발행한다.
 
 ---
 

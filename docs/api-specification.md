@@ -426,7 +426,7 @@ Spring 서버 처리:
 - 부분 업데이트 API입니다.
 - 요청 본문에 포함되지 않은 알림 필드는 기존 값을 유지합니다.
 - 런타임 기준으로 현재 지원되는 필드는 `allNotifications`, `partyNotifications`, `noticeNotifications`, `boardLikeNotifications`, `commentNotifications`, `bookmarkedPostCommentNotifications`, `systemNotifications`, `friendAndInvitationNotifications`, `academicScheduleNotifications`, `academicScheduleDayBeforeEnabled`, `academicScheduleAllEventsEnabled`, `noticeNotificationsDetail`입니다.
-- `friendAndInvitationNotifications`의 기본값은 `true`이며, 친구 요청·수락·거절과 택시파티·공개 채팅방 초대 알림을 함께 제어합니다. 기존 null 데이터는 서버에서 `true`로 해석하고 기동 시 조건부 보정합니다.
+- `friendAndInvitationNotifications`의 기본값은 `true`이며, 친구 요청·수락·거절과 택시파티·공개 채팅방 초대 알림을 함께 제어합니다. 기존 회원의 알림 설정에 null 컬럼이 있으면 서버 기동 시 전체 알림 기본값으로 조건부 보정하며, 명시적으로 저장된 값은 유지합니다.
 - 학사 일정 알림 기본값은 `academicScheduleNotifications=true`, `academicScheduleDayBeforeEnabled=true`, `academicScheduleAllEventsEnabled=false`입니다.
 
 **Request:**
