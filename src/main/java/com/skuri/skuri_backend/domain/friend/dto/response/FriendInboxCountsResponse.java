@@ -10,7 +10,7 @@ public record FriendInboxCountsResponse(
         int partyInvitationCount,
         @Schema(description = "내가 처리해야 하는 유효 PENDING 공개 채팅방 초대 수", example = "1")
         int chatRoomInvitationCount,
-        @Schema(description = "친구 요청과 초대 처리 필요 항목의 합계", example = "2")
+        @Schema(description = "친구 요청과 초대 처리 필요 항목의 합계", example = "4")
         int totalActionCount
 ) {
 }
