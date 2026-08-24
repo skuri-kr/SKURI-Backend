@@ -11,11 +11,11 @@ import com.skuri.skuri_backend.domain.chat.repository.ChatRoomInvitationReposito
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
 import com.skuri.skuri_backend.domain.friend.entity.Friendship;
+import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPair;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
-import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,11 +41,11 @@ class ChatRoomInvitationSendItemServiceTest {
     @Mock private ChatRoomRepository chatRoomRepository;
     @Mock private ChatRoomMemberRepository chatRoomMemberRepository;
     @Mock private ChatRoomInvitationRepository invitationRepository;
+    @Mock private FriendProfileRepository friendProfileRepository;
     @Mock private FriendshipRepository friendshipRepository;
     @Mock private MemberBlockRepository memberBlockRepository;
     @Mock private MemberRepository memberRepository;
     @Mock private FriendMemberPairLockService pairLockService;
-    @Mock private FriendRelationshipQueryService friendRelationshipQueryService;
 
     private ChatRoomInvitationSendItemService service;
 
@@ -54,11 +55,11 @@ class ChatRoomInvitationSendItemServiceTest {
                 chatRoomRepository,
                 chatRoomMemberRepository,
                 invitationRepository,
+                friendProfileRepository,
                 friendshipRepository,
                 memberBlockRepository,
                 memberRepository,
-                pairLockService,
-                friendRelationshipQueryService
+                pairLockService
         );
     }
 
@@ -74,8 +75,8 @@ class ChatRoomInvitationSendItemServiceTest {
                 LocalDateTime.now().minusDays(8)
         );
 
-        when(friendRelationshipQueryService.requireFriendMemberId("inviter-1", friendPublicId))
-                .thenReturn("invitee-1");
+        when(friendProfileRepository.findMemberIdByPublicId(friendPublicId))
+                .thenReturn(Optional.of("invitee-1"));
         when(pairLockService.lockActivePair("inviter-1", "invitee-1")).thenReturn(pair);
         when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(room));
         when(chatRoomMemberRepository.existsById_ChatRoomIdAndId_MemberId("room-1", "inviter-1"))
@@ -104,6 +105,17 @@ class ChatRoomInvitationSendItemServiceTest {
         lockOrder.verify(pairLockService).lockActivePair("inviter-1", "invitee-1");
         lockOrder.verify(chatRoomRepository).findByIdForUpdate("room-1");
         lockOrder.verify(invitationRepository).findByActiveTargetKeyForUpdate("room-1:invitee-1");
+    }
+
+    @Test
+    void 존재하지않는친구공개ID는_회원잠금전_초대불가로처리한다() {
+        String friendPublicId = "missing-friend-public-id";
+        when(friendProfileRepository.findMemberIdByPublicId(friendPublicId)).thenReturn(Optional.empty());
+
+        ChatRoomInvitationSendResultResponse result = service.send("inviter-1", "room-1", friendPublicId);
+
+        assertThat(result.outcome()).isEqualTo(ChatRoomInvitationOutcome.NOT_ELIGIBLE);
+        verifyNoInteractions(pairLockService);
     }
 
     private ChatRoom room() {

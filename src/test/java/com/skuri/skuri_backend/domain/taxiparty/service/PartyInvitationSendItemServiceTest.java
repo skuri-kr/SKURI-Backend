@@ -1,11 +1,11 @@
 package com.skuri.skuri_backend.domain.taxiparty.service;
 
 import com.skuri.skuri_backend.domain.friend.entity.Friendship;
+import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPair;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
-import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationOutcome;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationSendResultResponse;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Location;
@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,10 +39,10 @@ class PartyInvitationSendItemServiceTest {
 
     @Mock private PartyRepository partyRepository;
     @Mock private PartyInvitationRepository partyInvitationRepository;
+    @Mock private FriendProfileRepository friendProfileRepository;
     @Mock private FriendshipRepository friendshipRepository;
     @Mock private MemberBlockRepository memberBlockRepository;
     @Mock private FriendMemberPairLockService pairLockService;
-    @Mock private FriendRelationshipQueryService friendRelationshipQueryService;
 
     private PartyInvitationSendItemService service;
 
@@ -50,10 +51,10 @@ class PartyInvitationSendItemServiceTest {
         service = new PartyInvitationSendItemService(
                 partyRepository,
                 partyInvitationRepository,
+                friendProfileRepository,
                 friendshipRepository,
                 memberBlockRepository,
-                pairLockService,
-                friendRelationshipQueryService
+                pairLockService
         );
     }
 
@@ -63,8 +64,8 @@ class PartyInvitationSendItemServiceTest {
         FriendMemberPair pair = FriendMemberPair.of("inviter-1", "invitee-1");
         Party party = party();
 
-        when(friendRelationshipQueryService.requireFriendMemberId("inviter-1", friendPublicId))
-                .thenReturn("invitee-1");
+        when(friendProfileRepository.findMemberIdByPublicId(friendPublicId))
+                .thenReturn(Optional.of("invitee-1"));
         when(pairLockService.lockActivePair("inviter-1", "invitee-1")).thenReturn(pair);
         when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId()))
@@ -89,6 +90,17 @@ class PartyInvitationSendItemServiceTest {
         lockOrder.verify(pairLockService).lockActivePair("inviter-1", "invitee-1");
         lockOrder.verify(partyRepository).findDetailByIdForUpdate("party-1");
         lockOrder.verify(partyInvitationRepository).findByActiveTargetKeyForUpdate("party-1:invitee-1");
+    }
+
+    @Test
+    void 존재하지않는친구공개ID는_회원잠금전_초대불가로처리한다() {
+        String friendPublicId = "missing-friend-public-id";
+        when(friendProfileRepository.findMemberIdByPublicId(friendPublicId)).thenReturn(Optional.empty());
+
+        PartyInvitationSendResultResponse result = service.send("inviter-1", "party-1", friendPublicId);
+
+        assertThat(result.outcome()).isEqualTo(PartyInvitationOutcome.NOT_ELIGIBLE);
+        verifyNoInteractions(pairLockService);
     }
 
     private Party party() {
