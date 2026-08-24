@@ -770,8 +770,8 @@ batch 요청과 응답:
 - 시간 기준 만료 batch처럼 Member pair가 필요 없는 경로는 FriendRequest 행만 잠그고 그 뒤 Member pair 잠금을 추가로 획득하지 않아 잠금 순서를 역전하지 않는다.
 - 잠금 획득 후 차단, 유효 PENDING 요청과 friendship을 다시 조회하고 조건을 재검증한다. 즐겨찾기와 시간표 override는 ACTIVE friendship이 없으면 쓰지 않는다. unique constraint는 마지막 중복 방어선이며 공통 잠금을 대체하지 않는다.
 - 택시파티·공개방 초대의 accept·decline·cancel·expire도 Invitation 행을 PESSIMISTIC_WRITE로 잠그고 PENDING을 재확인한 트랜잭션만 terminal 상태와 참여 부수효과를 확정한다.
-- 초대 수락의 잠금 전 권한·대상 확인은 Invitation entity를 영속화하지 않는 scalar/projection snapshot으로 수행한다. 최종 상태 전이는 고정 순서로 Invitation 행을 잠근 뒤 다시 읽은 상태만 사용하므로, 동시 decline·cancel·timeout이 먼저 확정된 초대를 수락으로 되돌리지 않는다.
-- 초대 생성·수락과 파티·방 상태가 필요한 선제 만료의 잠금 순서는 ordered Member pair, Party 또는 ChatRoom aggregate, Invitation 행 순서로 고정한다. 참가 요청 수락도 requester Member를 먼저 잠그고 Party를 잠근다. 관리자 파티 상태 변경·멤버 제거와 공개방 삭제도 aggregate를 먼저 잠근 뒤 관련 Invitation을 정리한다. 회원 탈퇴는 발송자의 PENDING 초대 대상 ID와 실제 참여 대상 ID를 합쳐 정렬한 뒤 대상 aggregate를 먼저 잠그고 그 대상의 Invitation만 만료한다. decline·cancel·시간 만료처럼 Invitation만 잠그는 경로는 이후 aggregate나 Member pair 잠금을 추가로 얻지 않는다.
+- 초대 수락의 잠금 전 권한·대상 확인은 Invitation과 Party·ChatRoom aggregate entity를 영속화하지 않는 scalar/projection snapshot으로 수행한다. 최종 상태 전이는 고정 순서로 aggregate와 Invitation 행을 잠근 뒤 다시 읽은 상태만 사용하므로, 동시 decline·cancel·timeout·정원 마감이 먼저 확정된 초대를 수락으로 되돌리거나 정원을 초과하지 않는다.
+- 초대 생성·수락과 파티·방 상태가 필요한 선제 만료의 잠금 순서는 ordered Member pair, Party 또는 ChatRoom aggregate, Invitation 행 순서로 고정한다. 참가 요청 수락도 requester Member를 먼저 잠그고 Party를 잠근다. 관리자 파티 상태 변경·멤버 제거와 공개방 삭제도 aggregate를 먼저 잠근 뒤 관련 Invitation을 정리한다. 회원 탈퇴는 발송·수신 PENDING 초대 대상 ID와 실제 참여 대상 ID를 합쳐 정렬한 뒤 대상 aggregate를 먼저 잠그고 그 대상의 Invitation만 만료한다. decline·cancel·시간 만료처럼 Invitation만 잠그는 경로는 이후 aggregate나 Member pair 잠금을 추가로 얻지 않는다.
 - 친구 관계를 전제로 하는 택시파티·공개방 초대 생성과 수락은 위 고정 순서 안에서 친구·차단 상태를 재검증한다.
 - 친구 코드 발급·재발급과 lazy provisioning은 해당 Member row를 PESSIMISTIC_WRITE로 잠근 뒤 ACTIVE를 재확인한다. 탈퇴가 먼저 확정됐다면 FriendProfile이나 ACTIVE 코드 registry row를 생성하지 않는다.
 - 양방향 동시 요청은 friendship 한 건만 만든다.
@@ -906,7 +906,7 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 
 ## 15. 구현 승인 상태
 
-초기 기준 문서의 코드 구현 중지선은 사용자의 단계별 승인으로 해제되었다. 현재 승인 범위는 택시파티·공개 채팅방 친구 초대의 Backend·Frontend 런타임, 테스트, OpenAPI, ERD와 관련 문서 동기화까지다. 알림·회원 탈퇴 cleanup은 다음 단계 승인 범위로 유지한다.
+초기 기준 문서의 코드 구현 중지선은 사용자의 단계별 승인으로 해제되었다. 현재 승인 범위는 택시파티·공개 채팅방 친구 초대의 Backend·Frontend 런타임, 테스트, OpenAPI, ERD와 관련 문서 동기화까지다. 알림은 다음 단계 승인 범위로 유지한다. 회원 탈퇴 cleanup 중 발송·수신 PENDING 초대 정리는 초대 런타임의 필수 정합성 경계로 현재 범위에 포함하며, 나머지 Phase 14 cleanup은 후속 범위다.
 
 ---
 
@@ -947,7 +947,7 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 - [x] 예정 API가 현재 운영 API와 구분되어 있다.
 - [x] Foundation과 관계 Core의 실제 코드 구현 범위가 현재 런타임 상태로 전환되어 있다.
 
-docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 런타임 도메인으로 표시하고 Foundation·관계 Core와 Phase 14 협력 책임을 구분한다. Foundation·관계 Core, 시간표 공유와 TaxiParty·공개방 초대의 런타임 엔티티·API는 docs/api-specification.md·docs/erd.md에 동기화했으며, 아직 구현하지 않은 Notification·회원 탈퇴 cleanup은 해당 런타임 PR에서 실제 구현과 함께 현재형으로 전환한다.
+docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 런타임 도메인으로 표시하고 Foundation·관계 Core와 Phase 14 협력 책임을 구분한다. Foundation·관계 Core, 시간표 공유와 TaxiParty·공개방 초대의 런타임 엔티티·API는 docs/api-specification.md·docs/erd.md에 동기화했으며, Notification과 초대 정리를 제외한 회원 탈퇴 cleanup은 해당 런타임 PR에서 실제 구현과 함께 현재형으로 전환한다.
 
 ---
 
