@@ -1,6 +1,6 @@
 # Spring 백엔드 ERD (Entity Relationship Diagram)
 
-> 최종 수정일: 2026-08-24
+> 최종 수정일: 2026-08-25
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -658,7 +658,7 @@ erDiagram
     user_notifications {
         varchar(36) id PK "UUID"
         varchar(36) user_id FK "NOT NULL"
-        enum type "PARTY_CREATED,PARTY_JOIN_REQUEST,PARTY_JOIN_ACCEPTED,PARTY_JOIN_DECLINED,PARTY_CLOSED,PARTY_ARRIVED,PARTY_ENDED,MEMBER_KICKED,SETTLEMENT_COMPLETED,CHAT_MESSAGE,POST_LIKED,COMMENT_CREATED,NOTICE,APP_NOTICE,ACADEMIC_SCHEDULE"
+        enum type "PARTY_CREATED,PARTY_JOIN_REQUEST,PARTY_JOIN_ACCEPTED,PARTY_JOIN_DECLINED,PARTY_CLOSED,PARTY_REOPENED,PARTY_ARRIVED,PARTY_ENDED,MEMBER_KICKED,SETTLEMENT_COMPLETED,CHAT_MESSAGE,POST_LIKED,COMMENT_CREATED,NOTICE,APP_NOTICE,ACADEMIC_SCHEDULE,FRIEND_REQUEST,FRIEND_ACCEPTED,FRIEND_DECLINED,PARTY_INVITATION,CHAT_ROOM_INVITATION"
         varchar(200) title "NOT NULL"
         varchar(500) message
         json data "추가 데이터"
@@ -1181,10 +1181,10 @@ Taxi history 계약 메모:
 |------|------|---------|------|
 | id | VARCHAR(36) | PK | 알림 ID |
 | user_id | VARCHAR(36) | FK, NOT NULL | 수신 회원 ID |
-| type | VARCHAR(40) | NOT NULL | 알림 타입 (`PARTY_*`, `CHAT_MESSAGE`, `ACADEMIC_SCHEDULE` 등 canonical enum) |
+| type | VARCHAR(40) | NOT NULL | 알림 타입 (`PARTY_*`, `FRIEND_*`, `*_INVITATION`, `CHAT_MESSAGE`, `ACADEMIC_SCHEDULE` 등 canonical enum) |
 | title | VARCHAR(200) | NOT NULL | 알림 제목 |
 | message | VARCHAR(500) | NOT NULL | 알림 메시지 |
-| data | JSON | | 이동/연결용 payload (`partyId`, `requestId`, `chatRoomId`, `postId`, `commentId`, `noticeId`, `appNoticeId`, `academicScheduleId`) |
+| data | JSON | | 이동/연결용 payload (`partyId`, `requestId`, `chatRoomId`, `postId`, `commentId`, `noticeId`, `appNoticeId`, `academicScheduleId`, `friendPublicId`, `invitationId`, `invitationType`) |
 | is_read | BOOLEAN | DEFAULT false | 읽음 여부 |
 | read_at | DATETIME | | 읽음 시각 |
 | created_at | DATETIME | NOT NULL | 생성 시각 |
@@ -1591,6 +1591,7 @@ CREATE UNIQUE INDEX uk_friendships_member_pair ON friendships(member_low_id, mem
 ---
 
 > **문서 이력**
+> - 2026-08-25: 알림 canonical enum을 런타임 `NotificationType`과 동기화 — `PARTY_REOPENED`, 친구 요청·수락·거절, 택시·공개방 초대 타입과 친구·초대 payload 필드를 반영
 > - 2026-08-24: 택시파티 정원·초대 보완 반영 — 정원 도달의 자동 모집 마감을 제거하고, `party_invitations`·`chat_room_invitations`의 EXPIRED 수신자 삭제용 `DISMISSED` 상태와 `(status, accepted_join_request_id)` 인덱스를 추가
 > - 2026-08-18: Friend 관계 Core 테이블 추가 — `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`와 PENDING pair unique·cursor 인덱스를 반영
 > - 2026-08-18: Friend Foundation 테이블 추가 — `friend_profiles`, `friend_code_registry`의 공개 식별자·ACTIVE/RETIRED 영구 코드 registry와 unique 제약을 반영

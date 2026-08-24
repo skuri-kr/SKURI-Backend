@@ -1,7 +1,7 @@
 # SKURI 친구 기능 기준 명세
 
 > 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유·친구 초대와 초대·정원·파티원 UX 보완 전달 완료. 친구·초대 알림과 PENDING 초대 이외 회원 탈퇴 cleanup의 Backend 구현은 이번 최종 단계에 포함하며, 이후 Frontend 연결과 통합 QA를 진행한다.
-> 기준일: 2026-08-24
+> 기준일: 2026-08-25
 > 다음 구현 단위: Backend 알림·탈퇴 cleanup 계약을 소비하는 Frontend 알림 설정·인박스/FCM/SSE 이동을 구현하고, 최종 통합 QA를 진행한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
@@ -284,6 +284,7 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 - FRIEND_DECLINED payload는 requestId를 포함하되 V1 terminal 이력을 카드로 재구성하지 않는다.
 - PARTY_INVITATION과 CHAT_ROOM_INVITATION payload는 invitationId와 invitationType을 포함한다.
 - FRIEND_REQUEST와 FRIEND_DECLINED는 친구 허브 요청 탭, FRIEND_ACCEPTED는 수락한 친구 상세, 초대 알림은 친구 허브 초대 탭의 해당 invitationId 카드로 이동한다.
+- 회원 탈퇴로 FriendRequest를 hard delete할 때, 해당 requestId를 참조하는 상대방의 `FRIEND_REQUEST`·`FRIEND_DECLINED` 인앱 알림도 같은 트랜잭션에서 삭제한다. 실제 미읽음 행이 제거된 상대방에게만 커밋 후 unread-count SSE를 발행한다.
 
 ---
 
@@ -1027,3 +1028,4 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-24 | 가득 찬 파티는 새 동승 요청·초대 발송을 차단하고 남은 PENDING 동승 요청·초대를 EXPIRED + CAPACITY_FULL로 종료하되 모집 상태는 자동 변경하지 않는다. 리더·관리자는 정원과 무관하게 명시적으로 모집을 재개할 수 있으며, 수동 CLOSED 상태의 참가자 친구 초대는 허용한다. |
 | 2026-08-24 | 초대 시트는 초대 가능·초대 중·참여 중을 함께 표시하고, 파티원 목록은 참가자 전체에게 제공하되 강퇴는 파티장에게만 허용 |
 | 2026-08-24 | 여러 일반 참가자 초대가 동일 PENDING 동승 요청을 재사용하면 earliest accepted invitation의 초대자를 표시하고, CLOSED 수락은 현재 참가 중인 원본 초대자가 하나 이상일 때만 허용한다. 채팅 초대 DELETE는 아직 저장 전인 시간 만료도 EXPIRED 후 DISMISSED로 처리한다. |
+| 2026-08-25 | 회원 탈퇴로 hard delete되는 친구 요청을 참조하는 상대방의 `FRIEND_REQUEST`·`FRIEND_DECLINED` 인앱 알림도 같은 탈퇴 트랜잭션에서 정리하고, 미읽음 행이 실제로 제거된 상대방에게만 커밋 후 unread-count SSE를 발행한다. |
