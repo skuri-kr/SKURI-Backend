@@ -1,5 +1,7 @@
 package com.skuri.skuri_backend.domain.taxiparty.service;
 
+import com.skuri.skuri_backend.common.exception.BusinessException;
+import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.friend.entity.Friendship;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
@@ -28,6 +30,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.inOrder;
@@ -239,6 +242,19 @@ class PartyInvitationTransitionServiceTest {
 
         assertThat(removed).isTrue();
         assertThat(invitation.getStatus()).isEqualTo(PartyInvitationStatus.DISMISSED);
+    }
+
+    @Test
+    void 수신자는_만료전초대를취소할수없다() {
+        PartyInvitation invitation = invitation("invite-1");
+        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(invitation));
+
+        assertThatThrownBy(() -> service.cancel("invitee-1", "invite-1"))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.PARTY_INVITATION_INVITER_REQUIRED));
+
+        assertThat(invitation.getStatus()).isEqualTo(PartyInvitationStatus.PENDING);
     }
 
     @Test
