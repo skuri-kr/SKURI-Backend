@@ -1023,7 +1023,7 @@ FCM 토큰 삭제
 파티 모집 재개 (리더만)
 
 - 성공 시 파티 채팅방에 서버 생성 `SYSTEM` 메시지 `"모집이 재개되었어요."`가 추가됩니다.
-- 현재 인원이 정원에 도달한 파티는 모집을 재개할 수 없으며 `409 PARTY_FULL`을 반환합니다.
+- 현재 인원이 정원에 도달해도 리더는 모집을 재개할 수 있습니다. 정원이 유지되는 동안 새 공개 동승 요청·친구 초대 발송은 여전히 차단됩니다.
 
 **Response (200 OK):**
 ```json
@@ -1033,15 +1033,6 @@ FCM 토큰 삭제
     "id": "uuid",
     "status": "OPEN"
   }
-}
-```
-
-**Response (409 PARTY_FULL):**
-```json
-{
-  "success": false,
-  "message": "파티 정원이 가득 찼습니다.",
-  "errorCode": "PARTY_FULL"
 }
 ```
 
@@ -1241,6 +1232,7 @@ FCM 토큰 삭제
       "requesterId": "user_uuid",
       "requesterName": "김철수",
       "requesterPhotoUrl": "https://...",
+      "invitationInviterName": null,
       "status": "PENDING",
       "expiryReason": null,
       "createdAt": "2026-02-03T12:30:00Z"
@@ -1289,11 +1281,9 @@ FCM 토큰 삭제
 #### PATCH /v1/join-requests/{requestId}/accept
 동승 요청 수락 (리더만)
 
-- 요청 수락으로 파티 인원이 정원(`maxMembers`)에 도달하면 파티 상태는 자동으로 `CLOSED` 전이됩니다.
+- 요청 수락으로 파티 인원이 정원(`maxMembers`)에 도달해도 파티 상태는 자동 전이하지 않습니다.
 - 성공 시 파티 채팅방에 서버 생성 `SYSTEM` 메시지 `"{requesterName}님이 입장했어요."`가 추가됩니다. 닉네임이 비어 있거나 찾지 못하면 `"새 멤버가 입장했어요."`를 사용합니다.
-- 정원 도달로 자동 `CLOSED` 되면 같은 트랜잭션 안에서 위 합류 안내 뒤에 `"모집이 마감되었어요."` `SYSTEM` 메시지가 추가됩니다.
-- 실시간 브로드캐스트는 `합류 안내 -> 모집 마감 안내` 순서로 수행됩니다.
-- history 조회는 기본 정렬이 `createdAt DESC`라서 더 나중에 저장된 모집 마감 메시지가 먼저 보일 수 있으며, 같은 `createdAt`인 경우에도 서버가 저장 순서를 기준으로 결정적으로 tie-break 합니다.
+- 정원 도달 시 남은 PENDING 동승 요청과 친구 초대만 `EXPIRED + CAPACITY_FULL`로 정리하며, 이후 자리가 생겨도 만료된 항목은 복원하지 않습니다.
 
 **Response:**
 ```json
@@ -1707,7 +1697,7 @@ FCM 토큰 삭제
   - 예: `chatRoomId = party:{partyId}`
 - 서버 생성 안내 메시지(`SYSTEM`/`ARRIVED`/`END`)도 동일한 조회/구독 경로로 전달됩니다.
 - 동승 요청 수락/멤버 나가기 안내도 서버 생성 `SYSTEM` 메시지로만 저장/브로드캐스트되며, 클라이언트가 직접 전송하지 않습니다.
-- 동승 요청 수락으로 파티가 정원에 도달하면 `SYSTEM` 메시지는 `합류 안내 -> 모집 마감 안내` 순서로 저장되고, 같은 순서로 브로드캐스트됩니다.
+- 동승 요청 수락이 정원에 도달해도 모집 상태나 `SYSTEM` 모집 마감 메시지는 자동 변경하지 않습니다.
 
 ### 4.5 WebSocket (STOMP)
 
@@ -4336,6 +4326,7 @@ type JoinRequestSsePayload = {
   requesterId: string;
   requesterName: string | null;
   requesterPhotoUrl: string | null;
+  invitationInviterName: string | null; // 친구 초대로 생성된 요청의 초대자, 일반 요청이면 null
   status: "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELED" | "EXPIRED";
   expiryReason: "CAPACITY_FULL" | null;
   createdAt: string; // LocalDateTime, "yyyy-MM-dd'T'HH:mm:ss"
@@ -4361,6 +4352,7 @@ data: {
       "requesterId": "user_uuid",
       "requesterName": "김철수",
       "requesterPhotoUrl": null,
+      "invitationInviterName": null,
       "status": "PENDING",
       "expiryReason": null,
       "createdAt": "2026-02-03T12:00:00"
@@ -4376,6 +4368,7 @@ data: {
   "requesterId": "user_uuid",
   "requesterName": "김철수",
   "requesterPhotoUrl": null,
+  "invitationInviterName": null,
   "status": "PENDING",
   "expiryReason": null,
   "createdAt": "2026-02-03T12:00:00"
@@ -4389,6 +4382,7 @@ data: {
   "requesterId": "user_uuid",
   "requesterName": "김철수",
   "requesterPhotoUrl": null,
+  "invitationInviterName": null,
   "status": "EXPIRED",
   "expiryReason": "CAPACITY_FULL",
   "createdAt": "2026-02-03T12:00:00"
@@ -4436,6 +4430,7 @@ type MyJoinRequestSsePayload = {
   requesterId: string;
   requesterName: string | null;
   requesterPhotoUrl: string | null;
+  invitationInviterName: string | null; // 친구 초대로 생성된 요청의 초대자, 일반 요청이면 null
   status: "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELED" | "EXPIRED";
   expiryReason: "CAPACITY_FULL" | null;
   createdAt: string; // LocalDateTime, "yyyy-MM-dd'T'HH:mm:ss"
@@ -4456,10 +4451,11 @@ data: {
     {
       "id": "request_uuid",
       "partyId": "party_uuid",
-      "requesterId": "user_uuid",
-      "requesterName": "김철수",
-      "requesterPhotoUrl": null,
-      "status": "PENDING",
+  "requesterId": "user_uuid",
+  "requesterName": "김철수",
+  "requesterPhotoUrl": null,
+  "invitationInviterName": null,
+  "status": "PENDING",
       "expiryReason": null,
       "createdAt": "2026-02-03T12:00:00"
     }
@@ -4474,6 +4470,7 @@ data: {
   "requesterId": "user_uuid",
   "requesterName": "김철수",
   "requesterPhotoUrl": null,
+  "invitationInviterName": null,
   "status": "EXPIRED",
   "expiryReason": "CAPACITY_FULL",
   "createdAt": "2026-02-03T12:00:00"
@@ -6873,7 +6870,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 | 값 | 의미 | 허용 전이 |
 |---|---|---|
 | `CLOSE` | 모집 마감 | `OPEN -> CLOSED` |
-| `REOPEN` | 모집 재개 | `CLOSED -> OPEN` (현재 인원 < 정원) |
+| `REOPEN` | 모집 재개 | `CLOSED -> OPEN` (현재 정원과 무관) |
 | `CANCEL` | 파티 취소 | `OPEN/CLOSED -> ENDED(CANCELLED)` |
 | `END` | 파티 강제 종료 | `ARRIVED -> ENDED(FORCE_ENDED)` |
 
@@ -6881,9 +6878,8 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 
 - 관리자라도 `END`는 `ARRIVED` 상태에서만 가능하다.
 - 관리자라도 `CANCEL`은 `OPEN`, `CLOSED`에서만 가능하다.
-- 관리자도 현재 인원이 정원에 도달한 `CLOSED` 파티는 `REOPEN`할 수 없고 `409 PARTY_FULL`을 반환한다.
 - 임의 상태 점프(예: `OPEN -> ENDED(FORCE_ENDED)`)는 허용하지 않는다.
-- `CLOSE`, `CANCEL`, `END`는 해당 파티의 PENDING 친구 초대를 `EXPIRED + TARGET_UNAVAILABLE`로 정리한다. 이후 `REOPEN`해도 만료된 초대는 복원하지 않는다.
+- `CANCEL`, `END`는 해당 파티의 PENDING 친구 초대를 `EXPIRED + TARGET_UNAVAILABLE`로 정리한다. 수동 `CLOSE`는 초대를 유지하며, 이후 `REOPEN`해도 이미 만료된 초대는 복원하지 않는다.
 - 감사 로그는 최소 snapshot(`id`, `status`, `endReason`, `settlementStatus`, `endedAt`)만 저장한다.
 
 **Response (200 OK, CLOSE 예시):**
@@ -7724,7 +7720,7 @@ cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형�
 | GET | `/v1/party-invitations/received` | PENDING·EXPIRED 받은 초대 최신순 조회 |
 | POST | `/v1/party-invitations/{invitationId}/accept` | 파티장 초대는 즉시 참가, 참가자 초대는 동승 요청 생성 |
 | POST | `/v1/party-invitations/{invitationId}/decline` | 수신자가 PENDING 초대 거절 |
-| DELETE | `/v1/party-invitations/{invitationId}` | 발송자가 PENDING 초대 취소 |
+| DELETE | `/v1/party-invitations/{invitationId}` | 발송자가 PENDING 초대 취소 또는 수신자가 EXPIRED 초대 목록 삭제 |
 
 ```json
 {
@@ -7755,7 +7751,7 @@ cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형�
 }
 ```
 
-outcome은 `SENT | ALREADY_PENDING | ALREADY_MEMBER | NOT_ELIGIBLE`다. 결과는 중복 제거 후 첫 등장 요청 순서를 유지하고 각 수신자를 독립 트랜잭션으로 처리한다. `SENT`와 현재 발송자가 만든 `ALREADY_PENDING`만 invitationId를 제공한다. 친구 관계가 없거나 양방향 차단된 대상은 현재 파티 참여 여부와 무관하게 `NOT_ELIGIBLE`로 마스킹한다. eligible 응답은 `friends`, `alreadyPendingFriends`, `alreadyMemberFriends`를 분리하며, 가득 찬 파티도 `canInvite=false`, `unavailableReason=PARTY_FULL`로 정상 조회된다. 초대는 좌석을 예약하지 않는다. 파티장이 보낸 초대는 수신자 수락 시 `result=JOINED`로 즉시 참가하고 같은 파티의 PENDING 동승 요청을 CANCELED로 정리한다. 일반 참가자가 보낸 초대는 `result=LEADER_APPROVAL_PENDING`, `joinRequestId`로 기존 동승 요청 승인 흐름에 진입하며, 같은 파티의 PENDING 요청이 이미 있으면 이를 재사용한다. ACCEPTED 초대의 수락 재호출은 최초 결과와 `joinRequestId`를 그대로 반환하며 이후 동승 요청 처리 상태를 다시 추론하지 않는다. 수락 시 다른 활성 파티가 있으면 초대를 PENDING으로 유지한 채 `409 ALREADY_IN_PARTY`를 반환한다. 파티 비OPEN·정원 마감·초대자 이탈·관계 상실은 EXPIRED로 고정한다. 정원이 차면 남은 PENDING 동승 요청도 `EXPIRED + CAPACITY_FULL`로 종료한다.
+outcome은 `SENT | ALREADY_PENDING | ALREADY_MEMBER | NOT_ELIGIBLE`다. 결과는 중복 제거 후 첫 등장 요청 순서를 유지하고 각 수신자를 독립 트랜잭션으로 처리한다. `SENT`와 현재 발송자가 만든 `ALREADY_PENDING`만 invitationId를 제공한다. 친구 관계가 없거나 양방향 차단된 대상은 현재 파티 참여 여부와 무관하게 `NOT_ELIGIBLE`로 마스킹한다. eligible 응답은 `friends`, `alreadyPendingFriends`, `alreadyMemberFriends`를 분리하며, 가득 찬 파티도 `canInvite=false`, `unavailableReason=PARTY_FULL`로 정상 조회된다. 초대는 좌석을 예약하지 않는다. OPEN·CLOSED 상태의 현재 파티 참가자는 정원 여유가 있을 때 초대할 수 있으며, CLOSED는 공개 동승 요청만 막는다. 파티장이 보낸 초대는 수신자 수락 시 `result=JOINED`로 즉시 참가하고 같은 파티의 PENDING 동승 요청을 CANCELED로 정리한다. 일반 참가자가 보낸 초대는 `result=LEADER_APPROVAL_PENDING`, `joinRequestId`로 기존 동승 요청 승인 흐름에 진입하며, 같은 파티의 PENDING 요청이 이미 있으면 이를 재사용한다. 이 친구 초대에서 생성된 요청은 초대자가 여전히 현재 참가자이면 CLOSED 상태에서도 파티장이 수락할 수 있고, 응답·SSE의 `invitationInviterName`으로 초대자를 구분한다. ACCEPTED 초대의 수락 재호출은 최초 결과와 `joinRequestId`를 그대로 반환하며 이후 동승 요청 처리 상태를 다시 추론하지 않는다. 수락 시 다른 활성 파티가 있으면 초대를 PENDING으로 유지한 채 `409 ALREADY_IN_PARTY`를 반환한다. ARRIVED·ENDED, 정원 도달, 초대자 이탈·관계 상실은 EXPIRED로 고정한다. 정원이 차면 남은 PENDING 동승 요청과 초대는 `EXPIRED + CAPACITY_FULL`로 종료하되 파티 상태는 자동 변경하지 않는다. EXPIRED 초대는 수신자가 DELETE로 DISMISSED 처리해 목록에서 지울 수 있고 audit 이력은 유지한다.
 
 #### 공개 채팅방 초대
 
@@ -7766,15 +7762,15 @@ outcome은 `SENT | ALREADY_PENDING | ALREADY_MEMBER | NOT_ELIGIBLE`다. 결과�
 | GET | `/v1/chat-room-invitations/received` | PENDING·EXPIRED 받은 초대 최신순 조회 |
 | POST | `/v1/chat-room-invitations/{invitationId}/accept` | 수락 시 공개 여부·방 유형·정원·입장 자격·관계를 재검증하고 참가 |
 | POST | `/v1/chat-room-invitations/{invitationId}/decline` | 수신자가 PENDING 초대 거절 |
-| DELETE | `/v1/chat-room-invitations/{invitationId}` | 발송자가 PENDING 초대 취소 |
+| DELETE | `/v1/chat-room-invitations/{invitationId}` | 발송자가 PENDING 초대 취소 또는 수신자가 EXPIRED 초대 목록 삭제 |
 
 eligible 응답은 `friends`, `alreadyPendingFriends`, `alreadyMemberFriends`를 분리한다. 학과방은 `sameDepartmentOnly=true`를 반환하고 학과가 다른 친구는 어떤 목록에도 노출하지 않는다.
 
 batch 형식과 outcome 계약은 택시파티 초대와 같고, 친구 관계가 없거나 양방향 차단된 대상의 현재 방 참여 여부는 `NOT_ELIGIBLE`로 마스킹한다. `UNIVERSITY`, `DEPARTMENT`, `GAME`, 공개 `CUSTOM`만 허용하고 `PARTY`·비공개·1:1 방은 지원하지 않는다. 초대는 생성 후 7일에 만료되며 10분 주기 최대 100건 batch와 목록·mutation의 lazy reconciliation을 사용한다. count는 `expiresAt > now`인 PENDING만 DB에서 직접 집계하고 한 호출에서 최대 100건의 시간 만료만 terminal 저장한다. eligible 조회는 expiresAt이 지난 PENDING을 제외하고, 같은 대상 재발송은 기존 행을 EXPIRED + INVITATION_TIMEOUT으로 먼저 확정한 뒤 새 초대를 생성한다. 기한 뒤 취소도 CANCELED가 아니라 EXPIRED + INVITATION_TIMEOUT으로 확정한다. 방 삭제·정원 마감·초대자 이탈·기존 참여·친구 해제·차단·학과 자격 변경은 안전한 expiryReason으로 EXPIRED 처리한다. 직접 참여가 마지막 좌석을 채우면 참여자의 초대는 먼저 ALREADY_JOINED, 나머지 PENDING은 CAPACITY_FULL로 만료한다. 회원 탈퇴의 전체 방 제거에서는 발송·수신 PENDING 초대 대상 방을 먼저 잠근 뒤 해당 초대를 MEMBER_WITHDRAWN으로 만료한다. 학과 변경의 기존 학과방 제거에서는 해당 방의 발송 초대를 INVITER_LEFT, 변경 회원이 받은 학과방 PENDING 초대를 ELIGIBILITY_CHANGED로 즉시 만료한다. 관리자 공개방 삭제는 방 잠금 뒤 해당 방의 PENDING 초대를 TARGET_UNAVAILABLE로 정리한다.
 
-받은 초대 목록은 현재 조치 가능한 `PENDING`과 사유 안내가 필요한 `EXPIRED`만 반환한다. `ACCEPTED`, `DECLINED`, `CANCELED` 이력은 V1 목록에서 제외한다. inviter와 대상 aggregate가 삭제·탈퇴 등으로 안전하게 표시될 수 없거나 inviter가 현재 사용자와 양방향 차단 관계이면 해당 요약은 nullable이다. 학과방 초대 대상은 현재 학과가 다르고 그 방에 참여 중이지 않으면 방 ID·이름·인원 수를 노출하지 않고 `target: null`로 마스킹한다.
+받은 초대 목록은 현재 조치 가능한 `PENDING`과 사유 안내가 필요한 `EXPIRED`만 반환한다. `ACCEPTED`, `DECLINED`, `CANCELED`, `DISMISSED` 이력은 V1 목록에서 제외한다. EXPIRED 수신자는 DELETE로 DISMISSED 처리할 수 있으며 기존 expiryReason·respondedAt audit 값은 보존한다. inviter와 대상 aggregate가 삭제·탈퇴 등으로 안전하게 표시될 수 없거나 inviter가 현재 사용자와 양방향 차단 관계이면 해당 요약은 nullable이다. 학과방 초대 대상은 현재 학과가 다르고 그 방에 참여 중이지 않으면 방 ID·이름·인원 수를 노출하지 않고 `target: null`로 마스킹한다.
 
-초대 OpenAPI는 endpoint에서 실제 반환 가능한 오류만 예시로 제공한다. eligible 조회와 발송의 404는 택시 `PARTY_NOT_FOUND | MEMBER_NOT_FOUND`, 공개방 `CHAT_ROOM_NOT_FOUND | MEMBER_NOT_FOUND`를 함께 노출한다. eligible 조회는 택시 `PARTY_CLOSED | MEMBER_PROFILE_INCOMPLETE`, 공개방 `CHAT_ROOM_FULL | MEMBER_PROFILE_INCOMPLETE`를, 발송은 택시 `PARTY_CLOSED | MEMBER_PROFILE_INCOMPLETE`, 공개방 `MEMBER_PROFILE_INCOMPLETE`를 409 예시로 노출한다. 수락·거절의 403은 각 `*_RECIPIENT_REQUIRED`, 취소의 403은 각 `*_INVITER_REQUIRED`를 사용한다.
+초대 OpenAPI는 endpoint에서 실제 반환 가능한 오류만 예시로 제공한다. eligible 조회와 발송의 404는 택시 `PARTY_NOT_FOUND | MEMBER_NOT_FOUND`, 공개방 `CHAT_ROOM_NOT_FOUND | MEMBER_NOT_FOUND`를 함께 노출한다. eligible 조회와 발송의 택시 `PARTY_CLOSED`는 ARRIVED·ENDED처럼 초대 불가인 상태를 뜻하며, 수동 CLOSED는 초대 가능한 상태다. 공개방은 `CHAT_ROOM_FULL | MEMBER_PROFILE_INCOMPLETE`, 택시는 `PARTY_CLOSED | MEMBER_PROFILE_INCOMPLETE`를 409 예시로 노출한다. 수락·거절의 403은 각 `*_RECIPIENT_REQUIRED`, DELETE의 403은 발송자도 만료 초대 수신자도 아닌 경우 각 `*_INVITER_REQUIRED`를 사용한다.
 
 ### 14.6 Friend·초대 에러 코드
 
@@ -7806,6 +7802,7 @@ batch 형식과 outcome 계약은 택시파티 초대와 같고, 친구 관계�
 ---
 
 > 변경 이력
+> - 2026-08-24: 택시 정원·친구 초대 보완 — 정원 자동 모집 마감 제거, CLOSED 참가자 초대·리더 승인, join request의 `invitationInviterName`, EXPIRED 수신자의 DELETE→DISMISSED 목록 삭제 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-23: TaxiParty·공개 non-PARTY 채팅방 친구 초대 반영 — 수신자별 부분 성공, PENDING·EXPIRED 받은 목록, 수락 재검증, 7일 만료와 inbox count 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-21: Friend Minecraft projection 반영 — 친구 목록·상세 Minecraft 요약과 SELF·FRIEND 계층 조회 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-21: Friend Core 출시 준비 계약 반영 — 프로필 완료 회원만 FriendProfile·코드 발급, 검색 기본 공개·1자 검색, `relationshipState` enum, ACTIVE 닉네임 중복·예약어 오류를 동기화

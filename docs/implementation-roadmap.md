@@ -246,7 +246,7 @@ com.skuri.skuri_backend
 |------|------|
 | 파티 상태 머신 | `OPEN → CLOSED → ARRIVED → ENDED` 전이 규칙 |
 | 파티 수정 정책 | `PATCH /v1/parties/{id}`는 `departureTime`, `detail`만 허용 (리더, OPEN/CLOSED) |
-| 정원 자동 마감 | 동승 요청 수락 후 `currentMembers == maxMembers` 시 자동 `CLOSED` 전이 |
+| 정원 도달 처리 | 정원 도달은 모집 상태를 바꾸지 않고 신규 참여만 차단하며, 남은 PENDING 동승 요청·친구 초대는 `EXPIRED + CAPACITY_FULL`로 정리 |
 | 동시성 제어 | Optimistic Lock (`@Version`) — 동시 동승 신청 방어 |
 | Aggregate 저장 정책 | `PartyMember/PartyTag/MemberSettlement`는 `Party` aggregate(cascade/orphanRemoval)로 일괄 저장 |
 | 정산 | 도착 시 택시비 입력 → 인원수 자동 나눔(정수 나눗셈/버림) → 멤버별 정산 확인 → 전체 완료 시 정산 상태 `COMPLETED` (파티 종료는 `/end`에서만) |
@@ -1055,7 +1055,7 @@ SSE 운영 제약:
 - 즐겨찾기, 친구 끊기, 차단과 요청·초대 badge 제공
 - PRIVATE, BUSY_ONLY, DETAILS 기반 시간표 공유와 친구별 예외
 - 공통 공강과 같이 듣는 공식 수업 제공
-- 모든 택시파티 참가자의 친구 초대와 수락 시 정원 동시성 검증
+- OPEN·CLOSED 택시파티 참가자의 친구 초대, 정원 수락 동시성 검증과 정원 도달 시 모집 상태 자동 전이 금지
 - 공개 non-PARTY 채팅방의 친구 초대
 - 친구의 Minecraft SELF와 모든 FRIEND 계정 안전 projection
 - 기존 Notification 인프라를 이용한 친구·초대 인박스, FCM, SSE
@@ -1067,7 +1067,7 @@ SSE 운영 제약:
 | --- | --- |
 | friend 신규 도메인 | ACTIVE·RETIRED 코드 registry, PENDING cursor 검색, 요청, 관계, 즐겨찾기, 친구 끊기, 차단 |
 | Academic | 시간표 공유 설정과 허용 범위별 projection |
-| TaxiParty | OPEN 파티 초대, 수락 정원·참여 동시성 |
+| TaxiParty | OPEN/CLOSED 파티 참가자 초대, 수락 정원·참여 동시성 |
 | Chat | 공개 non-PARTY 방 초대와 입장 자격 |
 | Minecraft | 친구용 계정 안전 projection |
 | Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, FRIEND_DECLINED, PARTY_INVITATION, CHAT_ROOM_INVITATION |

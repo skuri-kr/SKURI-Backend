@@ -916,11 +916,11 @@ Taxi history 계약 메모:
 | party_id | VARCHAR(36) | NOT NULL, IDX(party_id, status, id) | 대상 파티 ID |
 | inviter_id | VARCHAR(36) | NOT NULL, IDX(inviter_id, status, id) | 초대한 현재 파티 참가자 |
 | invitee_id | VARCHAR(36) | NOT NULL, IDX(invitee_id, status, created_at) | 초대받은 친구 |
-| status | VARCHAR(20) | NOT NULL | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
+| status | VARCHAR(20) | NOT NULL, IDX(status, accepted_join_request_id) | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED, DISMISSED |
 | expiry_reason | VARCHAR(40) | NULL | EXPIRED terminal 사유 |
 | responded_at | DATETIME | NULL | terminal 처리 시각 |
 | acceptance_result | VARCHAR(32) | NULL | ACCEPTED 최초 결과: JOINED 또는 LEADER_APPROVAL_PENDING |
-| accepted_join_request_id | VARCHAR(36) | NULL | LEADER_APPROVAL_PENDING 최초 수락에서 생성한 동승 요청 ID |
+| accepted_join_request_id | VARCHAR(36) | NULL | LEADER_APPROVAL_PENDING 최초 수락에서 생성한 동승 요청 ID; ACCEPTED 초대의 초대자 표시 역조회에 사용 |
 | active_target_key | VARCHAR(73) | UK, NULL | `{partyId}:{inviteeId}`. PENDING일 때만 non-null |
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
@@ -961,7 +961,7 @@ Taxi history 계약 메모:
 | chat_room_id | VARCHAR(100) | NOT NULL, IDX(chat_room_id, status, id) | 대상 공개 채팅방 ID |
 | inviter_id | VARCHAR(36) | NOT NULL, IDX(inviter_id, status, id) | 초대한 방 참가자 |
 | invitee_id | VARCHAR(36) | NOT NULL, IDX(invitee_id, status, created_at) | 초대받은 친구 |
-| status | VARCHAR(20) | NOT NULL, IDX(status, expires_at, id) | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
+| status | VARCHAR(20) | NOT NULL, IDX(status, expires_at, id) | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED, DISMISSED |
 | expires_at | DATETIME | NOT NULL | 생성 시각 기준 7일 후 |
 | expiry_reason | VARCHAR(40) | NULL | EXPIRED terminal 사유 |
 | responded_at | DATETIME | NULL | terminal 처리 시각 |
@@ -1231,7 +1231,7 @@ Taxi history 계약 메모:
 | 파티-태그 | parties | party_tags | 1:N | 파티에 여러 태그 |
 | 파티-정산 | parties | member_settlements | 1:N | 파티 멤버별 정산 상태 |
 | 파티-요청 | parties | join_requests | 1:N | 파티에 여러 동승 요청 |
-| 파티-친구초대 | parties | party_invitations | 1:N | OPEN 파티 초대와 terminal 이력 |
+| 파티-친구초대 | parties | party_invitations | 1:N | OPEN/CLOSED 파티 참가자 초대와 terminal 이력 |
 | 채팅방-멤버 | chat_rooms | chat_room_members | 1:N | 채팅방에 여러 멤버 |
 | 채팅방-메시지 | chat_rooms | chat_messages | 1:N | 채팅방에 여러 메시지 |
 | 채팅방-친구초대 | chat_rooms | chat_room_invitations | 1:N | 공개 non-PARTY 방 초대와 terminal 이력 |
@@ -1588,7 +1588,7 @@ CREATE UNIQUE INDEX uk_friendships_member_pair ON friendships(member_low_id, mem
 ---
 
 > **문서 이력**
-> - 2026-08-24: 택시파티 정원 보완 반영 — `join_requests.status`의 EXPIRED와 nullable `expiry_reason=CAPACITY_FULL`을 추가
+> - 2026-08-24: 택시파티 정원·초대 보완 반영 — 정원 도달의 자동 모집 마감을 제거하고, `party_invitations`·`chat_room_invitations`의 EXPIRED 수신자 삭제용 `DISMISSED` 상태와 `(status, accepted_join_request_id)` 인덱스를 추가
 > - 2026-08-18: Friend 관계 Core 테이블 추가 — `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`와 PENDING pair unique·cursor 인덱스를 반영
 > - 2026-08-18: Friend Foundation 테이블 추가 — `friend_profiles`, `friend_code_registry`의 공개 식별자·ACTIVE/RETIRED 영구 코드 registry와 unique 제약을 반영
 > - 2026-08-21: Friend Core 출시 준비 반영 — nullable `members.nickname_key`(VARCHAR(255)), 프로필 완료 ACTIVE 회원 eligibility, `nickname_searchable` 기본 true를 반영

@@ -184,26 +184,29 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 ### 2.6 택시파티 친구 초대
 
 - 리더뿐 아니라 현재 파티 참가자 모두 자신의 SKURI 친구를 초대할 수 있다.
-- OPEN 상태 파티에서만 초대를 보낼 수 있다.
+- OPEN·CLOSED 상태 파티에서 초대를 보낼 수 있다. CLOSED는 일반 공개 동승 요청만 막으며, 참가자의 친구 초대 자체는 막지 않는다.
 - 초대자는 발송 시점에 파티 참가자여야 한다.
 - 수신자는 초대자의 현재 친구여야 한다.
 - 수신자의 명시적 수락은 항상 필요하다.
 - 파티장이 보낸 초대는 수신자 수락과 동시에 참여가 확정된다.
-- 일반 참가자가 보낸 초대는 수신자 수락 시 같은 파티의 PENDING 동승 요청을 재사용하거나 없으면 새로 만들고, 파티장의 수락을 한 번 더 받아야 참여가 확정된다.
+- 일반 참가자가 보낸 초대는 수신자 수락 시 같은 파티의 PENDING 동승 요청을 재사용하거나 없으면 새로 만들고, 파티장의 수락을 한 번 더 받아야 참여가 확정된다. 이 경로로 만들어진 요청은 CLOSED 상태에서도 초대자가 여전히 파티 참가자일 때 파티장이 수락할 수 있다.
 - 초대는 좌석을 예약하지 않는다.
 - 남은 자리보다 많은 대기 초대를 발송할 수 있다.
 - 수락 시점에 파티 상태, 정원, 기존 참여, 다른 활성 파티 참여 여부, 친구·차단 관계를 다시 검증한다.
-- 파티가 OPEN이 아니게 되거나 정원이 먼저 차면 처리되지 않은 PENDING 초대는 EXPIRED로 확정하고 구체적인 만료 사유를 반환한다.
+- 정원에 먼저 도달하면 처리되지 않은 PENDING 초대와 동승 요청은 EXPIRED + CAPACITY_FULL로 확정한다. 정원 도달은 모집 상태를 자동으로 CLOSED로 바꾸지 않는다.
+- 리더·관리자의 명시적 CLOSE는 PENDING 친구 초대를 유지한다. 리더·관리자는 현재 정원과 무관하게 REOPEN할 수 있으며, OPEN 상태에서 자리가 생기면 공개 동승 요청을 다시 받을 수 있다.
+- ARRIVED·ENDED 전이처럼 파티가 실제로 참여 불가 상태가 되면 처리되지 않은 PENDING 초대는 EXPIRED로 확정하고 구체적인 만료 사유를 반환한다.
 - 초대자가 파티 참가자가 아니게 되거나 기존 친구 관계가 종료·차단된 경우에도 해당 PENDING 초대를 EXPIRED로 확정한다.
-- 정원이 다시 생기거나 파티가 다시 열려도 EXPIRED 초대는 복원하지 않으며 새 초대를 발송해야 한다.
+- 정원이 다시 생기거나 파티가 다시 열려도 CAPACITY_FULL 등으로 EXPIRED된 초대는 복원하지 않으며 새 초대를 발송해야 한다.
 - 수신자가 다른 활성 파티에 참여 중인 상태는 대상 파티가 여전히 OPEN이고 자리가 있으며 친구 관계가 유효한 동안에만 PENDING을 유지할 수 있는 일시적 수락 실패다.
 - 파티 상태·정원·참여자·친구 관계 변경 시 선제적으로 만료시키고, 받은 초대 목록·수락 처리에서도 누락된 만료를 재검증한다. badge count는 이 선제 전이가 저장한 PENDING 상태를 DB에서 바로 집계해 초대 수에 비례한 보정 transaction을 만들지 않는다.
-- 관리자 `CLOSE`, `CANCEL`, `END`도 PENDING 초대를 EXPIRED + TARGET_UNAVAILABLE로 정리한다. 이후 `REOPEN`해도 만료된 초대는 복원하지 않는다.
+- 관리자 `CANCEL`, `END`는 PENDING 초대를 EXPIRED + TARGET_UNAVAILABLE로 정리한다. 이후 `REOPEN`해도 이미 만료된 초대는 복원하지 않는다.
 - 관리자가 일반 참가자를 제거하면 그 참가자가 해당 파티에 보낸 PENDING 초대는 EXPIRED + INVITER_LEFT로 정리한다.
 - 같은 파티에 대한 PENDING 참가 요청과 친구 초대가 함께 있으면, 파티장 초대 수락은 즉시 참가를 확정하고 참가 요청을 CANCELED로 정리한다. 일반 참가자 초대 수락은 기존 요청을 재사용하거나 새 요청을 만들어 파티장 승인을 기다린다. 참가 요청 수락이 실제 참가를 확정하면 아직 PENDING인 초대는 EXPIRED + ALREADY_JOINED로 같은 트랜잭션에서 정리한다.
 - 다중 선택 발송은 batch 전체 원자성이 아니라 수신자별 원자성을 사용한다. 각 수신자는 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE 중 하나의 결과를 가진다.
 - 응답 item 순서는 요청의 friendPublicId 순서를 유지하고 SENT item만 새 초대를 생성한다. 차단·친구 관계 상실·다른 활성 파티처럼 민감하거나 변동 가능한 사유는 NOT_ELIGIBLE로 통합한다.
-- 파티 없음·비OPEN, 초대자 비참여, 잘못된 batch 형식 같은 요청 전체 조건이 실패할 때만 초대를 하나도 만들지 않고 4xx로 응답한다.
+- 파티 없음·ARRIVED·ENDED, 초대자 비참여, 잘못된 batch 형식 같은 요청 전체 조건이 실패할 때만 초대를 하나도 만들지 않고 4xx로 응답한다.
+- 수신자는 EXPIRED 초대를 `목록에서 지우기`로 DISMISSED 처리할 수 있다. DISMISSED는 audit 이력을 보존하지만 받은 초대 목록과 badge에서 제외한다.
 
 ### 2.7 공개 채팅방 친구 초대
 
@@ -395,7 +398,7 @@ Core 출시 준비의 일회성 운영 cleanup:
 | id | 요청 ID |
 | requester_id | 요청자 |
 | recipient_id | 수신자 |
-| status | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
+| status | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED, DISMISSED |
 | expires_at | created_at + 30일 |
 | responded_at | 수락·거절·취소·만료 처리 시각 |
 | active_pair_key | PENDING 중복 방지를 위한 정규화 키 |
@@ -458,7 +461,7 @@ member_low_id + member_high_id는 unique다.
 | party_id | 대상 파티 |
 | inviter_id | 초대한 파티 참가자 |
 | invitee_id | 초대받은 친구 |
-| status | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
+| status | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED, DISMISSED |
 | expiry_reason | EXPIRED terminal 사유, 그 외 상태는 null |
 | responded_at | 처리 시각 |
 | active_target_key | `{partyId}:{inviteeId}`. PENDING일 때만 non-null unique |
@@ -484,13 +487,14 @@ member_low_id + member_high_id는 unique다.
 초대 expiry_reason:
 
 - INVITATION_TIMEOUT, TARGET_UNAVAILABLE, CAPACITY_FULL, INVITER_LEFT, ALREADY_JOINED, RELATIONSHIP_UNAVAILABLE, ELIGIBILITY_CHANGED, MEMBER_WITHDRAWN을 외부 안전 enum으로 사용한다.
-- expires_at 경과는 INVITATION_TIMEOUT, 파티 비OPEN·방 삭제·비공개 전환 등 대상 aggregate 사용 불가는 TARGET_UNAVAILABLE, 정원 마감은 CAPACITY_FULL, 초대자의 파티·방 이탈은 INVITER_LEFT, 수신자의 기존 참여는 ALREADY_JOINED로 기록한다.
+- expires_at 경과는 INVITATION_TIMEOUT, 파티 ARRIVED·ENDED·방 삭제·비공개 전환 등 대상 aggregate 사용 불가는 TARGET_UNAVAILABLE, 정원 도달은 CAPACITY_FULL, 초대자의 파티·방 이탈은 INVITER_LEFT, 수신자의 기존 참여는 ALREADY_JOINED로 기록한다. 수동 CLOSED는 택시파티 초대의 만료 사유가 아니다.
 - 차단 여부와 구체적인 관계 상실 원인은 RELATIONSHIP_UNAVAILABLE로 통합한다.
 - 관계 외 학과방 자격 같은 입장 조건 변경은 ELIGIBILITY_CHANGED, 초대자·수신자 탈퇴는 MEMBER_WITHDRAWN으로 기록한다. 학과 변경 시 수신자가 받은 기존 학과방 초대도 ELIGIBILITY_CHANGED로 즉시 만료한다. 택시 수신자의 다른 활성 파티 참여는 앞선 terminal 조건이 없는 동안 재시도 가능한 상태이므로 expiry_reason을 기록하지 않고 PENDING을 유지한다.
 - PENDING에서 EXPIRED로 전이하는 트랜잭션이 expiry_reason과 responded_at을 함께 한 번만 기록하며 이후 상태 회복이나 lazy reconciliation이 값을 덮어쓰지 않는다.
 - 공개방 초대는 expires_at 경과를 취소보다 먼저 판정하므로 기한 뒤 취소 요청도 CANCELED가 아니라 EXPIRED + INVITATION_TIMEOUT으로 확정한다. eligible 조회는 기한이 지난 PENDING을 제외하고, 같은 대상 재발송은 기존 행을 먼저 timeout 만료한 뒤 새 초대를 만든다.
 - 공개방에 직접 참여하면서 마지막 좌석을 채우면 참여한 회원의 초대를 먼저 EXPIRED + ALREADY_JOINED로 정리하고, 남은 다른 PENDING 초대만 EXPIRED + CAPACITY_FULL로 정리한다.
 - 받은 초대 응답은 status가 EXPIRED일 때만 expiryReason을 제공하고 현재 파티·방 상태로 과거 사유를 재계산하지 않는다.
+- EXPIRED 수신자가 목록에서 삭제하면 status만 DISMISSED로 전이하고 기존 expiry_reason·responded_at audit 값은 보존한다. DISMISSED는 받은 초대 목록·badge에서 제외한다.
 - 받은 초대 이력의 inviter가 현재 사용자와 양방향 차단 관계이면 프로필 요약을 nullable로 마스킹한다.
 
 ### 6.10 기존 회원 알림 설정 확장
@@ -541,14 +545,16 @@ PENDING ── 파티장 초대 수락 ──> ACCEPTED + 파티 참여 (같은 
    ├────── 참가자 초대 수락 ──> ACCEPTED + 동승 요청 PENDING (기존 요청 재사용 또는 새 생성)
    ├────── 거절 ──> DECLINED
    ├────── 발송자 취소 ──> CANCELED
-   ├────── 파티 비OPEN·정원 마감 ──> EXPIRED
+   ├────── 파티 ARRIVED·ENDED·정원 도달 ──> EXPIRED
    ├────── 초대자 파티 이탈·기존 참여 ──> EXPIRED
    └────── 친구 해제·차단 ──> EXPIRED
+
+EXPIRED ── 수신자 목록 삭제 ──> DISMISSED
 ~~~
 
-정원 확인과 파티 참여 또는 동승 요청 생성은 같은 트랜잭션과 잠금 경계에서 처리한다. 일반 참가자의 초대 수락은 같은 파티의 기존 PENDING 동승 요청이 있으면 이를 재사용하고, 없으면 새로 생성한 뒤 `result=LEADER_APPROVAL_PENDING`과 해당 `joinRequestId`를 반환한다. 파티장 초대 수락은 즉시 참가하며 `result=JOINED`를 반환하고 같은 파티의 PENDING 동승 요청을 CANCELED로 정리한다. 정원이 가득 차는 순간 남아 있는 PENDING 초대와 동승 요청을 각각 `EXPIRED + CAPACITY_FULL`로 전환하며, 초대 목록·수락 진입에서는 누락된 terminal 조건을 lazy reconciliation한다. badge count는 선제 전이 결과를 DB에서 직접 세며, EXPIRED는 파티 재개방이나 자리 발생으로 복원하지 않는다. 수신자의 다른 활성 파티 참여만 대상 초대의 다른 terminal 조건이 충족되지 않은 동안 PENDING을 유지할 수 있는 재시도 가능 사유다.
+정원 확인과 파티 참여 또는 동승 요청 생성은 같은 트랜잭션과 잠금 경계에서 처리한다. 일반 참가자의 초대 수락은 같은 파티의 기존 PENDING 동승 요청이 있으면 이를 재사용하고, 없으면 새로 생성한 뒤 `result=LEADER_APPROVAL_PENDING`과 해당 `joinRequestId`를 반환한다. 파티장 초대 수락은 즉시 참가하며 `result=JOINED`를 반환하고 같은 파티의 PENDING 동승 요청을 CANCELED로 정리한다. CLOSED 상태에서도 현재 참가자인 초대자가 만든 일반 참가자 초대 요청은 파티장이 수락할 수 있다. 정원이 가득 차는 순간 남아 있는 PENDING 초대와 동승 요청을 각각 `EXPIRED + CAPACITY_FULL`로 전환하지만 파티 상태는 그대로 유지한다. 초대 목록·수락 진입에서는 누락된 terminal 조건을 lazy reconciliation한다. badge count는 선제 전이 결과를 DB에서 직접 세며, EXPIRED는 파티 재개방이나 자리 발생으로 복원하지 않는다. 수신자의 다른 활성 파티 참여만 대상 초대의 다른 terminal 조건이 충족되지 않은 동안 PENDING을 유지할 수 있는 재시도 가능 사유다.
 
-관리자 `CLOSE`, `CANCEL`, `END`도 같은 만료 규칙을 적용하고 `REOPEN`은 기존 EXPIRED 초대를 복원하지 않는다. 관리자 멤버 제거는 제거된 참가자가 보낸 해당 파티의 PENDING 초대를 INVITER_LEFT로 만료한다.
+관리자 `CANCEL`, `END`는 같은 만료 규칙을 적용하고, 수동 `CLOSE`는 초대를 유지한다. `REOPEN`은 기존 EXPIRED 초대를 복원하지 않는다. 관리자 멤버 제거는 제거된 참가자가 보낸 해당 파티의 PENDING 초대를 INVITER_LEFT로 만료한다.
 
 같은 회원이 동일 파티에 PENDING 참가 요청과 PENDING 친구 초대를 함께 가진 경우, 파티장 초대 수락은 즉시 참가를 확정하고 참가 요청을 CANCELED로 만든다. 일반 참가자의 초대 수락은 참가를 확정하지 않고 기존 참가 요청을 재사용해 파티장 승인을 기다린다. 참가 요청 수락이 먼저 실제 참가를 확정하면 아직 PENDING인 초대는 EXPIRED + ALREADY_JOINED로 정리한다.
 
@@ -560,6 +566,8 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
    ├────── 발송자 취소 ──> CANCELED
    ├────── 7일 경과·자격 상실·방 상태 변경 ──> EXPIRED
    └────── 정원 마감·기존 참여 ──> EXPIRED
+
+EXPIRED ── 수신자 목록 삭제 ──> DISMISSED
 ~~~
 
 정원 제한이 있는 공개방이 가득 차는 순간 남아 있는 PENDING 초대를 EXPIRED로 전환한다. 초대 목록·수락 진입에서는 누락된 terminal 조건을 lazy reconciliation하고, badge count는 기한이 남은 PENDING만 DB에서 직접 집계한다. 자리 발생이나 최대 인원 증가로 EXPIRED를 복원하지 않는다.
@@ -578,8 +586,8 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 | 친구 상세 | 상호 친구 | ACTIVE 관계와 차단 없음 |
 | 친구 시간표 | 상호 친구 | 최종 공유 범위와 차단 |
 | 친구 Minecraft | 상호 친구 | 허용 필드 projection과 차단 |
-| 택시 초대 | OPEN 파티 참가자 | 친구, 대상 참여 가능, 중복 초대 아님 |
-| 택시 수락 | 초대 수신자 | 파티 lock 후 OPEN·정원·활성 파티 재검증 |
+| 택시 초대 | OPEN/CLOSED 파티 참가자 | 친구, 대상 참여 가능, 중복 초대 아님 |
+| 택시 수락 | 초대 수신자 | 파티 lock 후 OPEN/CLOSED·정원·활성 파티 재검증 |
 | 공개방 초대 | 공개방 참가자 | 공개 non-PARTY, 친구, 입장 자격 |
 | 공개방 수락 | 초대 수신자 | 만료·방 상태·정원·입장 자격·초대자 참여 재검증 |
 | 즐겨찾기 | 상호 친구 | 설정 소유자 방향만 변경 |
@@ -727,7 +735,7 @@ semester는 `2026-1` 형식의 필수 query parameter다. 친구 시간표 응�
 | GET | /v1/party-invitations/received | 내가 받은 초대 |
 | POST | /v1/party-invitations/{invitationId}/accept | 초대 수락 |
 | POST | /v1/party-invitations/{invitationId}/decline | 초대 거절 |
-| DELETE | /v1/party-invitations/{invitationId} | 발송자 취소 |
+| DELETE | /v1/party-invitations/{invitationId} | 발송자의 PENDING 취소 또는 수신자의 EXPIRED 목록 삭제 |
 
 eligible 응답은 `friends`, `alreadyPendingFriends`, `alreadyMemberFriends`를 분리한다. 다른 활성 파티, 차단 등 민감한 사유는 목록에서 제외하고 `notEligibleCount`에만 포함한다. 정원이 가득 찬 파티는 조회 자체를 실패시키지 않고 `canInvite=false`, `unavailableReason=PARTY_FULL`, `remainingCapacity=0`과 세 목록을 반환한다.
 
@@ -748,7 +756,7 @@ batch 요청과 응답:
 | GET | /v1/chat-room-invitations/received | 내가 받은 초대 |
 | POST | /v1/chat-room-invitations/{invitationId}/accept | 초대 수락 |
 | POST | /v1/chat-room-invitations/{invitationId}/decline | 초대 거절 |
-| DELETE | /v1/chat-room-invitations/{invitationId} | 발송자 취소 |
+| DELETE | /v1/chat-room-invitations/{invitationId} | 발송자의 PENDING 취소 또는 수신자의 EXPIRED 목록 삭제 |
 
 공개방 batch도 택시파티와 같은 요청 순서·수신자별 outcome·nullable invitationId·부분 성공 계약을 사용한다. 차단 여부와 구체적인 관계 상실 사유는 NOT_ELIGIBLE 밖으로 노출하지 않는다.
 
@@ -841,7 +849,7 @@ batch 요청과 응답:
    - FriendHub 초대 탭과 공통 친구 선택 UX
 2. 초대·정원·파티원 UX 보완 (진행 중)
    - 파티장과 일반 참가자 초대의 수락 후 상태 전이 분리
-   - 가득 찬 파티의 초대·동승 요청 종료와 재개 차단
+   - 가득 찬 파티의 초대·동승 요청 종료, 모집 상태 자동 전이 제거와 수동 재개 허용
    - 초대 가능·초대 중·참여 중 목록과 파티원 목록·리더 강퇴 UI
 3. 알림·나머지 탈퇴 정리 (후속)
    - 친구 요청·수락·거절과 초대 인박스·FCM·SSE·화면 이동
@@ -885,7 +893,7 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 - PRIVATE, BUSY_ONLY, DETAILS projection 필드 미노출 검증
 - 선택 학기 요청·응답 일치와 과거 학기 시간표 없음 상태 검증
 - 친구 해제·차단 후 시간표와 Minecraft 접근 차단
-- OPEN이 아닌 파티 초대 차단
+- ARRIVED·ENDED 파티 초대 차단과 수동 CLOSED 상태의 참가자 초대 허용
 - 택시·공개방 batch의 수신자별 SENT·ALREADY_PENDING·ALREADY_MEMBER·NOT_ELIGIBLE 순서, invitationId 조건과 일부 성공 비rollback
 - 택시 마지막 좌석 동시 수락에서 한 명만 성공
 - 초대 accept와 decline·cancel·expire 경쟁에서 terminal 상태와 파티·방 참여 부수효과가 하나만 남는지 검증
@@ -894,7 +902,7 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 - inbox-counts가 받은 PENDING 요청·초대만 합산하고 보낸 요청을 제외하는지 검증
 - 알림 설정 신규·기존 회원 기본 true, 마스터 우선순위와 backfill 검증
 - 알림 설정 off 시 일반 알림 인박스·SSE·FCM 미생성, FriendHub 요청·초대 원본과 PENDING badge 유지
-- 파티 비OPEN·정원 마감·관계 상실 시 PENDING 초대 EXPIRED와 비복원 검증
+- 파티 ARRIVED·ENDED·정원 도달·관계 상실 시 PENDING 초대 EXPIRED와 비복원, 수동 CLOSED 상태의 초대 유지 검증
 - 두 초대의 EXPIRED 전이 시 안전 expiryReason을 한 번만 저장하고 상태 회복 후에도 같은 사유를 반환하는지 검증
 - privacy GET·PATCH가 저장된 nicknameSearchable을 반환하고 PENDING 요청 목록 cursor가 20건 경계와 안정 정렬을 지키는지 검증
 - 탈퇴 cleanup
@@ -975,7 +983,7 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-18 | V1 관리자 친구 관계망 운영 UI는 추가하지 않음 |
 | 2026-08-18 | 친구 코드 preview는 요청 생성과 분리하고 외부 공개 식별자는 friendPublicId로 통일 |
 | 2026-08-18 | 친구 시간표는 선택한 semester를 필수로 요청하고 응답에도 같은 학기를 포함 |
-| 2026-08-18 | 파티 비OPEN·정원 마감·관계 상실 초대는 EXPIRED이며 상태 회복 후에도 복원하지 않음 |
+| 2026-08-18 | 파티 비OPEN·정원 마감·관계 상실 초대는 EXPIRED이며 상태 회복 후에도 복원하지 않음 (CLOSED 초대 가능 및 정원 도달 자동 마감 제거 정책으로 2026-08-24 대체) |
 | 2026-08-18 | 친구·초대 알림은 friendAndInvitationNotifications 단일 설정, 기본 true, allNotifications 우선 |
 | 2026-08-18 | badge는 받은 PENDING 요청·초대만 합산하고 보낸 요청은 제외 |
 | 2026-08-18 | 정원이 찬 공개방 초대는 EXPIRED이며 자리 발생 후에도 복원하지 않음 |
@@ -1008,5 +1016,5 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-23 | 시간표 공유 예외의 friend→owner 역방향 조회에 `(friend_member_id, owner_member_id)` 인덱스 사용 |
 | 2026-08-23 | 시간표 공유 Backend #84·Frontend #26의 리뷰 보완과 문서 정합성 점검을 마쳐 3단계 전달 완료로 전환 |
 | 2026-08-24 | 친구 초대 Backend #85·Frontend #27 전달 후 보완 단계에서 파티장 초대는 수락 즉시 참가, 일반 참가자 초대는 수락 후 동승 요청과 파티장 승인을 거치도록 확정 |
-| 2026-08-24 | 가득 찬 파티는 모집 재개·새 동승 요청·초대 발송을 차단하고 남은 PENDING 동승 요청을 EXPIRED + CAPACITY_FULL로 종료하며, eligible 조회는 상태 목록과 canInvite=false를 정상 반환 |
+| 2026-08-24 | 가득 찬 파티는 새 동승 요청·초대 발송을 차단하고 남은 PENDING 동승 요청·초대를 EXPIRED + CAPACITY_FULL로 종료하되 모집 상태는 자동 변경하지 않는다. 리더·관리자는 정원과 무관하게 명시적으로 모집을 재개할 수 있으며, 수동 CLOSED 상태의 참가자 친구 초대는 허용한다. |
 | 2026-08-24 | 초대 시트는 초대 가능·초대 중·참여 중을 함께 표시하고, 파티원 목록은 참가자 전체에게 제공하되 강퇴는 파티장에게만 허용 |

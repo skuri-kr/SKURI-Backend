@@ -211,12 +211,12 @@ Hooks:
   - `perPersonAmount`는 `taxiFare / (정산대상인원 + 리더 1명)` 정수 나눗셈(버림)으로 계산
   - 정수 나눗셈으로 생기는 잔여 1원 단위 금액은 서버에서 분배하지 않음(리더 현장 정산 정책)
   - 동승 요청 승인, 모집 마감/재개, 멤버 나가기, 도착 처리, 취소/종료는 서버가 파티 채팅방 안내 메시지(`SYSTEM`/`ARRIVED`/`END`)를 생성한다
-  - 동승 요청 승인으로 파티가 정원에 도달하면 `SYSTEM` 메시지는 `합류 안내 -> 모집 마감 안내` 순서로 같은 트랜잭션 안에서 저장되고, 커밋 후 같은 순서로 브로드캐스트된다
+  - 정원 도달은 모집 상태나 `SYSTEM` 모집 마감 메시지를 자동 생성하지 않으며, 리더의 명시적 마감·재개만 상태를 전이한다
 
 상태 머신:
   Party:
     OPEN → CLOSED       (리더: 모집 마감)
-    CLOSED → OPEN       (리더: 모집 재개, currentMembers < maxMembers)
+    CLOSED → OPEN       (리더: 모집 재개, 현재 정원과 무관)
     OPEN|CLOSED 내 정보 수정 (리더: departureTime/detail만)
     OPEN|CLOSED → ARRIVED  (리더: 도착 처리 → 정산 시작)
     ARRIVED 상태에서 멤버 정산 완료 처리 (모든 멤버 완료 시 settlementStatus=COMPLETED)
@@ -227,8 +227,8 @@ Hooks:
   JoinRequest: PENDING → ACCEPTED | DECLINED | CANCELED | EXPIRED
     - CANCELED: 요청자 본인만 취소 가능 (PENDING 상태에서만)
     - 리더는 DECLINE으로 거절 (CANCEL 아님)
-    - ACCEPTED 처리로 멤버가 정원(`maxMembers`)에 도달하면 Party 상태를 자동으로 CLOSED 전이
-    - 정원이 가득 차면 남은 PENDING 요청은 EXPIRED + CAPACITY_FULL로 종료하며 자리 발생 후 복원하지 않음
+    - ACCEPTED 처리로 멤버가 정원(`maxMembers`)에 도달해도 Party 상태는 유지
+    - 정원이 가득 차면 남은 PENDING 요청과 친구 초대는 EXPIRED + CAPACITY_FULL로 종료하며 자리 발생 후 복원하지 않음
 
 동시성 제어:
   - Party 엔티티의 `@Version` 기반 Optimistic Lock으로 동시 동승 요청/수락 충돌을 방어
@@ -257,7 +257,7 @@ Hooks:
     - `CANCEL`: `OPEN | CLOSED`에서만 가능
     - `END`: `ARRIVED`에서만 가능 (`forceEnd()` 재사용)
   - 상태 변경 후 파티 채팅방 시스템 메시지/SSE/Notification event는 기존 public service와 동일한 규칙을 재사용한다.
-  - 관리자 `CLOSE`, `CANCEL`, `END`는 파티 잠금 뒤 PENDING 친구 초대를 `EXPIRED + TARGET_UNAVAILABLE`로 정리한다. 이후 `REOPEN`은 이미 만료된 초대를 복원하지 않는다.
+  - 관리자 `CANCEL`, `END`는 파티 잠금 뒤 PENDING 친구 초대를 `EXPIRED + TARGET_UNAVAILABLE`로 정리한다. `CLOSE`는 일반 리더 마감과 동일하게 초대를 유지하며, `REOPEN`은 이미 만료된 초대를 복원하지 않는다.
   - 관리자 audit snapshot은 최소 상태 필드(`id`, `status`, `endReason`, `settlementStatus`, `endedAt`)만 저장한다.
   - 운영 응답에서는 현재 도메인에 없는 `gender`, `lastStatusChangedAt` 같은 파생 필드를 억지로 만들지 않는다.
   - 관리자 멤버 제거는 기존 `party.removeMember(...)` + 채팅방 membership sync + leave 시스템 메시지 + SSE `KICKED` + `PartyMemberKicked` notification event를 재사용한다.
