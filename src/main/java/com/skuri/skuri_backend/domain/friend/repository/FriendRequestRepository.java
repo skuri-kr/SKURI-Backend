@@ -71,6 +71,8 @@ public interface FriendRequestRepository extends JpaRepository<FriendRequest, St
 
     List<FriendRequest> findAllByActivePairKeyIn(Collection<String> activePairKeys);
 
+    long deleteByRequesterIdOrRecipientId(String requesterId, String recipientId);
+
     @Query("""
             select count(r)
             from FriendRequest r
