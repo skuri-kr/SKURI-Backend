@@ -295,6 +295,16 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         );
     }
 
+    @Test
+    void 택시파티_재개와동승요청SSE_OpenAPI는_정원만료계약을제공한다() throws Exception {
+        JsonNode partyPaths = apiDocs("/v3/api-docs/taxiparty").path("paths");
+        assertTrue(exampleNames(partyPaths, "/v1/parties/{id}/reopen", "patch", "409").contains("party_full"));
+        assertTrue(exampleNames(partyPaths, "/v1/admin/parties/{partyId}/status", "patch", "409").contains("party_full"));
+
+        assertJoinRequestSseExpiryExample(partyPaths, "/v1/sse/parties/{partyId}/join-requests");
+        assertJoinRequestSseExpiryExample(partyPaths, "/v1/sse/members/me/join-requests");
+    }
+
     private Set<String> exampleNames(JsonNode paths, String path, String method, String responseCode) {
         Set<String> names = new LinkedHashSet<>();
         paths.path(path)
@@ -307,6 +317,27 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
                 .fieldNames()
                 .forEachRemaining(names::add);
         return names;
+    }
+
+    private void assertJoinRequestSseExpiryExample(JsonNode paths, String path) {
+        JsonNode examples = paths.path(path)
+                .path("get")
+                .path("responses")
+                .path("200")
+                .path("content")
+                .path("text/event-stream")
+                .path("examples");
+        String streamFull = examples.path("stream_full").path("value").asText();
+        String snapshot = examples.path("snapshot").path("value").asText();
+        String updated = examples.path("join_request_updated").isMissingNode()
+                ? examples.path("my_join_request_updated").path("value").asText()
+                : examples.path("join_request_updated").path("value").asText();
+
+        assertTrue(streamFull.contains("\"status\": \"EXPIRED\""));
+        assertTrue(streamFull.contains("\"expiryReason\": \"CAPACITY_FULL\""));
+        assertTrue(snapshot.contains("\"expiryReason\": null"));
+        assertTrue(updated.contains("\"status\": \"EXPIRED\""));
+        assertTrue(updated.contains("\"expiryReason\": \"CAPACITY_FULL\""));
     }
 
     private JsonNode apiDocs() throws Exception {

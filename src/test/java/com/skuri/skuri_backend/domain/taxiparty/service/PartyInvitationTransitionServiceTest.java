@@ -10,9 +10,9 @@ import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Location;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationAcceptanceResult;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus;
-import com.skuri.skuri_backend.domain.taxiparty.repository.JoinRequestRepository;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyInvitationRepository;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,8 +43,6 @@ class PartyInvitationTransitionServiceTest {
     @Mock private MemberRepository memberRepository;
     @Mock private FriendMemberPairLockService pairLockService;
     @Mock private TaxiPartyService taxiPartyService;
-    @Mock private JoinRequestRepository joinRequestRepository;
-
     private PartyInvitationTransitionService service;
 
     @BeforeEach
@@ -56,8 +54,7 @@ class PartyInvitationTransitionServiceTest {
                 memberBlockRepository,
                 memberRepository,
                 pairLockService,
-                taxiPartyService,
-                joinRequestRepository
+                taxiPartyService
         );
     }
 
@@ -73,6 +70,7 @@ class PartyInvitationTransitionServiceTest {
 
         assertThat(result.outcome()).isEqualTo(PartyInvitationTransitionService.AcceptOutcome.JOINED);
         assertThat(invitation.getStatus()).isEqualTo(PartyInvitationStatus.ACCEPTED);
+        assertThat(invitation.getAcceptanceResult()).isEqualTo(PartyInvitationAcceptanceResult.JOINED);
         assertThat(invitation.getActiveTargetKey()).isNull();
         verify(taxiPartyService).acceptInvitedMemberWithLockedParty(party, "invitee-1", "inviter-1");
         var lockOrder = inOrder(pairLockService, partyRepository, invitationRepository);
@@ -114,7 +112,52 @@ class PartyInvitationTransitionServiceTest {
                 .isEqualTo(PartyInvitationTransitionService.AcceptOutcome.LEADER_APPROVAL_PENDING);
         assertThat(result.joinRequestId()).isEqualTo("request-1");
         assertThat(invitation.getStatus()).isEqualTo(PartyInvitationStatus.ACCEPTED);
+        assertThat(invitation.getAcceptanceResult())
+                .isEqualTo(PartyInvitationAcceptanceResult.LEADER_APPROVAL_PENDING);
+        assertThat(invitation.getAcceptedJoinRequestId()).isEqualTo("request-1");
         verify(taxiPartyService, never()).acceptInvitedMemberWithLockedParty(party, "invitee-1", "inviter-1");
+    }
+
+    @Test
+    void 수락완료된참가자초대는_원래동승요청으로_멱등응답한다() {
+        PartyInvitation invitation = invitation("invite-1");
+        invitation.accept(
+                PartyInvitationAcceptanceResult.LEADER_APPROVAL_PENDING,
+                "request-1",
+                LocalDateTime.now()
+        );
+        when(invitationRepository.findAcceptanceSnapshotById("invite-1"))
+                .thenReturn(Optional.of(acceptanceSnapshot(invitation)));
+
+        PartyInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
+
+        assertThat(result.outcome())
+                .isEqualTo(PartyInvitationTransitionService.AcceptOutcome.LEADER_APPROVAL_PENDING);
+        assertThat(result.joinRequestId()).isEqualTo("request-1");
+        verify(partyRepository, never()).findDetailById("party-1");
+        verify(taxiPartyService, never()).createInvitedMemberJoinRequestWithLockedParty(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString()
+        );
+    }
+
+    @Test
+    void 수락완료된파티장초대는_원래참가결과로_멱등응답한다() {
+        PartyInvitation invitation = invitation("invite-1");
+        invitation.accept(PartyInvitationAcceptanceResult.JOINED, null, LocalDateTime.now());
+        when(invitationRepository.findAcceptanceSnapshotById("invite-1"))
+                .thenReturn(Optional.of(acceptanceSnapshot(invitation)));
+
+        PartyInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
+
+        assertThat(result.outcome()).isEqualTo(PartyInvitationTransitionService.AcceptOutcome.JOINED);
+        verify(partyRepository, never()).findDetailById("party-1");
+        verify(taxiPartyService, never()).acceptInvitedMemberWithLockedParty(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString()
+        );
     }
 
     @Test
@@ -211,6 +254,16 @@ class PartyInvitationTransitionServiceTest {
             @Override
             public PartyInvitationStatus getStatus() {
                 return invitation.getStatus();
+            }
+
+            @Override
+            public PartyInvitationAcceptanceResult getAcceptanceResult() {
+                return invitation.getAcceptanceResult();
+            }
+
+            @Override
+            public String getAcceptedJoinRequestId() {
+                return invitation.getAcceptedJoinRequestId();
             }
         };
     }
