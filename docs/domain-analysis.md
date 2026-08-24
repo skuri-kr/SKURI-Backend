@@ -180,6 +180,7 @@ Hooks:
   - Party SSE (`/v1/sse/parties`): 파티 카드 목록/상태 전이/멤버 변동 브로드캐스트
   - JoinRequest SSE (`/v1/sse/parties/{partyId}/join-requests`): 파티 리더용 동승 요청 리스트 실시간 갱신
   - JoinRequest SSE (`/v1/sse/members/me/join-requests`): 요청자 본인 요청 상태 실시간 갱신
+  - JoinRequest mutation SSE payload는 트랜잭션 commit 뒤 request ID로 최신 projection을 다시 읽어, 같은 트랜잭션에서 확정된 친구 초대 원본·초대자 표시를 포함한다.
   - Chat WebSocket: 채팅 메시지/채팅방 요약 실시간 갱신
 
 엔티티:

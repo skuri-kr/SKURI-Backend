@@ -565,9 +565,21 @@ public final class OpenApiTaxiPartyExamples {
                   "requesterId": "dw9rPtuticbjnaYPkeiF3RGPpqk1",
                   "requesterName": "스쿠리 유저",
                   "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-1.png",
+                  "invitationInviterName": "김길동",
                   "status": "PENDING",
                   "expiryReason": null,
                   "createdAt": "2026-03-04T19:05:00"
+                },
+                {
+                  "id": "request-20260304-002",
+                  "partyId": "party-20260304-002",
+                  "requesterId": "dw9rPtuticbjnaYPkeiF3RGPpqk1",
+                  "requesterName": "스쿠리 유저",
+                  "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-1.png",
+                  "invitationInviterName": null,
+                  "status": "PENDING",
+                  "expiryReason": null,
+                  "createdAt": "2026-03-04T19:15:00"
                 }
               ]
             }
@@ -583,6 +595,7 @@ public final class OpenApiTaxiPartyExamples {
                   "requesterId": "member-3",
                   "requesterName": "이영희",
                   "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-3.png",
+                  "invitationInviterName": "김길동",
                   "status": "PENDING",
                   "expiryReason": null,
                   "createdAt": "2026-03-04T19:12:00"
@@ -593,6 +606,7 @@ public final class OpenApiTaxiPartyExamples {
                   "requesterId": "member-4",
                   "requesterName": "박민수",
                   "requesterPhotoUrl": null,
+                  "invitationInviterName": null,
                   "status": "DECLINED",
                   "expiryReason": null,
                   "createdAt": "2026-03-04T19:20:00"
@@ -1155,6 +1169,7 @@ public final class OpenApiTaxiPartyExamples {
                   "requesterId": "member-2",
                   "requesterName": "김철수",
                   "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-2.png",
+                  "invitationInviterName": null,
                   "status": "PENDING",
                   "expiryReason": null,
                   "createdAt": "2026-03-04T18:10:00"
@@ -1169,6 +1184,7 @@ public final class OpenApiTaxiPartyExamples {
               "requesterId": "member-3",
               "requesterName": "박민수",
               "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-3.png",
+              "invitationInviterName": "김길동",
               "status": "PENDING",
               "expiryReason": null,
               "createdAt": "2026-03-04T18:11:00"
@@ -1181,6 +1197,7 @@ public final class OpenApiTaxiPartyExamples {
               "requesterId": "member-3",
               "requesterName": "박민수",
               "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-3.png",
+              "invitationInviterName": "김길동",
               "status": "EXPIRED",
               "expiryReason": "CAPACITY_FULL",
               "createdAt": "2026-03-04T18:11:00"
@@ -1204,6 +1221,7 @@ public final class OpenApiTaxiPartyExamples {
                   "requesterId": "member-2",
                   "requesterName": "김철수",
                   "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-2.png",
+                  "invitationInviterName": null,
                   "status": "PENDING",
                   "expiryReason": null,
                   "createdAt": "2026-03-04T18:10:00"
@@ -1221,6 +1239,7 @@ public final class OpenApiTaxiPartyExamples {
               "requesterId": "member-3",
               "requesterName": "박민수",
               "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-3.png",
+              "invitationInviterName": "김길동",
               "status": "PENDING",
               "expiryReason": null,
               "createdAt": "2026-03-04T18:11:00"
@@ -1236,6 +1255,7 @@ public final class OpenApiTaxiPartyExamples {
               "requesterId": "member-3",
               "requesterName": "박민수",
               "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-3.png",
+              "invitationInviterName": "김길동",
               "status": "EXPIRED",
               "expiryReason": "CAPACITY_FULL",
               "createdAt": "2026-03-04T18:11:00"
@@ -1261,6 +1281,7 @@ public final class OpenApiTaxiPartyExamples {
                   "requesterId": "member-3",
                   "requesterName": "박민수",
                   "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-3.png",
+                  "invitationInviterName": null,
                   "status": "PENDING",
                   "expiryReason": null,
                   "createdAt": "2026-03-04T18:20:00"
@@ -1275,6 +1296,7 @@ public final class OpenApiTaxiPartyExamples {
               "requesterId": "member-3",
               "requesterName": "박민수",
               "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-3.png",
+              "invitationInviterName": "김길동",
               "status": "PENDING",
               "expiryReason": null,
               "createdAt": "2026-03-04T18:21:00"
@@ -1287,6 +1309,7 @@ public final class OpenApiTaxiPartyExamples {
               "requesterId": "member-3",
               "requesterName": "박민수",
               "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-3.png",
+              "invitationInviterName": "김길동",
               "status": "EXPIRED",
               "expiryReason": "CAPACITY_FULL",
               "createdAt": "2026-03-04T18:21:00"
@@ -1309,6 +1332,7 @@ public final class OpenApiTaxiPartyExamples {
                   "requesterId": "member-3",
                   "requesterName": "박민수",
                   "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-3.png",
+                  "invitationInviterName": null,
                   "status": "PENDING",
                   "expiryReason": null,
                   "createdAt": "2026-03-04T18:20:00"
@@ -1326,6 +1350,7 @@ public final class OpenApiTaxiPartyExamples {
               "requesterId": "member-3",
               "requesterName": "박민수",
               "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-3.png",
+              "invitationInviterName": "김길동",
               "status": "PENDING",
               "expiryReason": null,
               "createdAt": "2026-03-04T18:21:00"
@@ -1341,6 +1366,7 @@ public final class OpenApiTaxiPartyExamples {
               "requesterId": "member-3",
               "requesterName": "박민수",
               "requesterPhotoUrl": "https://cdn.skuri.app/profiles/user-3.png",
+              "invitationInviterName": "김길동",
               "status": "EXPIRED",
               "expiryReason": "CAPACITY_FULL",
               "createdAt": "2026-03-04T18:21:00"
