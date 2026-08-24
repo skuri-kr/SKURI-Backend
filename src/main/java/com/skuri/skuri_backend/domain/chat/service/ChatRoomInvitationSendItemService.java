@@ -61,16 +61,16 @@ public class ChatRoomInvitationSendItemService {
                 || isFull(room)) {
             return notEligible(friendPublicId);
         }
+        Member invitee = memberRepository.findActiveById(inviteeMemberId).orElse(null);
+        if (!hasUsableFriendship(pair) || !isEligibleForRoom(room, invitee)) {
+            return notEligible(friendPublicId);
+        }
         if (chatRoomMemberRepository.existsById_ChatRoomIdAndId_MemberId(chatRoomId, inviteeMemberId)) {
             return new ChatRoomInvitationSendResultResponse(
                     friendPublicId,
                     ChatRoomInvitationOutcome.ALREADY_MEMBER,
                     null
             );
-        }
-        Member invitee = memberRepository.findActiveById(inviteeMemberId).orElse(null);
-        if (!hasUsableFriendship(pair) || !isEligibleForRoom(room, invitee)) {
-            return notEligible(friendPublicId);
         }
 
         String activeTargetKey = ChatRoomInvitation.activeTargetKey(chatRoomId, inviteeMemberId);

@@ -62,15 +62,15 @@ public class PartyInvitationSendItemService {
                 || party.getCurrentMembers() >= party.getMaxMembers()) {
             return notEligible(friendPublicId);
         }
+        if (!hasUsableFriendship(pair)) {
+            return notEligible(friendPublicId);
+        }
         if (party.isMember(inviteeMemberId)) {
             return new PartyInvitationSendResultResponse(
                     friendPublicId,
                     PartyInvitationOutcome.ALREADY_MEMBER,
                     null
             );
-        }
-        if (!hasUsableFriendship(pair)) {
-            return notEligible(friendPublicId);
         }
         if (partyRepository.existsActivePartyByMemberId(inviteeMemberId, ACTIVE_PARTY_STATUSES, null)) {
             return notEligible(friendPublicId);
