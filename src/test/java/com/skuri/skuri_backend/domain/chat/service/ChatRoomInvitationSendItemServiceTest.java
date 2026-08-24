@@ -1,5 +1,6 @@
 package com.skuri.skuri_backend.domain.chat.service;
 
+import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomInvitationOutcome;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomInvitationSendResultResponse;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
@@ -18,6 +19,7 @@ import com.skuri.skuri_backend.domain.friend.service.FriendMemberPair;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +48,7 @@ class ChatRoomInvitationSendItemServiceTest {
     @Mock private MemberBlockRepository memberBlockRepository;
     @Mock private MemberRepository memberRepository;
     @Mock private FriendMemberPairLockService pairLockService;
+    @Mock private AfterCommitApplicationEventPublisher eventPublisher;
 
     private ChatRoomInvitationSendItemService service;
 
@@ -59,7 +62,8 @@ class ChatRoomInvitationSendItemServiceTest {
                 friendshipRepository,
                 memberBlockRepository,
                 memberRepository,
-                pairLockService
+                pairLockService,
+                eventPublisher
         );
     }
 
@@ -105,6 +109,7 @@ class ChatRoomInvitationSendItemServiceTest {
         lockOrder.verify(pairLockService).lockActivePair("inviter-1", "invitee-1");
         lockOrder.verify(chatRoomRepository).findByIdForUpdate("room-1");
         lockOrder.verify(invitationRepository).findByActiveTargetKeyForUpdate("room-1:invitee-1");
+        verify(eventPublisher).publish(new NotificationDomainEvent.ChatRoomInvitationCreated("invite-new"));
     }
 
     @Test

@@ -136,6 +136,28 @@ class FirebasePushPayloadMapperTest {
         assertEquals("default", getApnsSound(message));
     }
 
+    @Test
+    void 친구초대알림은_초대이동식별자를FCM데이터에포함한다() {
+        NotificationDispatchRequest request = NotificationDispatchRequest.of(
+                NotificationType.PARTY_INVITATION,
+                List.of("member-1"),
+                "택시파티 초대가 도착했어요",
+                "친구가 초대했어요.",
+                NotificationData.ofInvitation("invitation-1", "PARTY"),
+                true,
+                true
+        );
+
+        MulticastMessage message = mapper.toMulticastMessage(request, List.of("token-1"));
+
+        assertEquals(Map.of(
+                "contractVersion", "1",
+                "type", "PARTY_INVITATION",
+                "invitationId", "invitation-1",
+                "invitationType", "PARTY"
+        ), getData(message));
+    }
+
     @SuppressWarnings("unchecked")
     private List<String> getTokens(MulticastMessage message) {
         return (List<String>) getField(message, "tokens");

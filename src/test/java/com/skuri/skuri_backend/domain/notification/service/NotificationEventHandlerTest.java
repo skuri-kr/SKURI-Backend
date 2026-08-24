@@ -13,23 +13,31 @@ import com.skuri.skuri_backend.domain.board.repository.PostRepository;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessage;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitation;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMemberId;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
+import com.skuri.skuri_backend.domain.chat.repository.ChatRoomInvitationRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.friend.entity.FriendProfile;
+import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
+import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
+import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
 import com.skuri.skuri_backend.domain.notice.repository.NoticeCommentRepository;
 import com.skuri.skuri_backend.domain.notice.repository.NoticeRepository;
 import com.skuri.skuri_backend.domain.notification.entity.NotificationType;
 import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Location;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.SettlementAccountSnapshot;
 import com.skuri.skuri_backend.domain.taxiparty.repository.JoinRequestRepository;
+import com.skuri.skuri_backend.domain.taxiparty.repository.PartyInvitationRepository;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -70,6 +78,8 @@ class NotificationEventHandlerTest {
     @Mock
     private ChatMessageRepository chatMessageRepository;
     @Mock
+    private ChatRoomInvitationRepository chatRoomInvitationRepository;
+    @Mock
     private PostRepository postRepository;
     @Mock
     private PostInteractionRepository postInteractionRepository;
@@ -83,6 +93,12 @@ class NotificationEventHandlerTest {
     private AppNoticeRepository appNoticeRepository;
     @Mock
     private AcademicScheduleRepository academicScheduleRepository;
+    @Mock
+    private FriendRequestRepository friendRequestRepository;
+    @Mock
+    private FriendProfileRepository friendProfileRepository;
+    @Mock
+    private PartyInvitationRepository partyInvitationRepository;
     @Mock
     private MemberRepository memberRepository;
     @Mock
@@ -119,6 +135,111 @@ class NotificationEventHandlerTest {
         assertEquals(List.of("member-1"), captor.getValue().recipientIds().stream().toList());
         assertEquals("정문 → 역 택시 파티 등장", captor.getValue().title());
         assertFalse(captor.getValue().inboxEnabled());
+    }
+
+    @Test
+    void handleFriendRequestCreated_유효설정수신자에게요청식별자를보낸다() {
+        FriendRequest request = FriendRequest.create("requester-1", "recipient-1", "requester-1:recipient-1", LocalDateTime.now());
+        ReflectionTestUtils.setField(request, "id", "friend-request-1");
+        Member requester = Member.create("requester-1", "requester@sungkyul.ac.kr", "요청자", LocalDateTime.now());
+        Member recipient = Member.create("recipient-1", "recipient@sungkyul.ac.kr", "수신자", LocalDateTime.now());
+
+        when(friendRequestRepository.findById("friend-request-1")).thenReturn(Optional.of(request));
+        when(memberRepository.findActiveById("requester-1")).thenReturn(Optional.of(requester));
+        when(memberRepository.findActiveById("recipient-1")).thenReturn(Optional.of(recipient));
+
+        notificationEventHandler.handle(new NotificationDomainEvent.FriendRequestCreated("friend-request-1"));
+
+        ArgumentCaptor<NotificationDispatchRequest> captor = ArgumentCaptor.forClass(NotificationDispatchRequest.class);
+        verify(notificationService).createInboxNotifications(captor.capture());
+        verify(pushNotificationService).send(captor.getValue());
+        assertEquals(NotificationType.FRIEND_REQUEST, captor.getValue().type());
+        assertEquals("friend-request-1", captor.getValue().data().requestId());
+        assertTrue(captor.getValue().inboxEnabled());
+    }
+
+    @Test
+    void handleFriendRequestAccepted_원요청자에게수락친구공개식별자를보낸다() {
+        FriendRequest request = FriendRequest.create("requester-1", "accepter-1", "accepter-1:requester-1", LocalDateTime.now());
+        ReflectionTestUtils.setField(request, "id", "friend-request-1");
+        request.accept(LocalDateTime.now());
+        Member requester = Member.create("requester-1", "requester@sungkyul.ac.kr", "요청자", LocalDateTime.now());
+        Member accepter = Member.create("accepter-1", "accepter@sungkyul.ac.kr", "수락자", LocalDateTime.now());
+        FriendProfile accepterProfile = FriendProfile.create("accepter-1", "friend-public-1", "code-1");
+
+        when(friendRequestRepository.findById("friend-request-1")).thenReturn(Optional.of(request));
+        when(memberRepository.findActiveById("requester-1")).thenReturn(Optional.of(requester));
+        when(memberRepository.findActiveById("accepter-1")).thenReturn(Optional.of(accepter));
+        when(friendProfileRepository.findByMemberId("accepter-1")).thenReturn(Optional.of(accepterProfile));
+
+        notificationEventHandler.handle(new NotificationDomainEvent.FriendRequestAccepted("friend-request-1"));
+
+        ArgumentCaptor<NotificationDispatchRequest> captor = ArgumentCaptor.forClass(NotificationDispatchRequest.class);
+        verify(notificationService).createInboxNotifications(captor.capture());
+        assertEquals(NotificationType.FRIEND_ACCEPTED, captor.getValue().type());
+        assertEquals("friend-public-1", captor.getValue().data().friendPublicId());
+    }
+
+    @Test
+    void handleFriendRequestDeclined_원요청자에게요청탭용식별자를보낸다() {
+        FriendRequest request = FriendRequest.create("requester-1", "recipient-1", "recipient-1:requester-1", LocalDateTime.now());
+        ReflectionTestUtils.setField(request, "id", "friend-request-1");
+        request.decline(LocalDateTime.now());
+        Member requester = Member.create("requester-1", "requester@sungkyul.ac.kr", "요청자", LocalDateTime.now());
+
+        when(friendRequestRepository.findById("friend-request-1")).thenReturn(Optional.of(request));
+        when(memberRepository.findActiveById("requester-1")).thenReturn(Optional.of(requester));
+
+        notificationEventHandler.handle(new NotificationDomainEvent.FriendRequestDeclined("friend-request-1"));
+
+        ArgumentCaptor<NotificationDispatchRequest> captor = ArgumentCaptor.forClass(NotificationDispatchRequest.class);
+        verify(notificationService).createInboxNotifications(captor.capture());
+        assertEquals(NotificationType.FRIEND_DECLINED, captor.getValue().type());
+        assertEquals("friend-request-1", captor.getValue().data().requestId());
+    }
+
+    @Test
+    void handlePartyInvitationCreated_파티알림설정과무관하게초대설정만확인한다() {
+        PartyInvitation invitation = PartyInvitation.create("party-1", "inviter-1", "invitee-1");
+        ReflectionTestUtils.setField(invitation, "id", "party-invitation-1");
+        Member inviter = Member.create("inviter-1", "inviter@sungkyul.ac.kr", "초대자", LocalDateTime.now());
+        Member invitee = Member.create("invitee-1", "invitee@sungkyul.ac.kr", "피초대자", LocalDateTime.now());
+        ReflectionTestUtils.setField(invitee.getNotificationSetting(), "partyNotifications", false);
+
+        when(partyInvitationRepository.findById("party-invitation-1")).thenReturn(Optional.of(invitation));
+        when(memberRepository.findActiveById("inviter-1")).thenReturn(Optional.of(inviter));
+        when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(invitee));
+
+        notificationEventHandler.handle(new NotificationDomainEvent.PartyInvitationCreated("party-invitation-1"));
+
+        ArgumentCaptor<NotificationDispatchRequest> captor = ArgumentCaptor.forClass(NotificationDispatchRequest.class);
+        verify(notificationService).createInboxNotifications(captor.capture());
+        assertEquals(NotificationType.PARTY_INVITATION, captor.getValue().type());
+        assertEquals("party-invitation-1", captor.getValue().data().invitationId());
+        assertEquals("PARTY", captor.getValue().data().invitationType());
+    }
+
+    @Test
+    void handleChatRoomInvitationCreated_친구초대알림을끄면인박스와푸시를만들지않는다() {
+        ChatRoomInvitation invitation = ChatRoomInvitation.create(
+                "public:university",
+                "inviter-1",
+                "invitee-1",
+                LocalDateTime.now()
+        );
+        ReflectionTestUtils.setField(invitation, "id", "chat-invitation-1");
+        Member inviter = Member.create("inviter-1", "inviter@sungkyul.ac.kr", "초대자", LocalDateTime.now());
+        Member invitee = Member.create("invitee-1", "invitee@sungkyul.ac.kr", "피초대자", LocalDateTime.now());
+        ReflectionTestUtils.setField(invitee.getNotificationSetting(), "friendAndInvitationNotifications", false);
+
+        when(chatRoomInvitationRepository.findById("chat-invitation-1")).thenReturn(Optional.of(invitation));
+        when(memberRepository.findActiveById("inviter-1")).thenReturn(Optional.of(inviter));
+        when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(invitee));
+
+        notificationEventHandler.handle(new NotificationDomainEvent.ChatRoomInvitationCreated("chat-invitation-1"));
+
+        verify(notificationService, never()).createInboxNotifications(org.mockito.ArgumentMatchers.any());
+        verify(pushNotificationService, never()).send(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -188,7 +309,7 @@ class NotificationEventHandlerTest {
         ReflectionTestUtils.setField(created, "id", "comment-new");
 
         Member postAuthor = Member.create("target-1", "target-1@sungkyul.ac.kr", "작성자", LocalDateTime.now());
-        postAuthor.updateNotificationSetting(false, null, null, null, true, null, null, null, null, null, null);
+        postAuthor.updateNotificationSetting(false, null, null, null, true, null, null, null, null, null, null, null);
 
         when(commentRepository.findActiveById("comment-new")).thenReturn(Optional.of(created));
         when(memberRepository.findById("target-1")).thenReturn(Optional.of(postAuthor));

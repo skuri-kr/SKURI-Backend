@@ -8,6 +8,7 @@ import com.skuri.skuri_backend.domain.friend.dto.response.FriendCodePreviewRespo
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendCodeResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRelationshipState;
 import com.skuri.skuri_backend.common.config.JpaAuditingConfig;
+import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.domain.friend.entity.FriendCodeStatus;
 import com.skuri.skuri_backend.domain.friend.exception.FriendCodeNotFoundException;
 import com.skuri.skuri_backend.domain.friend.exception.FriendCodeRegenerationCooldownException;
@@ -75,6 +76,9 @@ class FriendFoundationDataJpaTest {
 
     @MockitoBean
     private ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
+
+    @MockitoBean
+    private AfterCommitApplicationEventPublisher afterCommitApplicationEventPublisher;
 
     @Autowired
     private MemberRepository memberRepository;
@@ -170,6 +174,20 @@ class FriendFoundationDataJpaTest {
                 .isEmpty();
         assertThat(memberRepository.countProfileCompleteActiveMembers()).isEqualTo(1);
         assertThat(friendProfileRepository.countForProfileCompleteActiveMembers()).isEqualTo(1);
+    }
+
+    @Test
+    @Transactional
+    void 알림기본값보정은null인행만일괄갱신한다() {
+        Member member = saveMember("member-notification", "notification@sungkyul.ac.kr", "알림회원");
+        ReflectionTestUtils.setField(member.getNotificationSetting(), "friendAndInvitationNotifications", null);
+        memberRepository.saveAndFlush(member);
+
+        assertThat(memberRepository.backfillNotificationSettingDefaults()).isEqualTo(1);
+
+        Member reloaded = memberRepository.findById("member-notification").orElseThrow();
+        assertThat(reloaded.getNotificationSetting().isFriendAndInvitationNotifications()).isTrue();
+        assertThat(memberRepository.backfillNotificationSettingDefaults()).isZero();
     }
 
     @Test
@@ -279,9 +297,9 @@ class FriendFoundationDataJpaTest {
         )).isPresent();
     }
 
-    private void saveMember(String id, String email, String realname) {
+    private Member saveMember(String id, String email, String realname) {
         Member member = Member.create(id, email, realname, LocalDateTime.now());
         member.updateProfile("닉네임-" + id, "20260001", "컴퓨터공학과", null);
-        memberRepository.saveAndFlush(member);
+        return memberRepository.saveAndFlush(member);
     }
 }
