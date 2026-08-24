@@ -231,6 +231,7 @@ class JoinRequestSseServiceTest {
                 request.getRequesterId(),
                 "요청자",
                 "https://example.com/profile.jpg",
+                null,
                 request.getStatus(),
                 request.getExpiryReason(),
                 request.getCreatedAt()

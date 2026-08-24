@@ -258,10 +258,10 @@ class PartyAdminControllerContractTest {
     }
 
     @Test
-    void updatePartyStatus_정원이찬파티재개면_409_PARTY_FULL() throws Exception {
+    void updatePartyStatus_정원이찬파티도_모집재개_200() throws Exception {
         mockToken("admin-token", true);
         when(taxiPartyAdminService.updatePartyStatus("party-1", AdminPartyStatusAction.REOPEN))
-                .thenThrow(new BusinessException(ErrorCode.PARTY_FULL));
+                .thenReturn(new PartyStatusResponse("party-1", PartyStatus.OPEN, null));
 
         mockMvc.perform(
                         patch("/v1/admin/parties/party-1/status")
@@ -269,8 +269,8 @@ class PartyAdminControllerContractTest {
                                 .contentType(APPLICATION_JSON)
                                 .content("{\"action\":\"REOPEN\"}")
                 )
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.errorCode").value("PARTY_FULL"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("OPEN"));
     }
 
     @Test

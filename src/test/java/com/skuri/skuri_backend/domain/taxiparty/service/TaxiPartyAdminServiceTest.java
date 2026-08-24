@@ -107,6 +107,31 @@ class TaxiPartyAdminServiceTest {
     }
 
     @Test
+    void updatePartyStatus_CLOSE_수동마감은대기중인친구초대를만료시키지않는다() {
+        Party party = sampleParty("party-1", "leader");
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PartyStatusResponse response = taxiPartyAdminService.updatePartyStatus("party-1", AdminPartyStatusAction.CLOSE);
+
+        assertEquals(PartyStatus.CLOSED, response.status());
+        verify(partyInvitationLifecycleService, never()).expirePendingForParty(any(), any());
+    }
+
+    @Test
+    void updatePartyStatus_REOPEN_정원이차도모집상태를재개한다() {
+        Party party = sampleParty("party-1", "leader");
+        ReflectionTestUtils.setField(party, "maxMembers", 2);
+        party.close();
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PartyStatusResponse response = taxiPartyAdminService.updatePartyStatus("party-1", AdminPartyStatusAction.REOPEN);
+
+        assertEquals(PartyStatus.OPEN, response.status());
+    }
+
+    @Test
     void updatePartyStatus_END_허용되지않는전이면_실패한다() {
         Party party = sampleParty("party-1", "leader");
         when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));

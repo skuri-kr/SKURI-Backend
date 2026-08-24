@@ -175,6 +175,33 @@ class PartyInvitationTransitionServiceTest {
     }
 
     @Test
+    void 수동마감중에도파티장이보낸초대는수락할수있다() {
+        Party party = party("party-1", 3);
+        party.close();
+        PartyInvitation invitation = invitation("invite-1");
+        stubAcceptBoundary(party, invitation, invitation);
+        when(partyRepository.existsActivePartyByMemberId("invitee-1", PartyInvitationTransitionServiceTestHelper.ACTIVE_STATUSES, "party-1"))
+                .thenReturn(false);
+
+        PartyInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
+
+        assertThat(result.outcome()).isEqualTo(PartyInvitationTransitionService.AcceptOutcome.JOINED);
+        verify(taxiPartyService).acceptInvitedMemberWithLockedParty(party, "invitee-1", "inviter-1");
+    }
+
+    @Test
+    void 수신자는_만료된초대를목록에서지울수있다() {
+        PartyInvitation invitation = invitation("invite-1");
+        invitation.expire(PartyInvitationExpiryReason.CAPACITY_FULL, LocalDateTime.now());
+        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(invitation));
+
+        boolean removed = service.cancel("invitee-1", "invite-1");
+
+        assertThat(removed).isTrue();
+        assertThat(invitation.getStatus()).isEqualTo(PartyInvitationStatus.DISMISSED);
+    }
+
+    @Test
     void 잠금전에_종료된_초대는_파티에_참가시키지않는다() {
         Party party = party("party-1", 3);
         PartyInvitation initialSnapshot = invitation("invite-1");

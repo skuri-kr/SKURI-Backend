@@ -142,17 +142,17 @@ class PartyControllerContractTest {
     }
 
     @Test
-    void reopenParty_정원이차면_409_PARTY_FULL() throws Exception {
+    void reopenParty_정원이차도_200() throws Exception {
         mockValidToken();
         when(taxiPartyService.reopenParty("firebase-uid", "party-1"))
-                .thenThrow(new BusinessException(ErrorCode.PARTY_FULL));
+                .thenReturn(new PartyStatusResponse("party-1", PartyStatus.OPEN, null));
 
         mockMvc.perform(
                         patch("/v1/parties/party-1/reopen")
                                 .header(AUTHORIZATION, "Bearer valid-token")
                 )
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.errorCode").value("PARTY_FULL"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("OPEN"));
     }
 
     @Test

@@ -168,6 +168,18 @@ class ChatRoomInvitationTransitionServiceTest {
         assertThat(invitation.getExpiryReason()).isEqualTo(ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT);
     }
 
+    @Test
+    void 수신자는_만료된초대를목록에서지울수있다() {
+        ChatRoomInvitation invitation = invitation(LocalDateTime.now());
+        invitation.expire(ChatRoomInvitationExpiryReason.TARGET_UNAVAILABLE, LocalDateTime.now());
+        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(invitation));
+
+        boolean removed = service.cancel("invitee-1", "invite-1");
+
+        assertThat(removed).isTrue();
+        assertThat(invitation.getStatus()).isEqualTo(ChatRoomInvitationStatus.DISMISSED);
+    }
+
     private void stubAcceptBoundary(
             ChatRoom room,
             ChatRoomInvitation snapshot,
