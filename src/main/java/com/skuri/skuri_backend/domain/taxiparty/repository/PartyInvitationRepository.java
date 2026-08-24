@@ -24,6 +24,16 @@ public interface PartyInvitationRepository extends JpaRepository<PartyInvitation
     @Query("select invitation from PartyInvitation invitation where invitation.id = :invitationId")
     Optional<PartyInvitation> findByIdForUpdate(@Param("invitationId") String invitationId);
 
+    @Query("""
+            select invitation.partyId as partyId,
+                   invitation.inviterId as inviterId,
+                   invitation.inviteeId as inviteeId,
+                   invitation.status as status
+            from PartyInvitation invitation
+            where invitation.id = :invitationId
+            """)
+    Optional<AcceptanceSnapshot> findAcceptanceSnapshotById(@Param("invitationId") String invitationId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select invitation
@@ -91,4 +101,18 @@ public interface PartyInvitationRepository extends JpaRepository<PartyInvitation
     );
 
     long countByInviteeIdAndStatus(String inviteeId, PartyInvitationStatus status);
+
+    interface AcceptanceSnapshot {
+        String getPartyId();
+
+        String getInviterId();
+
+        String getInviteeId();
+
+        PartyInvitationStatus getStatus();
+
+        default boolean isPending() {
+            return getStatus() == PartyInvitationStatus.PENDING;
+        }
+    }
 }

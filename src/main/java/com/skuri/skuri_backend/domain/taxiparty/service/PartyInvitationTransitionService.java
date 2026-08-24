@@ -43,8 +43,8 @@ public class PartyInvitationTransitionService {
 
     @Transactional
     public AcceptAttempt accept(String recipientMemberId, String invitationId) {
-        PartyInvitation snapshot = findOrThrow(invitationId);
-        requireRecipient(snapshot, recipientMemberId);
+        PartyInvitationRepository.AcceptanceSnapshot snapshot = findAcceptanceSnapshotOrThrow(invitationId);
+        requireRecipient(snapshot.getInviteeId(), recipientMemberId);
         if (snapshot.getStatus() == PartyInvitationStatus.ACCEPTED) {
             return AcceptAttempt.accepted(snapshot.getPartyId());
         }
@@ -205,13 +205,17 @@ public class PartyInvitationTransitionService {
         expireWithoutAggregate(invitationId, reason);
     }
 
-    private PartyInvitation findOrThrow(String invitationId) {
-        return partyInvitationRepository.findById(invitationId)
+    private PartyInvitationRepository.AcceptanceSnapshot findAcceptanceSnapshotOrThrow(String invitationId) {
+        return partyInvitationRepository.findAcceptanceSnapshotById(invitationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARTY_INVITATION_NOT_FOUND));
     }
 
     private void requireRecipient(PartyInvitation invitation, String recipientMemberId) {
-        if (!invitation.getInviteeId().equals(recipientMemberId)) {
+        requireRecipient(invitation.getInviteeId(), recipientMemberId);
+    }
+
+    private void requireRecipient(String inviteeMemberId, String recipientMemberId) {
+        if (!inviteeMemberId.equals(recipientMemberId)) {
             throw new BusinessException(ErrorCode.PARTY_INVITATION_RECIPIENT_REQUIRED);
         }
     }

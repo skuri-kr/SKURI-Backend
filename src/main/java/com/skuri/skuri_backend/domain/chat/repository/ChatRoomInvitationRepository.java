@@ -24,6 +24,17 @@ public interface ChatRoomInvitationRepository extends JpaRepository<ChatRoomInvi
     @Query("select invitation from ChatRoomInvitation invitation where invitation.id = :invitationId")
     Optional<ChatRoomInvitation> findByIdForUpdate(@Param("invitationId") String invitationId);
 
+    @Query("""
+            select invitation.chatRoomId as chatRoomId,
+                   invitation.inviterId as inviterId,
+                   invitation.inviteeId as inviteeId,
+                   invitation.status as status,
+                   invitation.expiresAt as expiresAt
+            from ChatRoomInvitation invitation
+            where invitation.id = :invitationId
+            """)
+    Optional<AcceptanceSnapshot> findAcceptanceSnapshotById(@Param("invitationId") String invitationId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select invitation
@@ -139,4 +150,24 @@ public interface ChatRoomInvitationRepository extends JpaRepository<ChatRoomInvi
             ChatRoomInvitationStatus status,
             LocalDateTime expiresAt
     );
+
+    interface AcceptanceSnapshot {
+        String getChatRoomId();
+
+        String getInviterId();
+
+        String getInviteeId();
+
+        ChatRoomInvitationStatus getStatus();
+
+        LocalDateTime getExpiresAt();
+
+        default boolean isPending() {
+            return getStatus() == ChatRoomInvitationStatus.PENDING;
+        }
+
+        default boolean isTimedOutAt(LocalDateTime now) {
+            return isPending() && !getExpiresAt().isAfter(now);
+        }
+    }
 }

@@ -39,8 +39,8 @@ public class ChatRoomInvitationTransitionService {
 
     @Transactional
     public AcceptAttempt accept(String recipientMemberId, String invitationId) {
-        ChatRoomInvitation snapshot = findOrThrow(invitationId);
-        requireRecipient(snapshot, recipientMemberId);
+        ChatRoomInvitationRepository.AcceptanceSnapshot snapshot = findAcceptanceSnapshotOrThrow(invitationId);
+        requireRecipient(snapshot.getInviteeId(), recipientMemberId);
         if (snapshot.getStatus() == ChatRoomInvitationStatus.ACCEPTED) {
             return AcceptAttempt.accepted(snapshot.getChatRoomId());
         }
@@ -219,13 +219,17 @@ public class ChatRoomInvitationTransitionService {
         }
     }
 
-    private ChatRoomInvitation findOrThrow(String invitationId) {
-        return invitationRepository.findById(invitationId)
+    private ChatRoomInvitationRepository.AcceptanceSnapshot findAcceptanceSnapshotOrThrow(String invitationId) {
+        return invitationRepository.findAcceptanceSnapshotById(invitationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_INVITATION_NOT_FOUND));
     }
 
     private void requireRecipient(ChatRoomInvitation invitation, String recipientMemberId) {
-        if (!invitation.getInviteeId().equals(recipientMemberId)) {
+        requireRecipient(invitation.getInviteeId(), recipientMemberId);
+    }
+
+    private void requireRecipient(String inviteeMemberId, String recipientMemberId) {
+        if (!inviteeMemberId.equals(recipientMemberId)) {
             throw new BusinessException(ErrorCode.CHAT_ROOM_INVITATION_RECIPIENT_REQUIRED);
         }
     }
