@@ -118,6 +118,27 @@ class ChatRoomInvitationSendItemServiceTest {
         verifyNoInteractions(pairLockService);
     }
 
+    @Test
+    void 친구관계가없으면이미채팅방참가중이어도초대불가로마스킹한다() {
+        String friendPublicId = "former-friend-public-id";
+        FriendMemberPair pair = FriendMemberPair.of("inviter-1", "invitee-1");
+        ChatRoom room = room();
+
+        when(friendProfileRepository.findMemberIdByPublicId(friendPublicId))
+                .thenReturn(Optional.of("invitee-1"));
+        when(pairLockService.lockActivePair("inviter-1", "invitee-1")).thenReturn(pair);
+        when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(room));
+        when(chatRoomMemberRepository.existsById_ChatRoomIdAndId_MemberId("room-1", "inviter-1"))
+                .thenReturn(true);
+        when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(completeMember("invitee-1")));
+        when(friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId()))
+                .thenReturn(Optional.empty());
+
+        ChatRoomInvitationSendResultResponse result = service.send("inviter-1", "room-1", friendPublicId);
+
+        assertThat(result.outcome()).isEqualTo(ChatRoomInvitationOutcome.NOT_ELIGIBLE);
+    }
+
     private ChatRoom room() {
         ChatRoom room = ChatRoom.create(
                 "room-1",

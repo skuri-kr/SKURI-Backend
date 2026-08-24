@@ -103,6 +103,25 @@ class PartyInvitationSendItemServiceTest {
         verifyNoInteractions(pairLockService);
     }
 
+    @Test
+    void 친구관계가없으면이미파티참가중이어도초대불가로마스킹한다() {
+        String friendPublicId = "former-friend-public-id";
+        FriendMemberPair pair = FriendMemberPair.of("inviter-1", "invitee-1");
+        Party party = party();
+        party.addMember("invitee-1");
+
+        when(friendProfileRepository.findMemberIdByPublicId(friendPublicId))
+                .thenReturn(Optional.of("invitee-1"));
+        when(pairLockService.lockActivePair("inviter-1", "invitee-1")).thenReturn(pair);
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
+        when(friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId()))
+                .thenReturn(Optional.empty());
+
+        PartyInvitationSendResultResponse result = service.send("inviter-1", "party-1", friendPublicId);
+
+        assertThat(result.outcome()).isEqualTo(PartyInvitationOutcome.NOT_ELIGIBLE);
+    }
+
     private Party party() {
         Party party = Party.create(
                 "inviter-1",
