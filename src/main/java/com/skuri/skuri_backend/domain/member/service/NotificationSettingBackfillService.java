@@ -19,14 +19,11 @@ public class NotificationSettingBackfillService {
 
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
-    public void backfillAcademicScheduleDefaults() {
-        long updatedCount = memberRepository.findAll().stream()
-                .filter(member -> member.hasUnsetNotificationSettingDefaults())
-                .peek(member -> member.backfillNotificationSettingDefaults())
-                .count();
+    public void backfillNotificationSettingDefaults() {
+        int updatedCount = memberRepository.backfillNotificationSettingDefaults();
 
         if (updatedCount > 0) {
-            log.info("기존 회원 학사 일정 알림 기본값 backfill 완료: {}건", updatedCount);
+            log.info("기존 회원 알림 기본값 backfill 완료: {}건", updatedCount);
         }
     }
 }

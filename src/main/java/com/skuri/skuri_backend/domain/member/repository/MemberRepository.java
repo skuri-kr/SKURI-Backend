@@ -3,6 +3,7 @@ package com.skuri.skuri_backend.domain.member.repository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.MemberStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -180,4 +181,18 @@ public interface MemberRepository extends JpaRepository<Member, String>, MemberR
             @Param("requireDayBefore") boolean requireDayBefore,
             @Param("requireAllEvents") boolean requireAllEvents
     );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update Member m
+            set m.notificationSetting.academicScheduleNotifications = coalesce(m.notificationSetting.academicScheduleNotifications, true),
+                m.notificationSetting.academicScheduleDayBeforeEnabled = coalesce(m.notificationSetting.academicScheduleDayBeforeEnabled, true),
+                m.notificationSetting.academicScheduleAllEventsEnabled = coalesce(m.notificationSetting.academicScheduleAllEventsEnabled, false),
+                m.notificationSetting.friendAndInvitationNotifications = coalesce(m.notificationSetting.friendAndInvitationNotifications, true)
+            where m.notificationSetting.academicScheduleNotifications is null
+               or m.notificationSetting.academicScheduleDayBeforeEnabled is null
+               or m.notificationSetting.academicScheduleAllEventsEnabled is null
+               or m.notificationSetting.friendAndInvitationNotifications is null
+            """)
+    int backfillNotificationSettingDefaults();
 }

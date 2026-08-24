@@ -20,6 +20,8 @@ public record MemberNotificationSettingResponse(
         boolean bookmarkedPostCommentNotifications,
         @Schema(description = "시스템 알림 on/off", example = "true")
         boolean systemNotifications,
+        @Schema(description = "친구 요청·수락·거절과 친구 초대 알림 on/off", example = "true")
+        boolean friendAndInvitationNotifications,
         @Schema(description = "학사 일정 알림 on/off", example = "true")
         boolean academicScheduleNotifications,
         @Schema(description = "학사 일정 전날 알림 on/off", example = "true")

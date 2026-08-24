@@ -1,6 +1,7 @@
 package com.skuri.skuri_backend.domain.taxiparty.service;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
+import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.domain.friend.entity.Friendship;
 import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
@@ -14,6 +15,7 @@ import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyInvitationRepository;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyRepository;
+import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -38,6 +40,7 @@ public class PartyInvitationSendItemService {
     private final FriendshipRepository friendshipRepository;
     private final MemberBlockRepository memberBlockRepository;
     private final FriendMemberPairLockService pairLockService;
+    private final AfterCommitApplicationEventPublisher eventPublisher;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PartyInvitationSendResultResponse send(
@@ -89,6 +92,7 @@ public class PartyInvitationSendItemService {
         PartyInvitation created = partyInvitationRepository.saveAndFlush(
                 PartyInvitation.create(partyId, inviterMemberId, inviteeMemberId)
         );
+        eventPublisher.publish(new NotificationDomainEvent.PartyInvitationCreated(created.getId()));
         return new PartyInvitationSendResultResponse(
                 friendPublicId,
                 PartyInvitationOutcome.SENT,

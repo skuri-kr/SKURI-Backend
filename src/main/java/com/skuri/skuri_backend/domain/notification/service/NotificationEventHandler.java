@@ -13,14 +13,22 @@ import com.skuri.skuri_backend.domain.board.repository.PostRepository;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessage;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitation;
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationStatus;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
+import com.skuri.skuri_backend.domain.chat.repository.ChatRoomInvitationRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.NotificationSetting;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.friend.entity.FriendProfile;
+import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
+import com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus;
+import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
+import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
 import com.skuri.skuri_backend.domain.notice.entity.Notice;
 import com.skuri.skuri_backend.domain.notice.entity.NoticeComment;
 import com.skuri.skuri_backend.domain.notice.repository.NoticeCommentRepository;
@@ -32,8 +40,11 @@ import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequest;
 import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyEndReason;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import com.skuri.skuri_backend.domain.taxiparty.repository.JoinRequestRepository;
+import com.skuri.skuri_backend.domain.taxiparty.repository.PartyInvitationRepository;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +67,7 @@ public class NotificationEventHandler {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final ChatRoomInvitationRepository chatRoomInvitationRepository;
     private final PostRepository postRepository;
     private final PostInteractionRepository postInteractionRepository;
     private final CommentRepository commentRepository;
@@ -63,6 +75,9 @@ public class NotificationEventHandler {
     private final NoticeCommentRepository noticeCommentRepository;
     private final AppNoticeRepository appNoticeRepository;
     private final AcademicScheduleRepository academicScheduleRepository;
+    private final FriendRequestRepository friendRequestRepository;
+    private final FriendProfileRepository friendProfileRepository;
+    private final PartyInvitationRepository partyInvitationRepository;
     private final MemberRepository memberRepository;
     private final NotificationService notificationService;
     private final PushNotificationService pushNotificationService;
@@ -82,6 +97,11 @@ public class NotificationEventHandler {
             case NotificationDomainEvent.NoticeCreated created -> handleNoticeCreated(created);
             case NotificationDomainEvent.AppNoticeCreated created -> handleAppNoticeCreated(created);
             case NotificationDomainEvent.AcademicScheduleReminder reminder -> handleAcademicScheduleReminder(reminder);
+            case NotificationDomainEvent.FriendRequestCreated created -> handleFriendRequestCreated(created);
+            case NotificationDomainEvent.FriendRequestAccepted accepted -> handleFriendRequestAccepted(accepted);
+            case NotificationDomainEvent.FriendRequestDeclined declined -> handleFriendRequestDeclined(declined);
+            case NotificationDomainEvent.PartyInvitationCreated created -> handlePartyInvitationCreated(created);
+            case NotificationDomainEvent.ChatRoomInvitationCreated created -> handleChatRoomInvitationCreated(created);
         }
     }
 
@@ -496,6 +516,121 @@ public class NotificationEventHandler {
         ));
     }
 
+    private void handleFriendRequestCreated(NotificationDomainEvent.FriendRequestCreated event) {
+        FriendRequest request = friendRequestRepository.findById(event.requestId()).orElse(null);
+        if (request == null || request.getStatus() != FriendRequestStatus.PENDING) {
+            return;
+        }
+
+        Member requester = findActiveMember(request.getRequesterId());
+        Member recipient = findActiveMember(request.getRecipientId());
+        if (requester == null || !isFriendAndInvitationNotificationAllowed(recipient)) {
+            return;
+        }
+
+        dispatch(NotificationDispatchRequest.of(
+                NotificationType.FRIEND_REQUEST,
+                List.of(recipient.getId()),
+                "친구 요청이 도착했어요",
+                displayMemberName(requester) + "님이 친구 요청을 보냈어요.",
+                NotificationData.ofFriendRequest(request.getId()),
+                true,
+                true
+        ));
+    }
+
+    private void handleFriendRequestAccepted(NotificationDomainEvent.FriendRequestAccepted event) {
+        FriendRequest request = friendRequestRepository.findById(event.requestId()).orElse(null);
+        if (request == null || request.getStatus() != FriendRequestStatus.ACCEPTED) {
+            return;
+        }
+
+        Member requester = findActiveMember(request.getRequesterId());
+        Member accepter = findActiveMember(request.getRecipientId());
+        FriendProfile accepterProfile = friendProfileRepository.findByMemberId(request.getRecipientId()).orElse(null);
+        if (accepter == null || accepterProfile == null || !isFriendAndInvitationNotificationAllowed(requester)) {
+            return;
+        }
+
+        dispatch(NotificationDispatchRequest.of(
+                NotificationType.FRIEND_ACCEPTED,
+                List.of(requester.getId()),
+                "친구 요청이 수락되었어요",
+                displayMemberName(accepter) + "님과 친구가 되었어요.",
+                NotificationData.ofFriendAccepted(accepterProfile.getPublicId()),
+                true,
+                true
+        ));
+    }
+
+    private void handleFriendRequestDeclined(NotificationDomainEvent.FriendRequestDeclined event) {
+        FriendRequest request = friendRequestRepository.findById(event.requestId()).orElse(null);
+        if (request == null || request.getStatus() != FriendRequestStatus.DECLINED) {
+            return;
+        }
+
+        Member requester = findActiveMember(request.getRequesterId());
+        if (!isFriendAndInvitationNotificationAllowed(requester)) {
+            return;
+        }
+
+        dispatch(NotificationDispatchRequest.of(
+                NotificationType.FRIEND_DECLINED,
+                List.of(requester.getId()),
+                "친구 요청이 거절되었어요",
+                "친구 요청 상태를 확인해주세요.",
+                NotificationData.ofFriendRequest(request.getId()),
+                true,
+                true
+        ));
+    }
+
+    private void handlePartyInvitationCreated(NotificationDomainEvent.PartyInvitationCreated event) {
+        PartyInvitation invitation = partyInvitationRepository.findById(event.invitationId()).orElse(null);
+        if (invitation == null || invitation.getStatus() != PartyInvitationStatus.PENDING) {
+            return;
+        }
+
+        Member inviter = findActiveMember(invitation.getInviterId());
+        Member invitee = findActiveMember(invitation.getInviteeId());
+        if (inviter == null || !isFriendAndInvitationNotificationAllowed(invitee)) {
+            return;
+        }
+
+        dispatch(NotificationDispatchRequest.of(
+                NotificationType.PARTY_INVITATION,
+                List.of(invitee.getId()),
+                "택시파티 초대가 도착했어요",
+                displayMemberName(inviter) + "님이 택시파티에 초대했어요.",
+                NotificationData.ofInvitation(invitation.getId(), "PARTY"),
+                true,
+                true
+        ));
+    }
+
+    private void handleChatRoomInvitationCreated(NotificationDomainEvent.ChatRoomInvitationCreated event) {
+        ChatRoomInvitation invitation = chatRoomInvitationRepository.findById(event.invitationId()).orElse(null);
+        if (invitation == null || invitation.getStatus() != ChatRoomInvitationStatus.PENDING) {
+            return;
+        }
+
+        Member inviter = findActiveMember(invitation.getInviterId());
+        Member invitee = findActiveMember(invitation.getInviteeId());
+        if (inviter == null || !isFriendAndInvitationNotificationAllowed(invitee)) {
+            return;
+        }
+
+        dispatch(NotificationDispatchRequest.of(
+                NotificationType.CHAT_ROOM_INVITATION,
+                List.of(invitee.getId()),
+                "공개 채팅방 초대가 도착했어요",
+                displayMemberName(inviter) + "님이 공개 채팅방에 초대했어요.",
+                NotificationData.ofInvitation(invitation.getId(), "CHAT_ROOM"),
+                true,
+                true
+        ));
+    }
+
     private void dispatch(NotificationDispatchRequest request) {
         if (request.recipientIds().isEmpty()) {
             return;
@@ -515,6 +650,13 @@ public class NotificationEventHandler {
 
     private Member findMember(String memberId) {
         return memberRepository.findById(memberId).orElse(null);
+    }
+
+    private Member findActiveMember(String memberId) {
+        if (memberId == null || memberId.isBlank()) {
+            return null;
+        }
+        return memberRepository.findActiveById(memberId).orElse(null);
     }
 
     private List<String> findPartyRecipients(Collection<String> memberIds) {
@@ -537,6 +679,15 @@ public class NotificationEventHandler {
 
         NotificationSetting setting = settingOf(member);
         return setting.isAllNotifications() && setting.isPartyNotifications();
+    }
+
+    private boolean isFriendAndInvitationNotificationAllowed(Member member) {
+        if (member == null) {
+            return false;
+        }
+
+        NotificationSetting setting = settingOf(member);
+        return setting.isAllNotifications() && setting.isFriendAndInvitationNotifications();
     }
 
     private boolean isBoardLikeNotificationAllowed(Member member) {
@@ -735,6 +886,12 @@ public class NotificationEventHandler {
 
     private String displaySenderName(String senderName) {
         return senderName == null || senderName.isBlank() ? "익명" : senderName;
+    }
+
+    private String displayMemberName(Member member) {
+        return member == null || member.getNickname() == null || member.getNickname().isBlank()
+                ? "친구"
+                : member.getNickname();
     }
 
     private String preview(String value, int maxLength) {

@@ -2,6 +2,7 @@ package com.skuri.skuri_backend.domain.friend.service;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.domain.academic.service.TimetableSharingRelationshipCleanupService;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.chat.service.ChatRoomInvitationLifecycleService;
@@ -17,6 +18,7 @@ import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.taxiparty.service.PartyInvitationLifecycleService;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +45,7 @@ public class FriendRelationshipService {
     private final TimetableSharingRelationshipCleanupService timetableSharingRelationshipCleanupService;
     private final PartyInvitationLifecycleService partyInvitationLifecycleService;
     private final ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
+    private final AfterCommitApplicationEventPublisher eventPublisher;
 
     @Transactional
     public FriendRequestCreationResult createRequest(String requesterMemberId, String targetFriendPublicId) {
@@ -69,6 +72,7 @@ public class FriendRelationshipService {
             FriendRequest created = friendRequestRepository.save(
                     FriendRequest.create(requesterMemberId, targetMemberId, pair.activePairKey(), now)
             );
+            eventPublisher.publish(new NotificationDomainEvent.FriendRequestCreated(created.getId()));
             return FriendRequestCreationResult.pending(created.getId());
         }
         if (activeRequest.getRequesterId().equals(requesterMemberId)) {
@@ -77,6 +81,7 @@ public class FriendRelationshipService {
 
         activeRequest.accept(now);
         friendshipRepository.save(Friendship.create(pair.lowMemberId(), pair.highMemberId()));
+        eventPublisher.publish(new NotificationDomainEvent.FriendRequestAccepted(activeRequest.getId()));
         return FriendRequestCreationResult.accepted(
                 activeRequest.getId(),
                 friendSummarySnapshotFactory.create(requesterMemberId, targetMemberId)
@@ -89,6 +94,9 @@ public class FriendRelationshipService {
         if (!attempt.accepted()) {
             throw new BusinessException(ErrorCode.FRIEND_REQUEST_STATE_NOT_ALLOWED);
         }
+        if (attempt.newlyAccepted()) {
+            eventPublisher.publish(new NotificationDomainEvent.FriendRequestAccepted(requestId));
+        }
         return new FriendRequestAcceptResult(attempt.friend());
     }
 
@@ -96,6 +104,7 @@ public class FriendRelationshipService {
         if (!friendRequestTransitionService.declineRequest(recipientMemberId, requestId).completed()) {
             throw new BusinessException(ErrorCode.FRIEND_REQUEST_STATE_NOT_ALLOWED);
         }
+        eventPublisher.publish(new NotificationDomainEvent.FriendRequestDeclined(requestId));
     }
 
     public void cancelRequest(String requesterMemberId, String requestId) {

@@ -16,7 +16,12 @@ public sealed interface NotificationDomainEvent permits
         NotificationDomainEvent.NoticeCommentCreated,
         NotificationDomainEvent.NoticeCreated,
         NotificationDomainEvent.AppNoticeCreated,
-        NotificationDomainEvent.AcademicScheduleReminder {
+        NotificationDomainEvent.AcademicScheduleReminder,
+        NotificationDomainEvent.FriendRequestCreated,
+        NotificationDomainEvent.FriendRequestAccepted,
+        NotificationDomainEvent.FriendRequestDeclined,
+        NotificationDomainEvent.PartyInvitationCreated,
+        NotificationDomainEvent.ChatRoomInvitationCreated {
 
     record PartyCreated(String partyId) implements NotificationDomainEvent {
     }
@@ -55,6 +60,21 @@ public sealed interface NotificationDomainEvent permits
     }
 
     record AcademicScheduleReminder(String academicScheduleId, ReminderTiming timing) implements NotificationDomainEvent {
+    }
+
+    record FriendRequestCreated(String requestId) implements NotificationDomainEvent {
+    }
+
+    record FriendRequestAccepted(String requestId) implements NotificationDomainEvent {
+    }
+
+    record FriendRequestDeclined(String requestId) implements NotificationDomainEvent {
+    }
+
+    record PartyInvitationCreated(String invitationId) implements NotificationDomainEvent {
+    }
+
+    record ChatRoomInvitationCreated(String invitationId) implements NotificationDomainEvent {
     }
 
     enum ReminderTiming {

@@ -42,13 +42,17 @@ public class FriendRequestTransitionService {
         return mutationService.cancelRequest(requesterMemberId, snapshot.requestId());
     }
 
-    public record FriendRequestAcceptAttempt(boolean accepted, FriendSummaryResponse friend) {
+    public record FriendRequestAcceptAttempt(boolean accepted, boolean newlyAccepted, FriendSummaryResponse friend) {
         static FriendRequestAcceptAttempt accepted(FriendSummaryResponse friend) {
-            return new FriendRequestAcceptAttempt(true, friend);
+            return new FriendRequestAcceptAttempt(true, true, friend);
+        }
+
+        static FriendRequestAcceptAttempt alreadyAccepted(FriendSummaryResponse friend) {
+            return new FriendRequestAcceptAttempt(true, false, friend);
         }
 
         static FriendRequestAcceptAttempt stateNotAllowed() {
-            return new FriendRequestAcceptAttempt(false, null);
+            return new FriendRequestAcceptAttempt(false, false, null);
         }
     }
 

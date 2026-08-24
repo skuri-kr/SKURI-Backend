@@ -434,7 +434,7 @@ public class MemberController {
             content = @Content(
                     schema = @Schema(implementation = UpdateMemberNotificationSettingsRequest.class),
                     examples = @ExampleObject(
-                            value = "{\"allNotifications\":true,\"partyNotifications\":true,\"noticeNotificationsDetail\":{\"academic\":true,\"event\":false}}"
+                            value = "{\"allNotifications\":true,\"partyNotifications\":true,\"friendAndInvitationNotifications\":true,\"noticeNotificationsDetail\":{\"academic\":true,\"event\":false}}"
                     )
             )
     )

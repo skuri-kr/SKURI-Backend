@@ -42,7 +42,7 @@ public class FriendRequestTransitionMutationService {
 
         if (request.getStatus() == FriendRequestStatus.ACCEPTED) {
             if (friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId()).isPresent()) {
-                return FriendRequestTransitionService.FriendRequestAcceptAttempt.accepted(
+                return FriendRequestTransitionService.FriendRequestAcceptAttempt.alreadyAccepted(
                         friendSummarySnapshotFactory.create(recipientMemberId, request.getRequesterId())
                 );
             }
