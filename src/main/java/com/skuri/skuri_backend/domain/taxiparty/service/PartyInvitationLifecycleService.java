@@ -29,6 +29,11 @@ public class PartyInvitationLifecycleService {
         return partyInvitationRepository.findPendingPartyIdsByInviterId(inviterId);
     }
 
+    @Transactional(readOnly = true)
+    public List<String> findPendingPartyIdsByInvitee(String inviteeId) {
+        return partyInvitationRepository.findPendingPartyIdsByInviteeId(inviteeId);
+    }
+
     @Transactional
     public void expirePendingByInviterInParty(
             String partyId,

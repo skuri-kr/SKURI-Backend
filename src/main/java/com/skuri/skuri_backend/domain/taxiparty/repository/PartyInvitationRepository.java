@@ -53,6 +53,15 @@ public interface PartyInvitationRepository extends JpaRepository<PartyInvitation
             """)
     List<String> findPendingPartyIdsByInviterId(@Param("inviterId") String inviterId);
 
+    @Query("""
+            select distinct invitation.partyId
+            from PartyInvitation invitation
+            where invitation.inviteeId = :inviteeId
+              and invitation.status = com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus.PENDING
+            order by invitation.partyId asc
+            """)
+    List<String> findPendingPartyIdsByInviteeId(@Param("inviteeId") String inviteeId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select invitation

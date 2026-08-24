@@ -526,9 +526,15 @@ public class TaxiPartyService {
                 partyRepository.findActiveIdsByMemberId(memberId, ACTIVE_PARTY_STATUSES)
         );
         targetPartyIds.addAll(partyInvitationLifecycleService.findPendingPartyIdsByInviter(memberId));
+        targetPartyIds.addAll(partyInvitationLifecycleService.findPendingPartyIdsByInvitee(memberId));
         for (String partyId : targetPartyIds) {
             Party party = partyRepository.findDetailByIdForUpdate(partyId).orElse(null);
             partyInvitationLifecycleService.expirePendingByInviterInParty(
+                    partyId,
+                    memberId,
+                    PartyInvitationExpiryReason.MEMBER_WITHDRAWN
+            );
+            partyInvitationLifecycleService.expirePendingForInviteeInParty(
                     partyId,
                     memberId,
                     PartyInvitationExpiryReason.MEMBER_WITHDRAWN
