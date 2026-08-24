@@ -1,6 +1,7 @@
 package com.skuri.skuri_backend.domain.taxiparty.dto.response;
 
 import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestStatus;
+import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestExpiryReason;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
@@ -19,6 +20,8 @@ public record JoinRequestListItemResponse(
         String requesterPhotoUrl,
         @Schema(description = "요청 상태", example = "PENDING")
         JoinRequestStatus status,
+        @Schema(description = "만료 사유. EXPIRED 상태가 아니면 null", nullable = true, example = "CAPACITY_FULL")
+        JoinRequestExpiryReason expiryReason,
         @Schema(description = "요청 생성 시각", example = "2026-03-03T12:30:00")
         LocalDateTime createdAt
 ) {
