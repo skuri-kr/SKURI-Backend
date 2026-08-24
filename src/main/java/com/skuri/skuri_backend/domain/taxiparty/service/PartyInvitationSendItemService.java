@@ -2,11 +2,11 @@ package com.skuri.skuri_backend.domain.taxiparty.service;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.domain.friend.entity.Friendship;
+import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPair;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
-import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationOutcome;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationSendResultResponse;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
@@ -34,10 +34,10 @@ public class PartyInvitationSendItemService {
 
     private final PartyRepository partyRepository;
     private final PartyInvitationRepository partyInvitationRepository;
+    private final FriendProfileRepository friendProfileRepository;
     private final FriendshipRepository friendshipRepository;
     private final MemberBlockRepository memberBlockRepository;
     private final FriendMemberPairLockService pairLockService;
-    private final FriendRelationshipQueryService friendRelationshipQueryService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PartyInvitationSendResultResponse send(
@@ -45,10 +45,8 @@ public class PartyInvitationSendItemService {
             String partyId,
             String friendPublicId
     ) {
-        String inviteeMemberId;
-        try {
-            inviteeMemberId = friendRelationshipQueryService.requireFriendMemberId(inviterMemberId, friendPublicId);
-        } catch (BusinessException exception) {
+        String inviteeMemberId = friendProfileRepository.findMemberIdByPublicId(friendPublicId).orElse(null);
+        if (inviteeMemberId == null) {
             return notEligible(friendPublicId);
         }
         FriendMemberPair pair;

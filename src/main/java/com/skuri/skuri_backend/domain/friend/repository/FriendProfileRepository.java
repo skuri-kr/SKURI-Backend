@@ -15,6 +15,9 @@ public interface FriendProfileRepository extends JpaRepository<FriendProfile, St
 
     Optional<FriendProfile> findByPublicId(String publicId);
 
+    @Query("select p.memberId from FriendProfile p where p.publicId = :publicId")
+    Optional<String> findMemberIdByPublicId(@Param("publicId") String publicId);
+
     Optional<FriendProfile> findByMemberId(String memberId);
 
     List<FriendProfile> findAllByMemberIdIn(Collection<String> memberIds);

@@ -11,10 +11,10 @@ import com.skuri.skuri_backend.domain.chat.repository.ChatRoomInvitationReposito
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
+import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPair;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
-import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService;
 import com.skuri.skuri_backend.domain.member.constant.DepartmentAliasNormalizer;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
@@ -33,11 +33,11 @@ public class ChatRoomInvitationSendItemService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final ChatRoomInvitationRepository invitationRepository;
+    private final FriendProfileRepository friendProfileRepository;
     private final FriendshipRepository friendshipRepository;
     private final MemberBlockRepository memberBlockRepository;
     private final MemberRepository memberRepository;
     private final FriendMemberPairLockService pairLockService;
-    private final FriendRelationshipQueryService friendRelationshipQueryService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ChatRoomInvitationSendResultResponse send(
@@ -45,10 +45,8 @@ public class ChatRoomInvitationSendItemService {
             String chatRoomId,
             String friendPublicId
     ) {
-        String inviteeMemberId;
-        try {
-            inviteeMemberId = friendRelationshipQueryService.requireFriendMemberId(inviterMemberId, friendPublicId);
-        } catch (BusinessException exception) {
+        String inviteeMemberId = friendProfileRepository.findMemberIdByPublicId(friendPublicId).orElse(null);
+        if (inviteeMemberId == null) {
             return notEligible(friendPublicId);
         }
         FriendMemberPair pair;
