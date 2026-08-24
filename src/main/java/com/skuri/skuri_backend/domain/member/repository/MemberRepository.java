@@ -198,7 +198,7 @@ public interface MemberRepository extends JpaRepository<Member, String>, MemberR
                 academic_schedule_all_events_enabled = coalesce(academic_schedule_all_events_enabled, false),
                 notice_notifications_detail = coalesce(
                     notice_notifications_detail,
-                    json_object('news': true, 'academy': true, 'scholarship': true)
+                    json_object('news', true, 'academy', true, 'scholarship', true)
                 )
             where all_notifications is null
                or party_notifications is null
