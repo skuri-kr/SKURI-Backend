@@ -299,7 +299,8 @@ class PartyInvitationControllerContractTest {
         mockMvc.perform(delete("/v1/party-invitations/invite-1")
                         .header(AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value("PARTY_INVITATION_INVITER_REQUIRED"));
+                .andExpect(jsonPath("$.errorCode").value("PARTY_INVITATION_INVITER_REQUIRED"))
+                .andExpect(jsonPath("$.message").value("택시파티 초대 발송자 또는 만료된 초대 수신자만 처리할 수 있습니다."));
     }
 
     @Test

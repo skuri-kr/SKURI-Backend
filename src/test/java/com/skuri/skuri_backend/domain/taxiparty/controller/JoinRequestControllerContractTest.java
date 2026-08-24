@@ -3,6 +3,7 @@ package com.skuri.skuri_backend.domain.taxiparty.controller;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.JoinRequestAcceptResponse;
+import com.skuri.skuri_backend.domain.taxiparty.dto.response.JoinRequestListItemResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.JoinRequestResponse;
 import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestStatus;
 import com.skuri.skuri_backend.domain.taxiparty.service.TaxiPartyService;
@@ -19,8 +20,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -103,6 +108,32 @@ class JoinRequestControllerContractTest {
                 )
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value("NOT_PARTY_LEADER"));
+    }
+
+    @Test
+    void getMyJoinRequests_친구초대자필드의값과null을보존한다() throws Exception {
+        mockValidToken();
+        LocalDateTime createdAt = LocalDateTime.of(2026, 8, 24, 12, 30);
+        when(taxiPartyService.getMyJoinRequests("firebase-uid", JoinRequestStatus.PENDING))
+                .thenReturn(List.of(
+                        new JoinRequestListItemResponse(
+                                "request-1", "party-1", "firebase-uid", "홍길동", null, "김길동",
+                                JoinRequestStatus.PENDING, null, createdAt
+                        ),
+                        new JoinRequestListItemResponse(
+                                "request-2", "party-2", "firebase-uid", "홍길동", null, null,
+                                JoinRequestStatus.PENDING, null, createdAt
+                        )
+                ));
+
+        mockMvc.perform(
+                        get("/v1/members/me/join-requests")
+                                .param("status", "PENDING")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].invitationInviterName").value("김길동"))
+                .andExpect(jsonPath("$.data[1].invitationInviterName").value(org.hamcrest.Matchers.nullValue()));
     }
 
     private void mockValidToken() {

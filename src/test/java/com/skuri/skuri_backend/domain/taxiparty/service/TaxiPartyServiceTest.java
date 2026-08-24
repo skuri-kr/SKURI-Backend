@@ -589,6 +589,34 @@ class TaxiPartyServiceTest {
     }
 
     @Test
+    void acceptJoinRequest_수동마감중여러친구초대원본중현재참가자가있으면수락한다() {
+        Party party = sampleParty("party-1", "leader", 4, "inviter-current");
+        party.close();
+        JoinRequest joinRequest = JoinRequest.create(party, "requester-1");
+        ReflectionTestUtils.setField(joinRequest, "id", "request-1");
+        Member requester = member("requester-1");
+
+        stubTransitionRequest("request-1", joinRequest);
+        when(partyInvitationRepository.findAcceptedJoinRequestSources(List.of("request-1")))
+                .thenReturn(List.of(
+                        acceptedInvitationSource("request-1", "inviter-left"),
+                        acceptedInvitationSource("request-1", "inviter-current")
+                ));
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
+        when(memberRepository.findActiveByIdForUpdate("requester-1")).thenReturn(Optional.of(requester));
+        when(memberRepository.findById("requester-1")).thenReturn(Optional.of(requester));
+        when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(partyRepository.existsActivePartyByMemberId(eq("requester-1"), anySet(), eq("party-1")))
+                .thenReturn(false);
+        when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        JoinRequestAcceptResponse response = taxiPartyService.acceptJoinRequest("leader", "request-1");
+
+        assertEquals(JoinRequestStatus.ACCEPTED, response.status());
+        assertTrue(party.isMember("requester-1"));
+    }
+
+    @Test
     void createInvitedMemberJoinRequest_수동마감중에도참가자초대를리더승인대기로만든다() {
         Party party = sampleParty("party-1", "leader", 4, "inviter-1");
         party.close();
@@ -602,13 +630,14 @@ class TaxiPartyServiceTest {
             return saved;
         });
 
-        String requestId = taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
+        TaxiPartyService.InvitedMemberJoinRequest joinRequest = taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
                 party,
                 "invitee-1",
                 "inviter-1"
         );
 
-        assertEquals("request-1", requestId);
+        assertEquals("request-1", joinRequest.joinRequest().getId());
+        assertTrue(joinRequest.created());
         assertEquals(PartyStatus.CLOSED, party.getStatus());
         verify(joinRequestSseService).publishJoinRequestCreated(any(JoinRequest.class));
     }
@@ -680,17 +709,39 @@ class TaxiPartyServiceTest {
             return saved;
         });
 
-        String requestId = taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
+        TaxiPartyService.InvitedMemberJoinRequest joinRequest = taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
                 party,
                 "invitee-1",
                 "inviter-1"
         );
 
-        assertEquals("request-1", requestId);
+        assertEquals("request-1", joinRequest.joinRequest().getId());
+        assertTrue(joinRequest.created());
         verify(joinRequestSseService).publishJoinRequestCreated(argThat(
                 request -> request.getRequesterId().equals("invitee-1")
                         && request.getStatus() == JoinRequestStatus.PENDING
         ));
+    }
+
+    @Test
+    void 일반참가자초대수락은_기존대기동승요청을재사용한다() {
+        Party party = sampleParty("party-1", "leader", 4, "inviter-1");
+        JoinRequest existingRequest = JoinRequest.create(party, "invitee-1");
+        ReflectionTestUtils.setField(existingRequest, "id", "request-1");
+        when(partyRepository.existsActivePartyByMemberId(eq("invitee-1"), anySet(), eq("party-1")))
+                .thenReturn(false);
+        when(joinRequestRepository.findPendingByPartyIdAndRequesterIdForUpdate("party-1", "invitee-1"))
+                .thenReturn(List.of(existingRequest));
+
+        TaxiPartyService.InvitedMemberJoinRequest result = taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
+                party,
+                "invitee-1",
+                "inviter-1"
+        );
+
+        assertEquals("request-1", result.joinRequest().getId());
+        assertFalse(result.created());
+        verify(joinRequestSseService, never()).publishJoinRequestCreated(any(JoinRequest.class));
     }
 
     @Test

@@ -7,6 +7,7 @@ import com.skuri.skuri_backend.domain.friend.service.FriendMemberPair;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequest;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Location;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
@@ -43,6 +44,7 @@ class PartyInvitationTransitionServiceTest {
     @Mock private MemberRepository memberRepository;
     @Mock private FriendMemberPairLockService pairLockService;
     @Mock private TaxiPartyService taxiPartyService;
+    @Mock private JoinRequestSseService joinRequestSseService;
     private PartyInvitationTransitionService service;
 
     @BeforeEach
@@ -54,7 +56,8 @@ class PartyInvitationTransitionServiceTest {
                 memberBlockRepository,
                 memberRepository,
                 pairLockService,
-                taxiPartyService
+                taxiPartyService,
+                joinRequestSseService
         );
     }
 
@@ -100,11 +103,13 @@ class PartyInvitationTransitionServiceTest {
                 PartyInvitationTransitionServiceTestHelper.ACTIVE_STATUSES,
                 "party-1"
         )).thenReturn(false);
+        JoinRequest joinRequest = JoinRequest.create(party, "invitee-1");
+        ReflectionTestUtils.setField(joinRequest, "id", "request-1");
         when(taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
                 party,
                 "invitee-1",
                 "inviter-1"
-        )).thenReturn("request-1");
+        )).thenReturn(new TaxiPartyService.InvitedMemberJoinRequest(joinRequest, true));
 
         PartyInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
 
@@ -116,6 +121,41 @@ class PartyInvitationTransitionServiceTest {
                 .isEqualTo(PartyInvitationAcceptanceResult.LEADER_APPROVAL_PENDING);
         assertThat(invitation.getAcceptedJoinRequestId()).isEqualTo("request-1");
         verify(taxiPartyService, never()).acceptInvitedMemberWithLockedParty(party, "invitee-1", "inviter-1");
+    }
+
+    @Test
+    void 기존동승요청을재사용한초대수락은_초대자표시갱신SSE를발행한다() {
+        Party party = Party.create(
+                "leader-1",
+                Location.of("성결대학교", 37.38, 126.93),
+                Location.of("안양역", 37.40, 126.92),
+                LocalDateTime.now().plusHours(1),
+                4,
+                List.of(),
+                null
+        );
+        ReflectionTestUtils.setField(party, "id", "party-1");
+        party.addMember("inviter-1");
+        PartyInvitation invitation = invitation("invite-1");
+        JoinRequest existingRequest = JoinRequest.create(party, "invitee-1");
+        ReflectionTestUtils.setField(existingRequest, "id", "request-1");
+        stubAcceptBoundary(party, invitation, invitation);
+        when(partyRepository.existsActivePartyByMemberId(
+                "invitee-1",
+                PartyInvitationTransitionServiceTestHelper.ACTIVE_STATUSES,
+                "party-1"
+        )).thenReturn(false);
+        when(taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
+                party,
+                "invitee-1",
+                "inviter-1"
+        )).thenReturn(new TaxiPartyService.InvitedMemberJoinRequest(existingRequest, false));
+
+        PartyInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
+
+        assertThat(result.joinRequestId()).isEqualTo("request-1");
+        assertThat(invitation.getAcceptedJoinRequestId()).isEqualTo("request-1");
+        verify(joinRequestSseService).publishJoinRequestUpdated(existingRequest, existingRequest.getStatus());
     }
 
     @Test

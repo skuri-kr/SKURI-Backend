@@ -4,6 +4,7 @@ import com.skuri.skuri_backend.common.dto.PageResponse;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.JoinRequestResponse;
+import com.skuri.skuri_backend.domain.taxiparty.dto.response.JoinRequestListItemResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.MemberSettlementResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.MyPartyResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyDetailResponse;
@@ -183,6 +184,31 @@ class PartyControllerContractTest {
                 )
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value("PARTY_FULL"));
+    }
+
+    @Test
+    void getPartyJoinRequests_친구초대자필드의값과null을보존한다() throws Exception {
+        mockValidToken();
+        LocalDateTime createdAt = LocalDateTime.of(2026, 8, 24, 12, 30);
+        when(taxiPartyService.getPartyJoinRequests("firebase-uid", "party-1"))
+                .thenReturn(List.of(
+                        new JoinRequestListItemResponse(
+                                "request-1", "party-1", "member-1", "홍길동", null, "김길동",
+                                JoinRequestStatus.PENDING, null, createdAt
+                        ),
+                        new JoinRequestListItemResponse(
+                                "request-2", "party-1", "member-2", "이영희", null, null,
+                                JoinRequestStatus.PENDING, null, createdAt
+                        )
+                ));
+
+        mockMvc.perform(
+                        get("/v1/parties/party-1/join-requests")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].invitationInviterName").value("김길동"))
+                .andExpect(jsonPath("$.data[1].invitationInviterName").value(Matchers.nullValue()));
     }
 
     @Test

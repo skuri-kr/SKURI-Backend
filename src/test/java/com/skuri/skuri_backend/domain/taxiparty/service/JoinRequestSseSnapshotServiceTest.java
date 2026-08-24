@@ -148,6 +148,38 @@ class JoinRequestSseSnapshotServiceTest {
         assertEquals("김길동", requests.getFirst().invitationInviterName());
     }
 
+    @Test
+    void createPartyJoinRequestsSnapshotPayload_여러초대원본은저장소정렬의첫초대자를표시한다() {
+        JoinRequestSseSnapshotService snapshotService = new JoinRequestSseSnapshotService(
+                partyRepository,
+                joinRequestRepository,
+                partyInvitationRepository,
+                memberRepository
+        );
+        Party party = sampleParty("party-1", "leader-1");
+        JoinRequest request = sampleJoinRequest("request-1", party, "requester-1");
+        Member requester = Member.create("requester-1", "requester@sungkyul.ac.kr", "요청자", LocalDateTime.now());
+        Member firstInviter = Member.create("inviter-1", "first@sungkyul.ac.kr", "김길동", LocalDateTime.now());
+        firstInviter.updateProfile("김길동", "김길동", "20230002", "컴퓨터공학과", null);
+
+        when(partyRepository.findById("party-1")).thenReturn(Optional.of(party));
+        when(joinRequestRepository.findByParty_IdOrderByCreatedAtDesc("party-1")).thenReturn(List.of(request));
+        when(partyInvitationRepository.findAcceptedJoinRequestSources(List.of("request-1")))
+                .thenReturn(List.of(
+                        acceptedSource("request-1", "inviter-1"),
+                        acceptedSource("request-1", "inviter-2")
+                ));
+        when(memberRepository.findAllById(List.of("requester-1"))).thenReturn(List.of(requester));
+        when(memberRepository.findAllById(List.of("inviter-1"))).thenReturn(List.of(firstInviter));
+
+        Map<String, Object> payload = snapshotService.createPartyJoinRequestsSnapshotPayload("leader-1", "party-1");
+        @SuppressWarnings("unchecked")
+        List<com.skuri.skuri_backend.domain.taxiparty.dto.response.JoinRequestListItemResponse> requests =
+                (List<com.skuri.skuri_backend.domain.taxiparty.dto.response.JoinRequestListItemResponse>) payload.get("requests");
+
+        assertEquals("김길동", requests.getFirst().invitationInviterName());
+    }
+
     private PartyInvitationRepository.AcceptedJoinRequestSource acceptedSource(String requestId, String inviterId) {
         return new PartyInvitationRepository.AcceptedJoinRequestSource() {
             @Override

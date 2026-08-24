@@ -180,6 +180,18 @@ class ChatRoomInvitationTransitionServiceTest {
         assertThat(invitation.getStatus()).isEqualTo(ChatRoomInvitationStatus.DISMISSED);
     }
 
+    @Test
+    void 수신자는_재조정되지않은시간만료초대도_목록에서지울수있다() {
+        ChatRoomInvitation invitation = invitation(LocalDateTime.now().minusDays(8));
+        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(invitation));
+
+        boolean removed = service.cancel("invitee-1", "invite-1");
+
+        assertThat(removed).isTrue();
+        assertThat(invitation.getStatus()).isEqualTo(ChatRoomInvitationStatus.DISMISSED);
+        assertThat(invitation.getExpiryReason()).isEqualTo(ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT);
+    }
+
     private void stubAcceptBoundary(
             ChatRoom room,
             ChatRoomInvitation snapshot,
