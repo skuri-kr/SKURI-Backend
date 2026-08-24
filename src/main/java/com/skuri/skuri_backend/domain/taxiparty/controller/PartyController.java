@@ -761,7 +761,10 @@ public class PartyController {
     }
 
     @PostMapping("/parties/{partyId}/join-requests")
-    @Operation(summary = "동승 요청 생성", description = "파티에 동승 요청을 생성합니다.")
+    @Operation(
+            summary = "동승 요청 생성",
+            description = "파티에 동승 요청을 생성합니다. 정원이 가득 찬 파티는 PARTY_FULL을 반환합니다."
+    )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "201",
@@ -792,12 +795,13 @@ public class PartyController {
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "409",
-                    description = "모집 마감/이미 종료/이미 참여/중복 요청",
+                    description = "정원 초과/모집 마감/이미 종료/이미 참여/중복 요청",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ApiResponse.class),
                             examples = {
                                     @ExampleObject(name = "party_ended", value = OpenApiTaxiPartyExamples.ERROR_PARTY_ENDED),
+                                    @ExampleObject(name = "party_full", value = OpenApiTaxiPartyExamples.ERROR_PARTY_FULL),
                                     @ExampleObject(name = "party_closed", value = OpenApiTaxiPartyExamples.ERROR_PARTY_CLOSED),
                                     @ExampleObject(name = "already_in_party", value = OpenApiTaxiPartyExamples.ERROR_ALREADY_IN_PARTY),
                                     @ExampleObject(name = "already_requested", value = OpenApiTaxiPartyExamples.ERROR_ALREADY_REQUESTED)

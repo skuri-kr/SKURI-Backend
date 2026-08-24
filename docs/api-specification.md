@@ -1252,6 +1252,8 @@ FCM 토큰 삭제
 #### POST /v1/parties/{partyId}/join-requests
 동승 요청 생성
 
+- 현재 인원이 정원에 도달한 파티는 모집이 이미 마감됐더라도 `409 PARTY_FULL`을 반환합니다.
+
 **Response:**
 ```json
 {
@@ -1261,6 +1263,15 @@ FCM 토큰 삭제
     "status": "PENDING",
     "expiryReason": null
   }
+}
+```
+
+**Response (409 PARTY_FULL):**
+```json
+{
+  "success": false,
+  "message": "파티 정원이 가득 찼습니다.",
+  "errorCode": "PARTY_FULL"
 }
 ```
 
