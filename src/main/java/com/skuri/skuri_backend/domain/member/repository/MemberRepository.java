@@ -183,16 +183,35 @@ public interface MemberRepository extends JpaRepository<Member, String>, MemberR
     );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-            update Member m
-            set m.notificationSetting.academicScheduleNotifications = coalesce(m.notificationSetting.academicScheduleNotifications, true),
-                m.notificationSetting.academicScheduleDayBeforeEnabled = coalesce(m.notificationSetting.academicScheduleDayBeforeEnabled, true),
-                m.notificationSetting.academicScheduleAllEventsEnabled = coalesce(m.notificationSetting.academicScheduleAllEventsEnabled, false),
-                m.notificationSetting.friendAndInvitationNotifications = coalesce(m.notificationSetting.friendAndInvitationNotifications, true)
-            where m.notificationSetting.academicScheduleNotifications is null
-               or m.notificationSetting.academicScheduleDayBeforeEnabled is null
-               or m.notificationSetting.academicScheduleAllEventsEnabled is null
-               or m.notificationSetting.friendAndInvitationNotifications is null
-            """)
+    @Query(value = """
+            update members
+            set all_notifications = coalesce(all_notifications, true),
+                party_notifications = coalesce(party_notifications, true),
+                notice_notifications = coalesce(notice_notifications, true),
+                board_like_notifications = coalesce(board_like_notifications, true),
+                comment_notifications = coalesce(comment_notifications, true),
+                bookmarked_post_comment_notifications = coalesce(bookmarked_post_comment_notifications, true),
+                system_notifications = coalesce(system_notifications, true),
+                friend_and_invitation_notifications = coalesce(friend_and_invitation_notifications, true),
+                academic_schedule_notifications = coalesce(academic_schedule_notifications, true),
+                academic_schedule_day_before_enabled = coalesce(academic_schedule_day_before_enabled, true),
+                academic_schedule_all_events_enabled = coalesce(academic_schedule_all_events_enabled, false),
+                notice_notifications_detail = coalesce(
+                    notice_notifications_detail,
+                    json_object('news': true, 'academy': true, 'scholarship': true)
+                )
+            where all_notifications is null
+               or party_notifications is null
+               or notice_notifications is null
+               or board_like_notifications is null
+               or comment_notifications is null
+               or bookmarked_post_comment_notifications is null
+               or system_notifications is null
+               or friend_and_invitation_notifications is null
+               or academic_schedule_notifications is null
+               or academic_schedule_day_before_enabled is null
+               or academic_schedule_all_events_enabled is null
+               or notice_notifications_detail is null
+            """, nativeQuery = true)
     int backfillNotificationSettingDefaults();
 }
