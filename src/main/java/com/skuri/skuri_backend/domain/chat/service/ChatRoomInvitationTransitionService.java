@@ -52,7 +52,7 @@ public class ChatRoomInvitationTransitionService {
             return AcceptAttempt.expired(snapshot.getChatRoomId());
         }
 
-        if (chatRoomRepository.findById(snapshot.getChatRoomId()).isEmpty()) {
+        if (!chatRoomRepository.existsByIdForInvitationAcceptance(snapshot.getChatRoomId())) {
             expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.TARGET_UNAVAILABLE);
             return AcceptAttempt.expired(snapshot.getChatRoomId());
         }
@@ -139,7 +139,7 @@ public class ChatRoomInvitationTransitionService {
             expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT);
             return;
         }
-        if (chatRoomRepository.findById(snapshot.getChatRoomId()).isEmpty()) {
+        if (!chatRoomRepository.existsByIdForInvitationAcceptance(snapshot.getChatRoomId())) {
             expireWithoutAggregate(invitationId, ChatRoomInvitationExpiryReason.TARGET_UNAVAILABLE);
             return;
         }
