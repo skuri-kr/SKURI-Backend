@@ -118,6 +118,13 @@
 - 내 `TEXT` 메시지는 전송 후 15분 안에 수정할 수 있으며, 삭제는 채팅 위치와 과거 읽기 흐름을 보존하는 tombstone 방식으로 처리한다.
 - 메시지 수정·삭제는 전용 WebSocket 이벤트로 전달하고, 삭제된 채팅 이미지는 신고 증거와 활성 참조가 없을 때만 재시도 큐로 정리한다.
 
+#### 친구
+
+- 프로필 완료 ACTIVE 회원은 친구 코드·QR·닉네임 검색으로 친구 요청을 보낼 수 있다.
+- 친구 요청·수락·거절, 즐겨찾기, 친구 끊기·차단, 시간표 공유·마인크래프트 projection을 제공한다.
+- 현재 파티 참가자는 친구를 택시파티에 초대하고, 공개 non-PARTY 채팅방 참가자는 친구를 초대할 수 있다.
+- 친구 요청·초대 알림은 `allNotifications && friendAndInvitationNotifications`를 만족할 때 인앱 인박스·SSE·FCM으로 전달한다.
+
 #### 마인크래프트
 
 - 공개 게임방 canonical id는 `public:game:minecraft`다.
@@ -152,6 +159,7 @@
 - 파티 상태 변화: `PARTY_CLOSED`, `PARTY_REOPENED`, `PARTY_ARRIVED`, `PARTY_ENDED`
 - 파티 채팅/공개 채팅: `CHAT_MESSAGE`
 - 동승 요청: `JOIN_REQUEST_CREATED`, `JOIN_REQUEST_ACCEPTED` 등
+- 친구·초대: `FRIEND_REQUEST`, `FRIEND_ACCEPTED`, `FRIEND_DECLINED`, `PARTY_INVITATION`, `CHAT_ROOM_INVITATION`
 
 파티 상태 변화는 채팅 푸시가 아니라 `PARTY_*` 알림이 책임진다. 일반 채팅 메시지만 `CHAT_MESSAGE` 푸시를 사용하고, 일반 공개 채팅/파티 채팅의 멤버 입장/퇴장 `SYSTEM` 메시지는 히스토리/실시간 표시만 하고 push는 보내지 않는다. 단, 마인크래프트방 시스템 메시지는 별도 정책 문서에 따라 push 대상에 포함한다.
 

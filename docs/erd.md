@@ -1,6 +1,6 @@
 # Spring 백엔드 ERD (Entity Relationship Diagram)
 
-> 최종 수정일: 2026-08-22
+> 최종 수정일: 2026-08-24
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -807,6 +807,7 @@ erDiagram
 | comment_notifications | BOOLEAN | DEFAULT true | Board/Notice 공통 댓글 알림 |
 | bookmarked_post_comment_notifications | BOOLEAN | DEFAULT true | 북마크한 게시글의 새 댓글 알림 |
 | system_notifications | BOOLEAN | DEFAULT true | 시스템 알림 |
+| friend_and_invitation_notifications | BOOLEAN | DEFAULT true | 친구 요청·수락·거절과 친구 기반 택시파티·공개방 초대 알림 |
 | academic_schedule_notifications | BOOLEAN | DEFAULT true | 학사 일정 알림 마스터 |
 | academic_schedule_day_before_enabled | BOOLEAN | DEFAULT true | 학사 일정 전날 리마인더 허용 |
 | academic_schedule_all_events_enabled | BOOLEAN | DEFAULT false | 중요 일정 외 일반 일정 알림 허용 |
@@ -818,6 +819,8 @@ erDiagram
 | updated_at | DATETIME | NOT NULL | 수정일 |
 
 > Phase 8부터 학사 일정 알림용 `academic_schedule_notifications`, `academic_schedule_day_before_enabled`, `academic_schedule_all_events_enabled` 컬럼을 사용한다.
+
+> Friend 알림은 `friend_and_invitation_notifications`로 제어한다. 기존 null 값은 런타임에서 `true`로 해석하고, 기동 시 null인 행만 조건부 bulk update로 보정한다.
 
 > Phase 10부터 회원 탈퇴는 hard delete 대신 `status`, `withdrawn_at` 기반 soft delete tombstone으로 관리한다.
 

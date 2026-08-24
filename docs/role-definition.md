@@ -1,7 +1,7 @@
 # 백엔드 역할 정의서 v1.0
 (Firebase Serverless → Spring Migration)
 
-> 최종 수정일: 2026-08-18
+> 최종 수정일: 2026-08-24
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [API 명세](./api-specification.md) | [구현 로드맵](./implementation-roadmap.md) | [Friend 기능 기준](./features/friends.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 > 참고: AS-IS 섹션은 migration kickoff 시점의 legacy Firebase 구조를 설명한다. 마인크래프트 상세 설계/이력은 백엔드 레포 `docs/minecraft-spring-migration-plan.md`를 본다.
 
@@ -107,7 +107,7 @@ Spring 백엔드는 마인크래프트 기능도 예외 없이 최종 판단한�
 
 ### 4.5 Phase 14 Friend 도메인과 협력 책임
 
-> 상태: Foundation과 친구 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·PENDING 목록), Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대 전달 완료. 초대·정원·파티원 UX 보완 진행 중이며 알림은 후속 구현 예정
+> 상태: Foundation과 친구 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·PENDING 목록), Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대와 초대·정원·파티원 UX 보완을 전달 완료했다. 친구·초대 알림과 Friend derived-data 탈퇴 cleanup의 Backend 구현은 현재 최종 PR에 포함하며, 앱 연동·통합 QA는 다음 Frontend PR에서 진행한다.
 
 Friend는 Supporting 도메인으로서 영구 미재사용 친구 코드 registry·요청·상호 관계·즐겨찾기·친구 끊기·차단을 소유한다. FriendProfile·최초 코드는 유효 닉네임·학번·학과를 갖춘 프로필 완료 ACTIVE 회원에게만 발급한다. 모든 mutation과 lazy provisioning은 Member 잠금 후 요청자·대상이 이 조건을 만족하는지 다시 확인한다. Minecraft는 friendship·차단 확인 뒤 안전한 SELF·FRIEND 계정 projection을 제공한다. 다른 기능의 최종 규칙은 해당 도메인이 계속 소유하며 Friend가 내부 엔티티를 직접 수정하지 않는다. 친구 끊기·차단은 Friend가 관계 전이를 orchestration하되, 양방향 시간표 공유 예외 삭제는 같은 트랜잭션에 참여하는 Academic cleanup 서비스가 수행한다.
 
@@ -119,10 +119,10 @@ Friend는 Supporting 도메인으로서 영구 미재사용 친구 코드 regist
 | TaxiParty | OPEN/CLOSED·정원·참여 조건을 포함한 택시파티 초대 상태와 수락, 최초 수락 결과 영속화·재시도, 파티장 초대 즉시 참가·참가자 초대 리더 승인, 파티원 목록·리더 강퇴 |
 | Chat | 공개 non-PARTY 방의 자격·정원·초대 상태와 수락 |
 | Minecraft | friendship·차단 확인 후 SELF·FRIEND 계정 안전 projection |
-| Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, PARTY_INVITATION, CHAT_ROOM_INVITATION의 인박스·SSE·FCM 전달 |
+| Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, FRIEND_DECLINED, PARTY_INVITATION, CHAT_ROOM_INVITATION의 인박스·SSE·FCM 전달 |
 | Support | 기존 신고 저장·중복 정책·운영 처리 |
 
-Friend Foundation과 관계 Core, Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대의 API·DB 조회는 현재 런타임에 존재한다. 친구 요청은 30일 PENDING·역방향 자동 수락·수락 멱등성·terminal 409을 서버가 강제하며, 차단은 일반 대상 없음으로 마스킹한다. 시간표 공유는 `PRIVATE` 기본값, 친구별 예외 우선, friendship 종료·차단 시 양방향 예외 정리를 서버가 강제한다. 초대는 수신자별 부분 성공, 수락 시 자격·정원 재검증, terminal EXPIRED 사유와 공개방 7일 만료를 각 소유 도메인이 강제한다. 택시 초대는 OPEN·CLOSED 상태의 현재 참가자가 보낼 수 있고, 파티장 초대는 수신자 수락 즉시 참가하며 일반 참가자 초대는 동승 요청으로 전환해 파티장 승인을 받는다. 정원 도달은 모집 상태를 자동 전이하지 않고 남은 PENDING 동승 요청·초대만 EXPIRED + CAPACITY_FULL로 종료하며, 리더·관리자는 정원과 무관하게 명시적으로 모집을 재개할 수 있다. 알림은 아직 계획 상태이며 상세 정책은 `docs/features/friends.md`를 기준으로 한다.
+Friend Foundation과 관계 Core, Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대의 API·DB 조회는 현재 런타임에 존재한다. 친구 요청은 30일 PENDING·역방향 자동 수락·수락 멱등성·terminal 409을 서버가 강제하며, 차단은 일반 대상 없음으로 마스킹한다. 시간표 공유는 `PRIVATE` 기본값, 친구별 예외 우선, friendship 종료·차단 시 양방향 예외 정리를 서버가 강제한다. 초대는 수신자별 부분 성공, 수락 시 자격·정원 재검증, terminal EXPIRED 사유와 공개방 7일 만료를 각 소유 도메인이 강제한다. 택시 초대는 OPEN·CLOSED 상태의 현재 참가자가 보낼 수 있고, 파티장 초대는 수신자 수락 즉시 참가하며 일반 참가자 초대는 동승 요청으로 전환해 파티장 승인을 받는다. 정원 도달은 모집 상태를 자동 전이하지 않고 남은 PENDING 동승 요청·초대만 EXPIRED + CAPACITY_FULL로 종료하며, 리더·관리자는 정원과 무관하게 명시적으로 모집을 재개할 수 있다. 친구 요청·수락·거절과 초대는 after-commit 이벤트로 인박스·SSE·FCM을 전달하고, `allNotifications && friendAndInvitationNotifications`가 false면 알림 전달만 생략한다. 상세 정책은 `docs/features/friends.md`를 기준으로 한다.
 
 ---
 

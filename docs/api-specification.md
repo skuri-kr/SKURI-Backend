@@ -320,6 +320,7 @@ Spring 서버 처리:
       "commentNotifications": true,
       "bookmarkedPostCommentNotifications": true,
       "systemNotifications": true,
+      "friendAndInvitationNotifications": true,
       "academicScheduleNotifications": true,
       "academicScheduleDayBeforeEnabled": true,
       "academicScheduleAllEventsEnabled": false,
@@ -424,7 +425,8 @@ Spring 서버 처리:
 
 - 부분 업데이트 API입니다.
 - 요청 본문에 포함되지 않은 알림 필드는 기존 값을 유지합니다.
-- 런타임 기준으로 현재 지원되는 필드는 `allNotifications`, `partyNotifications`, `noticeNotifications`, `boardLikeNotifications`, `commentNotifications`, `bookmarkedPostCommentNotifications`, `systemNotifications`, `academicScheduleNotifications`, `academicScheduleDayBeforeEnabled`, `academicScheduleAllEventsEnabled`, `noticeNotificationsDetail`입니다.
+- 런타임 기준으로 현재 지원되는 필드는 `allNotifications`, `partyNotifications`, `noticeNotifications`, `boardLikeNotifications`, `commentNotifications`, `bookmarkedPostCommentNotifications`, `systemNotifications`, `friendAndInvitationNotifications`, `academicScheduleNotifications`, `academicScheduleDayBeforeEnabled`, `academicScheduleAllEventsEnabled`, `noticeNotificationsDetail`입니다.
+- `friendAndInvitationNotifications`의 기본값은 `true`이며, 친구 요청·수락·거절과 택시파티·공개 채팅방 초대 알림을 함께 제어합니다. 기존 null 데이터는 서버에서 `true`로 해석하고 기동 시 조건부 보정합니다.
 - 학사 일정 알림 기본값은 `academicScheduleNotifications=true`, `academicScheduleDayBeforeEnabled=true`, `academicScheduleAllEventsEnabled=false`입니다.
 
 **Request:**
@@ -434,6 +436,7 @@ Spring 서버 처리:
   "noticeNotifications": false,
   "commentNotifications": true,
   "bookmarkedPostCommentNotifications": true,
+  "friendAndInvitationNotifications": true,
   "academicScheduleNotifications": true,
   "academicScheduleDayBeforeEnabled": true,
   "academicScheduleAllEventsEnabled": false,
@@ -3977,6 +3980,10 @@ Authorization:Bearer <firebase_id_token>
 | `NOTICE` | 새 학교 공지 | 공지 허용 사용자 | `allNotifications` + `noticeNotifications` + `noticeNotificationsDetail` | O |
 | `APP_NOTICE` | 앱 공지 생성 | 일반: 시스템 알림 허용 사용자 / `HIGH`: 전체 사용자 | 일반: `allNotifications` + `systemNotifications`, `HIGH`는 설정 무시 | O |
 | `ACADEMIC_SCHEDULE` | 학사 일정 리마인더 | 학사 일정 알림 허용 사용자 | `allNotifications` + `academicScheduleNotifications` | O |
+| `FRIEND_REQUEST` | 친구 요청 생성 | 요청 수신자 | `allNotifications` + `friendAndInvitationNotifications` | O |
+| `FRIEND_ACCEPTED` / `FRIEND_DECLINED` | 친구 요청 수락·거절 | 원 요청자 | `allNotifications` + `friendAndInvitationNotifications` | O |
+| `PARTY_INVITATION` | 친구 기반 택시파티 초대 생성 | 초대 수신자 | `allNotifications` + `friendAndInvitationNotifications`; `partyNotifications`는 최초 초대에 미적용 | O |
+| `CHAT_ROOM_INVITATION` | 친구 기반 공개 채팅방 초대 생성 | 초대 수신자 | `allNotifications` + `friendAndInvitationNotifications` | O |
 
 - 공지 댓글은 현재 `Notice.author`가 회원 식별자가 아닌 문자열이므로, 루트 댓글 작성자(공지 작성자) 알림은 런타임에서 보장하지 않습니다. 현재 구현은 부모 댓글 작성자 대상 답글 알림만 발송합니다.
 - 학사 일정 리마인더는 `AcademicScheduleReminder` 도메인 이벤트 기반으로 처리합니다.
@@ -3992,6 +3999,8 @@ Authorization:Bearer <firebase_id_token>
   - `academicScheduleNotifications`
   - `academicScheduleDayBeforeEnabled`
   - `academicScheduleAllEventsEnabled`
+- 친구·초대 알림은 `FRIEND_REQUEST`, `FRIEND_ACCEPTED`, `FRIEND_DECLINED`, `PARTY_INVITATION`, `CHAT_ROOM_INVITATION`으로 구분한다. 유효 수신 조건이 false이면 인박스·알림 SSE·FCM은 만들지 않지만 FriendHub의 원본 PENDING 요청·초대와 badge는 유지한다.
+- 친구 요청·거절 payload에는 `requestId`, 수락 payload에는 `friendPublicId`, 초대 payload에는 `invitationId`, `invitationType`을 포함한다. 클라이언트는 type과 data로 각각 친구 허브 요청 탭·친구 상세·초대 탭으로 이동한다.
 
 ---
 
@@ -5158,6 +5167,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
       "commentNotifications": true,
       "bookmarkedPostCommentNotifications": true,
       "systemNotifications": true,
+      "friendAndInvitationNotifications": true,
       "academicScheduleNotifications": true,
       "academicScheduleDayBeforeEnabled": true,
       "academicScheduleAllEventsEnabled": false,
@@ -5316,6 +5326,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
       "commentNotifications": true,
       "bookmarkedPostCommentNotifications": true,
       "systemNotifications": true,
+      "friendAndInvitationNotifications": true,
       "academicScheduleNotifications": true,
       "academicScheduleDayBeforeEnabled": true,
       "academicScheduleAllEventsEnabled": false,
