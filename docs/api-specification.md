@@ -7755,7 +7755,7 @@ cursor는 query-bound opaque token이며 다른 query에 재사용하거나 형�
 }
 ```
 
-outcome은 `SENT | ALREADY_PENDING | ALREADY_MEMBER | NOT_ELIGIBLE`다. 결과는 중복 제거 후 첫 등장 요청 순서를 유지하고 각 수신자를 독립 트랜잭션으로 처리한다. `SENT`와 현재 발송자가 만든 `ALREADY_PENDING`만 invitationId를 제공한다. 친구 관계가 없거나 양방향 차단된 대상은 현재 파티 참여 여부와 무관하게 `NOT_ELIGIBLE`로 마스킹한다. eligible 응답은 `friends`, `alreadyPendingFriends`, `alreadyMemberFriends`를 분리하며, 가득 찬 파티도 `canInvite=false`, `unavailableReason=PARTY_FULL`로 정상 조회된다. 초대는 좌석을 예약하지 않는다. 파티장이 보낸 초대는 수신자 수락 시 `result=JOINED`로 즉시 참가하고, 일반 참가자가 보낸 초대는 `result=LEADER_APPROVAL_PENDING`, `joinRequestId`로 기존 동승 요청 승인 흐름에 진입한다. ACCEPTED 초대의 수락 재호출은 최초 결과와 `joinRequestId`를 그대로 반환하며 이후 동승 요청 처리 상태를 다시 추론하지 않는다. 수락 시 다른 활성 파티가 있으면 초대를 PENDING으로 유지한 채 `409 ALREADY_IN_PARTY`를 반환한다. 파티 비OPEN·정원 마감·초대자 이탈·관계 상실은 EXPIRED로 고정한다. 정원이 차면 남은 PENDING 동승 요청도 `EXPIRED + CAPACITY_FULL`로 종료한다.
+outcome은 `SENT | ALREADY_PENDING | ALREADY_MEMBER | NOT_ELIGIBLE`다. 결과는 중복 제거 후 첫 등장 요청 순서를 유지하고 각 수신자를 독립 트랜잭션으로 처리한다. `SENT`와 현재 발송자가 만든 `ALREADY_PENDING`만 invitationId를 제공한다. 친구 관계가 없거나 양방향 차단된 대상은 현재 파티 참여 여부와 무관하게 `NOT_ELIGIBLE`로 마스킹한다. eligible 응답은 `friends`, `alreadyPendingFriends`, `alreadyMemberFriends`를 분리하며, 가득 찬 파티도 `canInvite=false`, `unavailableReason=PARTY_FULL`로 정상 조회된다. 초대는 좌석을 예약하지 않는다. 파티장이 보낸 초대는 수신자 수락 시 `result=JOINED`로 즉시 참가하고 같은 파티의 PENDING 동승 요청을 CANCELED로 정리한다. 일반 참가자가 보낸 초대는 `result=LEADER_APPROVAL_PENDING`, `joinRequestId`로 기존 동승 요청 승인 흐름에 진입하며, 같은 파티의 PENDING 요청이 이미 있으면 이를 재사용한다. ACCEPTED 초대의 수락 재호출은 최초 결과와 `joinRequestId`를 그대로 반환하며 이후 동승 요청 처리 상태를 다시 추론하지 않는다. 수락 시 다른 활성 파티가 있으면 초대를 PENDING으로 유지한 채 `409 ALREADY_IN_PARTY`를 반환한다. 파티 비OPEN·정원 마감·초대자 이탈·관계 상실은 EXPIRED로 고정한다. 정원이 차면 남은 PENDING 동승 요청도 `EXPIRED + CAPACITY_FULL`로 종료한다.
 
 #### 공개 채팅방 초대
 

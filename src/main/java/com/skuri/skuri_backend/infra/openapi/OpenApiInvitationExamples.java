@@ -14,8 +14,11 @@ public final class OpenApiInvitationExamples {
     public static final String SUCCESS_PARTY_RECEIVED = """
             {"success":true,"data":[{"invitationId":"invitation-1","invitationType":"PARTY","status":"PENDING","expiryReason":null,"inviter":{"friendPublicId":"friend-public-2","nickname":"나래","department":"컴퓨터공학과","photoUrl":null,"favorite":false},"target":{"partyId":"party-1","departureName":"정문","destinationName":"안양역","departureTime":"2026-08-24T18:00:00","currentMembers":2,"maxMembers":4,"status":"OPEN"},"createdAt":"2026-08-23T12:00:00","respondedAt":null}]}
             """;
-    public static final String SUCCESS_PARTY_MUTATION = """
+    public static final String SUCCESS_PARTY_ACCEPT_JOINED = """
             {"success":true,"data":{"invitationId":"invitation-1","partyId":"party-1","status":"ACCEPTED","result":"JOINED","joinRequestId":null}}
+            """;
+    public static final String SUCCESS_PARTY_ACCEPT_LEADER_APPROVAL_PENDING = """
+            {"success":true,"data":{"invitationId":"invitation-1","partyId":"party-1","status":"ACCEPTED","result":"LEADER_APPROVAL_PENDING","joinRequestId":"request-1"}}
             """;
     public static final String SUCCESS_PARTY_DECLINE = """
             {"success":true,"data":{"invitationId":"invitation-1","partyId":"party-1","status":"DECLINED","result":null,"joinRequestId":null}}

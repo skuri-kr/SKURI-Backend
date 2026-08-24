@@ -128,7 +128,10 @@ public class PartyInvitationController {
     @Operation(summary = "택시파티 초대 수락")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수락 성공",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiInvitationSchemas.PartyMutationApiResponse.class), examples = @ExampleObject(value = OpenApiInvitationExamples.SUCCESS_PARTY_MUTATION))),
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiInvitationSchemas.PartyMutationApiResponse.class), examples = {
+                            @ExampleObject(name = "joined", value = OpenApiInvitationExamples.SUCCESS_PARTY_ACCEPT_JOINED),
+                            @ExampleObject(name = "leader_approval_pending", value = OpenApiInvitationExamples.SUCCESS_PARTY_ACCEPT_LEADER_APPROVAL_PENDING)
+                    })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "수신자가 아님",
