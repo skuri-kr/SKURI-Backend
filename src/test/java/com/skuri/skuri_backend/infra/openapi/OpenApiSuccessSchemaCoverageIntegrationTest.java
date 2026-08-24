@@ -271,6 +271,7 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
                 Set.of("PARTY_INVITATION_RECIPIENT_REQUIRED"),
                 exampleNames(partyPaths, "/v1/party-invitations/{invitationId}/accept", "post", "403")
         );
+        assertPartyInvitationAcceptSuccessExamples(partyPaths);
         assertEquals(
                 Set.of("PARTY_INVITATION_INVITER_REQUIRED"),
                 exampleNames(partyPaths, "/v1/party-invitations/{invitationId}", "delete", "403")
@@ -319,6 +320,33 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
                 .fieldNames()
                 .forEachRemaining(names::add);
         return names;
+    }
+
+    private void assertPartyInvitationAcceptSuccessExamples(JsonNode paths) {
+        JsonNode examples = paths.path("/v1/party-invitations/{invitationId}/accept")
+                .path("post")
+                .path("responses")
+                .path("200")
+                .path("content")
+                .path("application/json")
+                .path("examples");
+
+        assertEquals(Set.of("joined", "leader_approval_pending"), exampleNames(
+                paths,
+                "/v1/party-invitations/{invitationId}/accept",
+                "post",
+                "200"
+        ));
+        assertEquals("JOINED", examples.path("joined").path("value").path("data").path("result").asText());
+        assertTrue(examples.path("joined").path("value").path("data").path("joinRequestId").isNull());
+        assertEquals(
+                "LEADER_APPROVAL_PENDING",
+                examples.path("leader_approval_pending").path("value").path("data").path("result").asText()
+        );
+        assertEquals(
+                "request-1",
+                examples.path("leader_approval_pending").path("value").path("data").path("joinRequestId").asText()
+        );
     }
 
     private void assertJoinRequestSseExpiryExample(JsonNode paths, String path) {
