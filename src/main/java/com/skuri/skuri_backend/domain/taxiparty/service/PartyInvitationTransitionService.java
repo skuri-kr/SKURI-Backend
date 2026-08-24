@@ -41,6 +41,7 @@ public class PartyInvitationTransitionService {
     private final MemberRepository memberRepository;
     private final FriendMemberPairLockService pairLockService;
     private final TaxiPartyService taxiPartyService;
+    private final JoinRequestSseService joinRequestSseService;
 
     @Transactional
     public AcceptAttempt accept(String recipientMemberId, String invitationId) {
@@ -114,17 +115,20 @@ public class PartyInvitationTransitionService {
             );
             return AcceptAttempt.joined(invitation.getPartyId());
         }
-        String joinRequestId = taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
+        TaxiPartyService.InvitedMemberJoinRequest joinRequest = taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
                 party,
                 invitation.getInviteeId(),
                 invitation.getInviterId()
         );
         invitation.accept(
                 PartyInvitationAcceptanceResult.LEADER_APPROVAL_PENDING,
-                joinRequestId,
+                joinRequest.joinRequest().getId(),
                 LocalDateTime.now()
         );
-        return AcceptAttempt.leaderApprovalPending(invitation.getPartyId(), joinRequestId);
+        if (!joinRequest.created()) {
+            joinRequestSseService.publishJoinRequestUpdated(joinRequest.joinRequest(), joinRequest.joinRequest().getStatus());
+        }
+        return AcceptAttempt.leaderApprovalPending(invitation.getPartyId(), joinRequest.joinRequest().getId());
     }
 
     @Transactional

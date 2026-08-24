@@ -55,6 +55,12 @@ public class JoinRequestSseSnapshotService {
         return toSseItem(joinRequest, requester, invitationInviter);
     }
 
+    public JoinRequestListItemResponse toSseItem(String joinRequestId) {
+        return joinRequestRepository.findDetailById(joinRequestId)
+                .map(this::toSseItem)
+                .orElse(null);
+    }
+
     private List<JoinRequestListItemResponse> getPartyJoinRequestSnapshot(String partyId) {
         List<JoinRequest> requests = joinRequestRepository.findByParty_IdOrderByCreatedAtDesc(partyId);
         return toSseItems(requests);

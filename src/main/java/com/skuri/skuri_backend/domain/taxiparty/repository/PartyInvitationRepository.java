@@ -106,6 +106,7 @@ public interface PartyInvitationRepository extends JpaRepository<PartyInvitation
             from PartyInvitation invitation
             where invitation.status = com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus.ACCEPTED
               and invitation.acceptedJoinRequestId in :joinRequestIds
+            order by invitation.respondedAt asc, invitation.id asc
             """)
     List<AcceptedJoinRequestSource> findAcceptedJoinRequestSources(
             @Param("joinRequestIds") Collection<String> joinRequestIds

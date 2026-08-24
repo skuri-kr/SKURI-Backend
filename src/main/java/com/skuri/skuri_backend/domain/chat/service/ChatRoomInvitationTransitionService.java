@@ -126,9 +126,15 @@ public class ChatRoomInvitationTransitionService {
             invitation.cancel(now);
             return true;
         }
-        if (invitation.getInviteeId().equals(actorMemberId) && invitation.isExpired()) {
-            invitation.dismiss();
-            return true;
+        if (invitation.getInviteeId().equals(actorMemberId)) {
+            LocalDateTime now = LocalDateTime.now();
+            if (invitation.isPending() && invitation.isTimedOutAt(now)) {
+                invitation.expire(ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT, now);
+            }
+            if (invitation.isExpired()) {
+                invitation.dismiss();
+                return true;
+            }
         }
         if (!invitation.getInviterId().equals(actorMemberId)
                 && !invitation.getInviteeId().equals(actorMemberId)) {

@@ -403,8 +403,8 @@ public class TaxiPartyService {
         JoinRequestStatus previousStatus = joinRequest.getStatus();
         requireJoinRequestLeader(joinRequest, leaderId);
 
-        String invitationInviterId = findInvitationInviterId(requestId);
-        boolean friendInvitationRequest = invitationInviterId != null;
+        List<String> invitationInviterIds = findInvitationInviterIds(requestId);
+        boolean friendInvitationRequest = !invitationInviterIds.isEmpty();
 
         if (party.getStatus() == PartyStatus.ENDED) {
             throw new BusinessException(ErrorCode.PARTY_ENDED);
@@ -412,7 +412,7 @@ public class TaxiPartyService {
         if (party.getStatus() != PartyStatus.OPEN
                 && !(party.getStatus() == PartyStatus.CLOSED
                 && friendInvitationRequest
-                && party.isMember(invitationInviterId))) {
+                && invitationInviterIds.stream().anyMatch(party::isMember))) {
             throw new BusinessException(ErrorCode.PARTY_CLOSED);
         }
 
@@ -702,7 +702,7 @@ public class TaxiPartyService {
         expirePendingAdmissionsForCapacity(party);
     }
 
-    String createInvitedMemberJoinRequestWithLockedParty(
+    InvitedMemberJoinRequest createInvitedMemberJoinRequestWithLockedParty(
             Party party,
             String inviteeMemberId,
             String inviterMemberId
@@ -726,13 +726,13 @@ public class TaxiPartyService {
         List<JoinRequest> pendingRequests = joinRequestRepository
                 .findPendingByPartyIdAndRequesterIdForUpdate(party.getId(), inviteeMemberId);
         if (!pendingRequests.isEmpty()) {
-            return pendingRequests.getFirst().getId();
+            return InvitedMemberJoinRequest.reused(pendingRequests.getFirst());
         }
 
         JoinRequest joinRequest = joinRequestRepository.save(JoinRequest.create(party, inviteeMemberId));
         joinRequestSseService.publishJoinRequestCreated(joinRequest);
         eventPublisher.publish(new NotificationDomainEvent.PartyJoinRequestCreated(joinRequest.getId()));
-        return joinRequest.getId();
+        return InvitedMemberJoinRequest.created(joinRequest);
     }
 
     private void expirePendingAdmissionsForCapacity(Party party) {
@@ -766,11 +766,10 @@ public class TaxiPartyService {
                 });
     }
 
-    private String findInvitationInviterId(String joinRequestId) {
+    private List<String> findInvitationInviterIds(String joinRequestId) {
         return partyInvitationRepository.findAcceptedJoinRequestSources(List.of(joinRequestId)).stream()
                 .map(PartyInvitationRepository.AcceptedJoinRequestSource::getInviterId)
-                .findFirst()
-                .orElse(null);
+                .toList();
     }
 
     private PartySummaryResponse toPartySummaryResponse(
@@ -1117,5 +1116,15 @@ public class TaxiPartyService {
         Map<String, Member> result = new HashMap<>();
         memberRepository.findAllById(ids).forEach(member -> result.put(member.getId(), member));
         return result;
+    }
+
+    record InvitedMemberJoinRequest(JoinRequest joinRequest, boolean created) {
+        private static InvitedMemberJoinRequest created(JoinRequest joinRequest) {
+            return new InvitedMemberJoinRequest(joinRequest, true);
+        }
+
+        private static InvitedMemberJoinRequest reused(JoinRequest joinRequest) {
+            return new InvitedMemberJoinRequest(joinRequest, false);
+        }
     }
 }
