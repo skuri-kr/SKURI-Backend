@@ -594,8 +594,11 @@ class ChatServiceTest {
                 .thenReturn(List.of("deleted-room", "room-1"));
         when(chatRoomInvitationLifecycleService.findPendingChatRoomIdsByInviter("member-1"))
                 .thenReturn(List.of("invitation-room"));
+        when(chatRoomInvitationLifecycleService.findPendingChatRoomIdsByInvitee("member-1"))
+                .thenReturn(List.of("received-invitation-room"));
         when(chatRoomRepository.findByIdForUpdate("deleted-room")).thenReturn(Optional.empty());
         when(chatRoomRepository.findByIdForUpdate("invitation-room")).thenReturn(Optional.empty());
+        when(chatRoomRepository.findByIdForUpdate("received-invitation-room")).thenReturn(Optional.empty());
         when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(remainingRoom));
         when(chatRoomMemberRepository.findById_ChatRoomIdAndId_MemberId("room-1", "member-1"))
                 .thenReturn(Optional.of(remainingMembership));
@@ -608,6 +611,11 @@ class ChatServiceTest {
         verify(chatRoomSummaryEventPublisher).publishCurrent("room-1");
         verify(chatRoomInvitationLifecycleService).expirePendingByInviterInRoom(
                 "invitation-room",
+                "member-1",
+                ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
+        verify(chatRoomInvitationLifecycleService).expirePendingForInviteeInRoom(
+                "received-invitation-room",
                 "member-1",
                 ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN
         );

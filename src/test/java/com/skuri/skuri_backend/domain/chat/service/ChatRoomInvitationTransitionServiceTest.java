@@ -119,6 +119,30 @@ class ChatRoomInvitationTransitionServiceTest {
     }
 
     @Test
+    void 재조정은_잠금전_프로젝션만_읽고_종료된초대를_덮어쓰지않는다() {
+        ChatRoom room = room(3, 1);
+        ChatRoomInvitation initialSnapshot = invitation(LocalDateTime.now());
+        ChatRoomInvitation lockedInvitation = invitation(LocalDateTime.now());
+        lockedInvitation.decline(LocalDateTime.now());
+        Member inviter = completeMember("inviter-1");
+        Member invitee = completeMember("invitee-1");
+        FriendMemberPair pair = FriendMemberPair.of("inviter-1", "invitee-1");
+        when(invitationRepository.findAcceptanceSnapshotById("invite-1"))
+                .thenReturn(Optional.of(acceptanceSnapshot(initialSnapshot)));
+        when(chatRoomRepository.existsByIdForInvitationAcceptance("room-1")).thenReturn(true);
+        when(pairLockService.lockActivePair("inviter-1", "invitee-1")).thenReturn(pair);
+        when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(room));
+        when(memberRepository.findActiveById("inviter-1")).thenReturn(Optional.of(inviter));
+        when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(invitee));
+        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(lockedInvitation));
+
+        service.reconcile("invite-1");
+
+        assertThat(lockedInvitation.getStatus()).isEqualTo(ChatRoomInvitationStatus.DECLINED);
+        verify(invitationRepository, never()).findById("invite-1");
+    }
+
+    @Test
     void 칠일이지난_초대는_수락전에_만료한다() {
         ChatRoomInvitation invitation = invitation(LocalDateTime.now().minusDays(8));
         when(invitationRepository.findAcceptanceSnapshotById("invite-1"))

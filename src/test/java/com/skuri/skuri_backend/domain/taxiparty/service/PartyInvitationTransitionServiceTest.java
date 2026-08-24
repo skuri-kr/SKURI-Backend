@@ -76,6 +76,7 @@ class PartyInvitationTransitionServiceTest {
         lockOrder.verify(pairLockService).lockActivePair("inviter-1", "invitee-1");
         lockOrder.verify(partyRepository).findDetailByIdForUpdate("party-1");
         lockOrder.verify(invitationRepository).findByIdForUpdate("invite-1");
+        verify(partyRepository, never()).findDetailById("party-1");
     }
 
     @Test
@@ -107,6 +108,31 @@ class PartyInvitationTransitionServiceTest {
         verify(invitationRepository, never()).findById("invite-1");
     }
 
+    @Test
+    void 재조정은_잠금전_프로젝션만_읽고_종료된초대를_덮어쓰지않는다() {
+        Party party = party("party-1", 3);
+        PartyInvitation initialSnapshot = invitation("invite-1");
+        PartyInvitation lockedInvitation = invitation("invite-1");
+        lockedInvitation.decline(LocalDateTime.now());
+        Member inviter = completeMember("inviter-1");
+        Member invitee = completeMember("invitee-1");
+        FriendMemberPair pair = FriendMemberPair.of("inviter-1", "invitee-1");
+        when(invitationRepository.findAcceptanceSnapshotById("invite-1"))
+                .thenReturn(Optional.of(acceptanceSnapshot(initialSnapshot)));
+        when(partyRepository.existsByIdForInvitationAcceptance("party-1")).thenReturn(true);
+        when(pairLockService.lockActivePair("inviter-1", "invitee-1")).thenReturn(pair);
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
+        when(memberRepository.findActiveById("inviter-1")).thenReturn(Optional.of(inviter));
+        when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(invitee));
+        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(lockedInvitation));
+
+        service.reconcile("invite-1");
+
+        assertThat(lockedInvitation.getStatus()).isEqualTo(PartyInvitationStatus.DECLINED);
+        verify(invitationRepository, never()).findById("invite-1");
+        verify(partyRepository, never()).findDetailById("party-1");
+    }
+
     private void stubAcceptBoundary(
             Party party,
             PartyInvitation snapshot,
@@ -117,7 +143,7 @@ class PartyInvitationTransitionServiceTest {
         FriendMemberPair pair = FriendMemberPair.of("inviter-1", "invitee-1");
         when(invitationRepository.findAcceptanceSnapshotById("invite-1"))
                 .thenReturn(Optional.of(acceptanceSnapshot(snapshot)));
-        when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.existsByIdForInvitationAcceptance("party-1")).thenReturn(true);
         when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(memberRepository.findActiveById("inviter-1")).thenReturn(Optional.of(inviter));
         when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(invitee));
