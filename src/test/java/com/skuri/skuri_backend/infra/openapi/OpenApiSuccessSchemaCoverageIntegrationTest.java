@@ -296,10 +296,11 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
     }
 
     @Test
-    void 택시파티_재개와동승요청SSE_OpenAPI는_정원만료계약을제공한다() throws Exception {
+    void 택시파티_정원과동승요청SSE_OpenAPI는_정원만료계약을제공한다() throws Exception {
         JsonNode partyPaths = apiDocs("/v3/api-docs/taxiparty").path("paths");
         assertTrue(exampleNames(partyPaths, "/v1/parties/{id}/reopen", "patch", "409").contains("party_full"));
         assertTrue(exampleNames(partyPaths, "/v1/admin/parties/{partyId}/status", "patch", "409").contains("party_full"));
+        assertTrue(exampleNames(partyPaths, "/v1/parties/{partyId}/join-requests", "post", "409").contains("party_full"));
 
         assertJoinRequestSseExpiryExample(partyPaths, "/v1/sse/parties/{partyId}/join-requests");
         assertJoinRequestSseExpiryExample(partyPaths, "/v1/sse/members/me/join-requests");
