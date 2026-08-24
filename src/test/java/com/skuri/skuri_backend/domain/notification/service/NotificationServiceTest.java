@@ -20,7 +20,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -155,6 +157,50 @@ class NotificationServiceTest {
     }
 
     @Test
+    void deleteFriendRequestRelatedNotifications_해당요청을참조하는친구알림만정리하고미읽음수를갱신한다() {
+        UserNotification unreadRequest = unreadFriendRequestNotification(
+                "notification-1",
+                "member-2",
+                NotificationType.FRIEND_REQUEST,
+                "friend-request-1"
+        );
+        UserNotification readDeclined = readFriendRequestNotification(
+                "notification-2",
+                "member-3",
+                NotificationType.FRIEND_DECLINED,
+                "friend-request-2"
+        );
+        UserNotification differentRequest = unreadFriendRequestNotification(
+                "notification-3",
+                "member-2",
+                NotificationType.FRIEND_REQUEST,
+                "friend-request-3"
+        );
+        UserNotification partyRequest = unreadNotification("notification-4", "member-2");
+
+        when(userNotificationRepository.findByUserIdInAndTypeIn(
+                anyCollection(),
+                anyCollection()
+        )).thenReturn(List.of(unreadRequest, readDeclined, differentRequest, partyRequest));
+        when(userNotificationRepository.countUnreadByUserIds(
+                Set.of("member-2"),
+                NotificationType.APP_NOTICE
+        )).thenReturn(List.of(unreadCount("member-2", 1L)));
+
+        notificationService.deleteFriendRequestRelatedNotifications(Map.of(
+                "member-2", Set.of("friend-request-1"),
+                "member-3", Set.of("friend-request-2")
+        ));
+
+        ArgumentCaptor<List<UserNotification>> captor = ArgumentCaptor.forClass(List.class);
+        verify(userNotificationRepository).deleteAllInBatch(captor.capture());
+        assertEquals(List.of(unreadRequest, readDeclined), captor.getValue());
+        verify(notificationSseService).publishUnreadCountChanged("member-2", 1L);
+        verify(notificationSseService, org.mockito.Mockito.never())
+                .publishUnreadCountChanged("member-3", 0L);
+    }
+
+    @Test
     void getUnreadCount_APP_NOTICE를제외한개수를반환한다() {
         when(userNotificationRepository.countByUserIdAndReadFalseAndTypeNot("member-1", NotificationType.APP_NOTICE))
                 .thenReturn(4L);
@@ -210,6 +256,35 @@ class NotificationServiceTest {
         );
         ReflectionTestUtils.setField(notification, "id", id);
         ReflectionTestUtils.setField(notification, "createdAt", LocalDateTime.of(2026, 3, 8, 9, 5));
+        return notification;
+    }
+
+    private UserNotification unreadFriendRequestNotification(
+            String id,
+            String userId,
+            NotificationType type,
+            String requestId
+    ) {
+        UserNotification notification = UserNotification.create(
+                userId,
+                type,
+                "친구 요청 알림",
+                "친구 요청을 확인하세요.",
+                NotificationData.ofFriendRequest(requestId)
+        );
+        ReflectionTestUtils.setField(notification, "id", id);
+        ReflectionTestUtils.setField(notification, "createdAt", LocalDateTime.of(2026, 3, 8, 9, 10));
+        return notification;
+    }
+
+    private UserNotification readFriendRequestNotification(
+            String id,
+            String userId,
+            NotificationType type,
+            String requestId
+    ) {
+        UserNotification notification = unreadFriendRequestNotification(id, userId, type, requestId);
+        notification.markRead(LocalDateTime.of(2026, 3, 8, 10, 0));
         return notification;
     }
 
