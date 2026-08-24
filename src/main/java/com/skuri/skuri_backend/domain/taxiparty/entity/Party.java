@@ -161,6 +161,9 @@ public class Party extends BaseTimeEntity {
         if (this.status != PartyStatus.CLOSED) {
             throw new BusinessException(ErrorCode.INVALID_PARTY_STATE_TRANSITION, "CLOSED 상태에서만 모집 재개할 수 있습니다.");
         }
+        if (this.currentMembers >= this.maxMembers) {
+            throw new BusinessException(ErrorCode.PARTY_FULL);
+        }
         this.status = PartyStatus.OPEN;
     }
 

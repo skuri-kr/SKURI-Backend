@@ -63,7 +63,7 @@ class JoinRequestControllerContractTest {
     void decline_response에는_partyId미포함() throws Exception {
         mockValidToken();
         when(taxiPartyService.declineJoinRequest("firebase-uid", "request-1"))
-                .thenReturn(new JoinRequestResponse("request-1", JoinRequestStatus.DECLINED));
+                .thenReturn(new JoinRequestResponse("request-1", JoinRequestStatus.DECLINED, null));
 
         mockMvc.perform(
                         patch("/v1/join-requests/request-1/decline")
@@ -79,7 +79,7 @@ class JoinRequestControllerContractTest {
     void cancel_response에는_partyId미포함() throws Exception {
         mockValidToken();
         when(taxiPartyService.cancelJoinRequest("firebase-uid", "request-1"))
-                .thenReturn(new JoinRequestResponse("request-1", JoinRequestStatus.CANCELED));
+                .thenReturn(new JoinRequestResponse("request-1", JoinRequestStatus.CANCELED, null));
 
         mockMvc.perform(
                         patch("/v1/join-requests/request-1/cancel")

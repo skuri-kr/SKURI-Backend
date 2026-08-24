@@ -537,6 +537,7 @@ public class PartyAdminController {
                             examples = {
                                     @ExampleObject(name = "close_only", value = OpenApiTaxiPartyExamples.ERROR_INVALID_PARTY_STATE_TRANSITION_CLOSE_ONLY),
                                     @ExampleObject(name = "reopen_only", value = OpenApiTaxiPartyExamples.ERROR_INVALID_PARTY_STATE_TRANSITION_REOPEN_ONLY),
+                                    @ExampleObject(name = "party_full", value = OpenApiTaxiPartyExamples.ERROR_PARTY_FULL),
                                     @ExampleObject(name = "end_only", value = OpenApiTaxiPartyExamples.ERROR_INVALID_PARTY_STATE_TRANSITION_FORCE_END_ONLY),
                                     @ExampleObject(name = "party_not_cancelable", value = OpenApiTaxiPartyExamples.ERROR_PARTY_NOT_CANCELABLE),
                                     @ExampleObject(name = "party_ended", value = OpenApiTaxiPartyExamples.ERROR_PARTY_ENDED),

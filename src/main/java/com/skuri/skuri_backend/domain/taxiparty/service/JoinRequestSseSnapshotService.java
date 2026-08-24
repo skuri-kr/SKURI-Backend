@@ -76,6 +76,7 @@ public class JoinRequestSseSnapshotService {
                 requester != null ? requester.getNickname() : null,
                 requester != null ? requester.getPhotoUrl() : null,
                 joinRequest.getStatus(),
+                joinRequest.getExpiryReason(),
                 joinRequest.getCreatedAt()
         );
     }

@@ -142,10 +142,24 @@ class PartyControllerContractTest {
     }
 
     @Test
+    void reopenParty_정원이차면_409_PARTY_FULL() throws Exception {
+        mockValidToken();
+        when(taxiPartyService.reopenParty("firebase-uid", "party-1"))
+                .thenThrow(new BusinessException(ErrorCode.PARTY_FULL));
+
+        mockMvc.perform(
+                        patch("/v1/parties/party-1/reopen")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("PARTY_FULL"));
+    }
+
+    @Test
     void createJoinRequest_response에_partyId미노출() throws Exception {
         mockValidToken();
         when(taxiPartyService.createJoinRequest("firebase-uid", "party-1"))
-                .thenReturn(new JoinRequestResponse("request-1", JoinRequestStatus.PENDING));
+                .thenReturn(new JoinRequestResponse("request-1", JoinRequestStatus.PENDING, null));
 
         mockMvc.perform(
                         post("/v1/parties/party-1/join-requests")
@@ -155,6 +169,20 @@ class PartyControllerContractTest {
                 .andExpect(jsonPath("$.data.id").value("request-1"))
                 .andExpect(jsonPath("$.data.status").value("PENDING"))
                 .andExpect(jsonPath("$.data.partyId").doesNotExist());
+    }
+
+    @Test
+    void createJoinRequest_정원이차면_409_PARTY_FULL() throws Exception {
+        mockValidToken();
+        when(taxiPartyService.createJoinRequest("firebase-uid", "party-1"))
+                .thenThrow(new BusinessException(ErrorCode.PARTY_FULL));
+
+        mockMvc.perform(
+                        post("/v1/parties/party-1/join-requests")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value("PARTY_FULL"));
     }
 
     @Test

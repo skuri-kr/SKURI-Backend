@@ -10,6 +10,7 @@ import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationAcceptanceResult;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
@@ -46,7 +47,11 @@ public class PartyInvitationTransitionService {
         PartyInvitationRepository.AcceptanceSnapshot snapshot = findAcceptanceSnapshotOrThrow(invitationId);
         requireRecipient(snapshot.getInviteeId(), recipientMemberId);
         if (snapshot.getStatus() == PartyInvitationStatus.ACCEPTED) {
-            return AcceptAttempt.accepted(snapshot.getPartyId());
+            return resolveAcceptedAttempt(
+                    snapshot.getPartyId(),
+                    snapshot.getAcceptanceResult(),
+                    snapshot.getAcceptedJoinRequestId()
+            );
         }
         if (!snapshot.isPending()) {
             return AcceptAttempt.stateNotAllowed(snapshot.getPartyId());
@@ -77,7 +82,11 @@ public class PartyInvitationTransitionService {
         PartyInvitation invitation = partyInvitationRepository.findByIdForUpdate(invitationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARTY_INVITATION_NOT_FOUND));
         if (invitation.getStatus() == PartyInvitationStatus.ACCEPTED) {
-            return AcceptAttempt.accepted(invitation.getPartyId());
+            return resolveAcceptedAttempt(
+                    invitation.getPartyId(),
+                    invitation.getAcceptanceResult(),
+                    invitation.getAcceptedJoinRequestId()
+            );
         }
         if (!invitation.isPending()) {
             return AcceptAttempt.stateNotAllowed(invitation.getPartyId());
@@ -96,13 +105,26 @@ public class PartyInvitationTransitionService {
             return AcceptAttempt.otherActiveParty(invitation.getPartyId());
         }
 
-        invitation.accept(LocalDateTime.now());
-        taxiPartyService.acceptInvitedMemberWithLockedParty(
+        if (party.isLeader(invitation.getInviterId())) {
+            invitation.accept(PartyInvitationAcceptanceResult.JOINED, null, LocalDateTime.now());
+            taxiPartyService.acceptInvitedMemberWithLockedParty(
+                    party,
+                    invitation.getInviteeId(),
+                    invitation.getInviterId()
+            );
+            return AcceptAttempt.joined(invitation.getPartyId());
+        }
+        String joinRequestId = taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
                 party,
                 invitation.getInviteeId(),
                 invitation.getInviterId()
         );
-        return AcceptAttempt.accepted(invitation.getPartyId());
+        invitation.accept(
+                PartyInvitationAcceptanceResult.LEADER_APPROVAL_PENDING,
+                joinRequestId,
+                LocalDateTime.now()
+        );
+        return AcceptAttempt.leaderApprovalPending(invitation.getPartyId(), joinRequestId);
     }
 
     @Transactional
@@ -212,6 +234,21 @@ public class PartyInvitationTransitionService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARTY_INVITATION_NOT_FOUND));
     }
 
+    private AcceptAttempt resolveAcceptedAttempt(
+            String partyId,
+            PartyInvitationAcceptanceResult acceptanceResult,
+            String acceptedJoinRequestId
+    ) {
+        if (acceptanceResult == PartyInvitationAcceptanceResult.JOINED) {
+            return AcceptAttempt.joined(partyId);
+        }
+        if (acceptanceResult == PartyInvitationAcceptanceResult.LEADER_APPROVAL_PENDING
+                && acceptedJoinRequestId != null) {
+            return AcceptAttempt.leaderApprovalPending(partyId, acceptedJoinRequestId);
+        }
+        return AcceptAttempt.stateNotAllowed(partyId);
+    }
+
     private void requireRecipient(PartyInvitation invitation, String recipientMemberId) {
         requireRecipient(invitation.getInviteeId(), recipientMemberId);
     }
@@ -222,26 +259,31 @@ public class PartyInvitationTransitionService {
         }
     }
 
-    public record AcceptAttempt(AcceptOutcome outcome, String partyId) {
-        private static AcceptAttempt accepted(String partyId) {
-            return new AcceptAttempt(AcceptOutcome.ACCEPTED, partyId);
+    public record AcceptAttempt(AcceptOutcome outcome, String partyId, String joinRequestId) {
+        private static AcceptAttempt joined(String partyId) {
+            return new AcceptAttempt(AcceptOutcome.JOINED, partyId, null);
+        }
+
+        private static AcceptAttempt leaderApprovalPending(String partyId, String joinRequestId) {
+            return new AcceptAttempt(AcceptOutcome.LEADER_APPROVAL_PENDING, partyId, joinRequestId);
         }
 
         private static AcceptAttempt expired(String partyId) {
-            return new AcceptAttempt(AcceptOutcome.EXPIRED, partyId);
+            return new AcceptAttempt(AcceptOutcome.EXPIRED, partyId, null);
         }
 
         private static AcceptAttempt otherActiveParty(String partyId) {
-            return new AcceptAttempt(AcceptOutcome.OTHER_ACTIVE_PARTY, partyId);
+            return new AcceptAttempt(AcceptOutcome.OTHER_ACTIVE_PARTY, partyId, null);
         }
 
         private static AcceptAttempt stateNotAllowed(String partyId) {
-            return new AcceptAttempt(AcceptOutcome.STATE_NOT_ALLOWED, partyId);
+            return new AcceptAttempt(AcceptOutcome.STATE_NOT_ALLOWED, partyId, null);
         }
     }
 
     public enum AcceptOutcome {
-        ACCEPTED,
+        JOINED,
+        LEADER_APPROVAL_PENDING,
         EXPIRED,
         OTHER_ACTIVE_PARTY,
         STATE_NOT_ALLOWED

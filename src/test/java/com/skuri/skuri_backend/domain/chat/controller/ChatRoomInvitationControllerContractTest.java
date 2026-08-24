@@ -68,7 +68,10 @@ class ChatRoomInvitationControllerContractTest {
                         "시험기간 밤샘 메이트",
                         10,
                         7,
+                        false,
                         List.of(candidate()),
+                        List.of(),
+                        List.of(),
                         1,
                         0,
                         0
@@ -79,6 +82,9 @@ class ChatRoomInvitationControllerContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.chatRoomId").value("room-1"))
                 .andExpect(jsonPath("$.data.expiresInDays").value(7))
+                .andExpect(jsonPath("$.data.sameDepartmentOnly").value(false))
+                .andExpect(jsonPath("$.data.alreadyMemberFriends").isArray())
+                .andExpect(jsonPath("$.data.alreadyPendingFriends").isArray())
                 .andExpect(jsonPath("$.data.friends[0].friendPublicId").value("friend-public-1"));
     }
 

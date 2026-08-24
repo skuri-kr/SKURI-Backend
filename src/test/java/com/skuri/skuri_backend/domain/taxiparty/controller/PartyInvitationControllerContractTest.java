@@ -4,6 +4,7 @@ import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendInvitationCandidateResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationBatchResponse;
+import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationAcceptResult;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationEligibleFriendsResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationMutationResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationOutcome;
@@ -67,7 +68,11 @@ class PartyInvitationControllerContractTest {
                         "party-1",
                         "정문 → 안양역",
                         2,
+                        true,
+                        null,
                         List.of(candidate()),
+                        List.of(),
+                        List.of(),
                         1,
                         0,
                         0
@@ -78,6 +83,10 @@ class PartyInvitationControllerContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.partyId").value("party-1"))
                 .andExpect(jsonPath("$.data.remainingCapacity").value(2))
+                .andExpect(jsonPath("$.data.canInvite").value(true))
+                .andExpect(jsonPath("$.data.unavailableReason").doesNotExist())
+                .andExpect(jsonPath("$.data.alreadyMemberFriends").isArray())
+                .andExpect(jsonPath("$.data.alreadyPendingFriends").isArray())
                 .andExpect(jsonPath("$.data.friends[0].friendPublicId").value("friend-public-1"));
     }
 
@@ -154,14 +163,39 @@ class PartyInvitationControllerContractTest {
         mockValidToken();
         when(invitationService.accept("firebase-uid", "invite-1"))
                 .thenReturn(new PartyInvitationMutationResponse(
-                        "invite-1", "party-1", PartyInvitationStatus.ACCEPTED
+                        "invite-1",
+                        "party-1",
+                        PartyInvitationStatus.ACCEPTED,
+                        PartyInvitationAcceptResult.JOINED,
+                        null
                 ));
 
         mockMvc.perform(post("/v1/party-invitations/invite-1/accept")
                         .header(AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.partyId").value("party-1"))
-                .andExpect(jsonPath("$.data.status").value("ACCEPTED"));
+                .andExpect(jsonPath("$.data.status").value("ACCEPTED"))
+                .andExpect(jsonPath("$.data.result").value("JOINED"))
+                .andExpect(jsonPath("$.data.joinRequestId").doesNotExist());
+    }
+
+    @Test
+    void 참가자의초대수락은_리더승인대기요청을반환한다() throws Exception {
+        mockValidToken();
+        when(invitationService.accept("firebase-uid", "invite-1"))
+                .thenReturn(new PartyInvitationMutationResponse(
+                        "invite-1",
+                        "party-1",
+                        PartyInvitationStatus.ACCEPTED,
+                        PartyInvitationAcceptResult.LEADER_APPROVAL_PENDING,
+                        "request-1"
+                ));
+
+        mockMvc.perform(post("/v1/party-invitations/invite-1/accept")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.result").value("LEADER_APPROVAL_PENDING"))
+                .andExpect(jsonPath("$.data.joinRequestId").value("request-1"));
     }
 
     @Test
@@ -224,7 +258,7 @@ class PartyInvitationControllerContractTest {
         mockValidToken();
         when(invitationService.decline("firebase-uid", "invite-1"))
                 .thenReturn(new PartyInvitationMutationResponse(
-                        "invite-1", "party-1", PartyInvitationStatus.DECLINED
+                        "invite-1", "party-1", PartyInvitationStatus.DECLINED, null, null
                 ));
 
         mockMvc.perform(post("/v1/party-invitations/invite-1/decline")

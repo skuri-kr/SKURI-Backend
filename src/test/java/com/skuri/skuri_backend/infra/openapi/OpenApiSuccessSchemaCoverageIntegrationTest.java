@@ -260,7 +260,7 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
     void 친구초대_OpenAPI는_endpoint별_정확한403과409예시를제공한다() throws Exception {
         JsonNode partyPaths = apiDocs("/v3/api-docs/taxiparty").path("paths");
         assertEquals(
-                Set.of("PARTY_CLOSED", "PARTY_FULL", "MEMBER_PROFILE_INCOMPLETE"),
+                Set.of("PARTY_CLOSED", "MEMBER_PROFILE_INCOMPLETE"),
                 exampleNames(partyPaths, "/v1/parties/{partyId}/invitations/eligible-friends", "get", "409")
         );
         assertEquals(
@@ -271,6 +271,7 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
                 Set.of("PARTY_INVITATION_RECIPIENT_REQUIRED"),
                 exampleNames(partyPaths, "/v1/party-invitations/{invitationId}/accept", "post", "403")
         );
+        assertPartyInvitationAcceptSuccessExamples(partyPaths);
         assertEquals(
                 Set.of("PARTY_INVITATION_INVITER_REQUIRED"),
                 exampleNames(partyPaths, "/v1/party-invitations/{invitationId}", "delete", "403")
@@ -295,6 +296,18 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         );
     }
 
+    @Test
+    void 택시파티_정원과동승요청SSE_OpenAPI는_정원만료계약을제공한다() throws Exception {
+        JsonNode partyPaths = apiDocs("/v3/api-docs/taxiparty").path("paths");
+        assertTrue(exampleNames(partyPaths, "/v1/parties/{id}/reopen", "patch", "409").contains("party_full"));
+        assertTrue(exampleNames(partyPaths, "/v1/admin/parties/{partyId}/status", "patch", "409").contains("party_full"));
+        assertTrue(exampleNames(partyPaths, "/v1/parties/{partyId}/join-requests", "post", "409").contains("party_full"));
+        assertJoinRequestListExampleHasExpiryReason(partyPaths);
+
+        assertJoinRequestSseExpiryExample(partyPaths, "/v1/sse/parties/{partyId}/join-requests");
+        assertJoinRequestSseExpiryExample(partyPaths, "/v1/sse/members/me/join-requests");
+    }
+
     private Set<String> exampleNames(JsonNode paths, String path, String method, String responseCode) {
         Set<String> names = new LinkedHashSet<>();
         paths.path(path)
@@ -307,6 +320,73 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
                 .fieldNames()
                 .forEachRemaining(names::add);
         return names;
+    }
+
+    private void assertPartyInvitationAcceptSuccessExamples(JsonNode paths) {
+        JsonNode examples = paths.path("/v1/party-invitations/{invitationId}/accept")
+                .path("post")
+                .path("responses")
+                .path("200")
+                .path("content")
+                .path("application/json")
+                .path("examples");
+
+        assertEquals(Set.of("joined", "leader_approval_pending"), exampleNames(
+                paths,
+                "/v1/party-invitations/{invitationId}/accept",
+                "post",
+                "200"
+        ));
+        assertEquals("JOINED", examples.path("joined").path("value").path("data").path("result").asText());
+        assertTrue(examples.path("joined").path("value").path("data").path("joinRequestId").isNull());
+        assertEquals(
+                "LEADER_APPROVAL_PENDING",
+                examples.path("leader_approval_pending").path("value").path("data").path("result").asText()
+        );
+        assertEquals(
+                "request-1",
+                examples.path("leader_approval_pending").path("value").path("data").path("joinRequestId").asText()
+        );
+    }
+
+    private void assertJoinRequestSseExpiryExample(JsonNode paths, String path) {
+        JsonNode examples = paths.path(path)
+                .path("get")
+                .path("responses")
+                .path("200")
+                .path("content")
+                .path("text/event-stream")
+                .path("examples");
+        String streamFull = examples.path("stream_full").path("value").asText();
+        String snapshot = examples.path("snapshot").path("value").asText();
+        String updated = examples.path("join_request_updated").isMissingNode()
+                ? examples.path("my_join_request_updated").path("value").asText()
+                : examples.path("join_request_updated").path("value").asText();
+
+        assertTrue(streamFull.contains("\"status\": \"EXPIRED\""));
+        assertTrue(streamFull.contains("\"expiryReason\": \"CAPACITY_FULL\""));
+        assertTrue(snapshot.contains("\"expiryReason\": null"));
+        assertTrue(updated.contains("\"status\": \"EXPIRED\""));
+        assertTrue(updated.contains("\"expiryReason\": \"CAPACITY_FULL\""));
+    }
+
+    private void assertJoinRequestListExampleHasExpiryReason(JsonNode paths) throws Exception {
+        JsonNode example = paths.path("/v1/parties/{partyId}/join-requests")
+                .path("get")
+                .path("responses")
+                .path("200")
+                .path("content")
+                .path("application/json")
+                .path("examples")
+                .path("default")
+                .path("value");
+        JsonNode items = (example.isTextual() ? objectMapper.readTree(example.asText()) : example)
+                .path("data");
+
+        assertEquals(2, items.size());
+        for (JsonNode item : items) {
+            assertTrue(item.has("expiryReason"));
+        }
     }
 
     private JsonNode apiDocs() throws Exception {

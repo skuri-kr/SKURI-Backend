@@ -24,6 +24,7 @@ import com.skuri.skuri_backend.domain.taxiparty.dto.response.TaxiHistoryRole;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.TaxiHistoryStatus;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.TaxiHistorySummaryResponse;
 import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequest;
+import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestExpiryReason;
 import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Location;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
@@ -187,7 +188,7 @@ class TaxiPartyServiceTest {
     void reopenParty_리더가CLOSED파티를재개하면OPEN과시스템메시지를생성한다() {
         Party party = sampleParty("party-1", "leader", 4, true);
         party.close();
-        when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PartyStatusResponse response = taxiPartyService.reopenParty("leader", "party-1");
@@ -196,6 +197,21 @@ class TaxiPartyServiceTest {
         assertEquals(PartyStatus.OPEN, party.getStatus());
         verify(chatService).createPartySystemMessage(party, "leader", "모집이 재개되었어요.");
         verify(partySseService).publishPartyStatusChanged(party);
+    }
+
+    @Test
+    void reopenParty_정원이가득찬파티는_PARTY_FULL로재개를막는다() {
+        Party party = sampleParty("party-1", "leader", 2, "member-1");
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> taxiPartyService.reopenParty("leader", "party-1")
+        );
+
+        assertEquals(ErrorCode.PARTY_FULL, exception.getErrorCode());
+        assertEquals(PartyStatus.CLOSED, party.getStatus());
+        verify(partyRepository, never()).saveAndFlush(any(Party.class));
     }
 
     @Test
@@ -403,7 +419,7 @@ class TaxiPartyServiceTest {
     @Test
     void createJoinRequest_정상생성() {
         Party party = sampleParty("party-1", "leader", 4, false);
-        when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(memberRepository.findActiveByIdForUpdate("requester-1")).thenReturn(Optional.of(member("requester-1")));
         when(partyRepository.existsActivePartyByMemberId(eq("requester-1"), anySet(), isNull())).thenReturn(false);
         when(joinRequestRepository.existsByParty_IdAndRequesterIdAndStatus("party-1", "requester-1", JoinRequestStatus.PENDING))
@@ -424,7 +440,7 @@ class TaxiPartyServiceTest {
     @Test
     void createJoinRequest_중복요청이면_ALREADY_REQUESTED() {
         Party party = sampleParty("party-1", "leader", 4, false);
-        when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(memberRepository.findActiveByIdForUpdate("requester-1")).thenReturn(Optional.of(member("requester-1")));
         when(partyRepository.existsActivePartyByMemberId(eq("requester-1"), anySet(), isNull())).thenReturn(false);
         when(joinRequestRepository.existsByParty_IdAndRequesterIdAndStatus("party-1", "requester-1", JoinRequestStatus.PENDING))
@@ -439,12 +455,28 @@ class TaxiPartyServiceTest {
     }
 
     @Test
+    void createJoinRequest_정원이가득찬파티는_요청을저장하지않는다() {
+        Party party = sampleParty("party-1", "leader", 2, "member-1");
+        when(memberRepository.findActiveByIdForUpdate("requester-1"))
+                .thenReturn(Optional.of(member("requester-1")));
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> taxiPartyService.createJoinRequest("requester-1", "party-1")
+        );
+
+        assertEquals(ErrorCode.PARTY_FULL, exception.getErrorCode());
+        verify(joinRequestRepository, never()).save(any(JoinRequest.class));
+    }
+
+    @Test
     void createJoinRequest_이전취소이력이있어도_재요청가능() {
         Party party = sampleParty("party-1", "leader", 4, false);
         JoinRequest canceled = JoinRequest.create(party, "requester-1");
         canceled.cancel();
 
-        when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(memberRepository.findActiveByIdForUpdate("requester-1")).thenReturn(Optional.of(member("requester-1")));
         when(partyRepository.existsActivePartyByMemberId(eq("requester-1"), anySet(), isNull())).thenReturn(false);
         when(joinRequestRepository.existsByParty_IdAndRequesterIdAndStatus("party-1", "requester-1", JoinRequestStatus.PENDING))
@@ -491,6 +523,33 @@ class TaxiPartyServiceTest {
         verify(partySseService).publishPartyMemberJoined(party, "requester-1", "스쿠리 유저", party.getMemberIds());
         verify(joinRequestSseService).publishJoinRequestUpdated(joinRequest, JoinRequestStatus.PENDING);
         verify(partySseService).publishPartyStatusChanged(party);
+    }
+
+    @Test
+    void acceptJoinRequest_마지막좌석을채우면_남은요청을정원만료시킨다() {
+        Party party = sampleParty("party-1", "leader", 2, false);
+        JoinRequest acceptedRequest = JoinRequest.create(party, "requester-1");
+        ReflectionTestUtils.setField(acceptedRequest, "id", "request-1");
+        JoinRequest remainingRequest = JoinRequest.create(party, "requester-2");
+        ReflectionTestUtils.setField(remainingRequest, "id", "request-2");
+        Member requester = member("requester-1");
+
+        stubTransitionRequest("request-1", acceptedRequest);
+        when(memberRepository.findActiveByIdForUpdate("requester-1")).thenReturn(Optional.of(requester));
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
+        when(partyRepository.existsActivePartyByMemberId(eq("requester-1"), anySet(), eq("party-1")))
+                .thenReturn(false);
+        when(memberRepository.findById("requester-1")).thenReturn(Optional.of(requester));
+        when(joinRequestRepository.findPendingByPartyIdForUpdate("party-1"))
+                .thenReturn(List.of(remainingRequest));
+        when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        taxiPartyService.acceptJoinRequest("leader", "request-1");
+
+        assertEquals(JoinRequestStatus.EXPIRED, remainingRequest.getStatus());
+        assertEquals(JoinRequestExpiryReason.CAPACITY_FULL, remainingRequest.getExpiryReason());
+        verify(joinRequestSseService).publishJoinRequestUpdated(remainingRequest, JoinRequestStatus.PENDING);
     }
 
     @Test
@@ -545,6 +604,32 @@ class TaxiPartyServiceTest {
         assertEquals(JoinRequestStatus.CANCELED, pendingRequest.getStatus());
         assertTrue(party.isMember("invitee-1"));
         verify(joinRequestSseService).publishJoinRequestUpdated(pendingRequest, JoinRequestStatus.PENDING);
+    }
+
+    @Test
+    void 일반참가자의초대를수락하면_리더승인용동승요청을생성한다() {
+        Party party = sampleParty("party-1", "leader", 4, "inviter-1");
+        when(partyRepository.existsActivePartyByMemberId(eq("invitee-1"), anySet(), eq("party-1")))
+                .thenReturn(false);
+        when(joinRequestRepository.findPendingByPartyIdAndRequesterIdForUpdate("party-1", "invitee-1"))
+                .thenReturn(List.of());
+        when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> {
+            JoinRequest saved = invocation.getArgument(0);
+            ReflectionTestUtils.setField(saved, "id", "request-1");
+            return saved;
+        });
+
+        String requestId = taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
+                party,
+                "invitee-1",
+                "inviter-1"
+        );
+
+        assertEquals("request-1", requestId);
+        verify(joinRequestSseService).publishJoinRequestCreated(argThat(
+                request -> request.getRequesterId().equals("invitee-1")
+                        && request.getStatus() == JoinRequestStatus.PENDING
+        ));
     }
 
     @Test
@@ -925,7 +1010,7 @@ class TaxiPartyServiceTest {
         Party openParty = sampleParty("open-party", "other-leader", 4, false);
 
         when(partyRepository.findDetailById("arrived-party")).thenReturn(Optional.of(arrivedParty));
-        when(partyRepository.findDetailById("open-party")).thenReturn(Optional.of(openParty));
+        when(partyRepository.findDetailByIdForUpdate("open-party")).thenReturn(Optional.of(openParty));
         when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(memberRepository.findById("member-1")).thenReturn(Optional.of(member("member-1", "홍길동")));
         when(memberRepository.findActiveByIdForUpdate("member-1")).thenReturn(Optional.of(member("member-1", "홍길동")));

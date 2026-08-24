@@ -6,7 +6,7 @@ public final class OpenApiInvitationExamples {
     }
 
     public static final String SUCCESS_PARTY_ELIGIBLE = """
-            {"success":true,"data":{"partyId":"party-1","targetName":"정문 → 안양역","remainingCapacity":2,"friends":[{"friendPublicId":"friend-public-1","nickname":"가람","department":"컴퓨터공학과","photoUrl":null,"favorite":true}],"alreadyMemberCount":1,"alreadyPendingCount":0,"notEligibleCount":0}}
+            {"success":true,"data":{"partyId":"party-1","targetName":"정문 → 안양역","remainingCapacity":2,"canInvite":true,"unavailableReason":null,"friends":[{"friendPublicId":"friend-public-1","nickname":"가람","department":"컴퓨터공학과","photoUrl":null,"favorite":true}],"alreadyMemberFriends":[{"friendPublicId":"friend-public-2","nickname":"나래","department":"컴퓨터공학과","photoUrl":null,"favorite":false}],"alreadyPendingFriends":[],"alreadyMemberCount":1,"alreadyPendingCount":0,"notEligibleCount":0}}
             """;
     public static final String SUCCESS_PARTY_BATCH = """
             {"success":true,"data":{"results":[{"friendPublicId":"friend-public-1","outcome":"SENT","invitationId":"invitation-1"},{"friendPublicId":"friend-public-2","outcome":"NOT_ELIGIBLE","invitationId":null}]}}
@@ -14,14 +14,17 @@ public final class OpenApiInvitationExamples {
     public static final String SUCCESS_PARTY_RECEIVED = """
             {"success":true,"data":[{"invitationId":"invitation-1","invitationType":"PARTY","status":"PENDING","expiryReason":null,"inviter":{"friendPublicId":"friend-public-2","nickname":"나래","department":"컴퓨터공학과","photoUrl":null,"favorite":false},"target":{"partyId":"party-1","departureName":"정문","destinationName":"안양역","departureTime":"2026-08-24T18:00:00","currentMembers":2,"maxMembers":4,"status":"OPEN"},"createdAt":"2026-08-23T12:00:00","respondedAt":null}]}
             """;
-    public static final String SUCCESS_PARTY_MUTATION = """
-            {"success":true,"data":{"invitationId":"invitation-1","partyId":"party-1","status":"ACCEPTED"}}
+    public static final String SUCCESS_PARTY_ACCEPT_JOINED = """
+            {"success":true,"data":{"invitationId":"invitation-1","partyId":"party-1","status":"ACCEPTED","result":"JOINED","joinRequestId":null}}
+            """;
+    public static final String SUCCESS_PARTY_ACCEPT_LEADER_APPROVAL_PENDING = """
+            {"success":true,"data":{"invitationId":"invitation-1","partyId":"party-1","status":"ACCEPTED","result":"LEADER_APPROVAL_PENDING","joinRequestId":"request-1"}}
             """;
     public static final String SUCCESS_PARTY_DECLINE = """
-            {"success":true,"data":{"invitationId":"invitation-1","partyId":"party-1","status":"DECLINED"}}
+            {"success":true,"data":{"invitationId":"invitation-1","partyId":"party-1","status":"DECLINED","result":null,"joinRequestId":null}}
             """;
     public static final String SUCCESS_CHAT_ELIGIBLE = """
-            {"success":true,"data":{"chatRoomId":"public:university","targetName":"성결대 전체 채팅방","remainingCapacity":null,"expiresInDays":7,"friends":[],"alreadyMemberCount":1,"alreadyPendingCount":0,"notEligibleCount":0}}
+            {"success":true,"data":{"chatRoomId":"public:university","targetName":"성결대 전체 채팅방","remainingCapacity":null,"expiresInDays":7,"sameDepartmentOnly":false,"friends":[],"alreadyMemberFriends":[{"friendPublicId":"friend-public-1","nickname":"가람","department":"컴퓨터공학과","photoUrl":null,"favorite":true}],"alreadyPendingFriends":[],"alreadyMemberCount":1,"alreadyPendingCount":0,"notEligibleCount":0}}
             """;
     public static final String SUCCESS_CHAT_BATCH = """
             {"success":true,"data":{"results":[{"friendPublicId":"friend-public-1","outcome":"SENT","invitationId":"invitation-2"}]}}

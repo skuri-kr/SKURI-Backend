@@ -43,6 +43,10 @@ public class JoinRequest extends BaseTimeEntity {
     @Column(nullable = false, length = 20)
     private JoinRequestStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "expiry_reason", length = 30)
+    private JoinRequestExpiryReason expiryReason;
+
     private JoinRequest(Party party, String requesterId) {
         this.party = party;
         this.leaderId = party.getLeaderId();
@@ -67,6 +71,12 @@ public class JoinRequest extends BaseTimeEntity {
     public void cancel() {
         ensurePending();
         this.status = JoinRequestStatus.CANCELED;
+    }
+
+    public void expire(JoinRequestExpiryReason reason) {
+        ensurePending();
+        this.status = JoinRequestStatus.EXPIRED;
+        this.expiryReason = reason;
     }
 
     public boolean isRequester(String memberId) {

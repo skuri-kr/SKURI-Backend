@@ -191,7 +191,7 @@ Hooks:
     - settlement (Embedded)
   - JoinRequest
     - id, partyId, leaderId, requesterId
-    - status (PENDING → ACCEPTED | DECLINED | CANCELED)
+    - status (PENDING → ACCEPTED | DECLINED | CANCELED | EXPIRED)
   - Settlement (Embedded)
     - status (PENDING, COMPLETED)
     - taxiFare
@@ -216,7 +216,7 @@ Hooks:
 상태 머신:
   Party:
     OPEN → CLOSED       (리더: 모집 마감)
-    CLOSED → OPEN       (리더: 모집 재개)
+    CLOSED → OPEN       (리더: 모집 재개, currentMembers < maxMembers)
     OPEN|CLOSED 내 정보 수정 (리더: departureTime/detail만)
     OPEN|CLOSED → ARRIVED  (리더: 도착 처리 → 정산 시작)
     ARRIVED 상태에서 멤버 정산 완료 처리 (모든 멤버 완료 시 settlementStatus=COMPLETED)
@@ -224,10 +224,11 @@ Hooks:
     OPEN|CLOSED → ENDED     (리더 취소)
     OPEN|CLOSED|ARRIVED → ENDED (스케줄러 timeout 자동 종료)
 
-  JoinRequest: PENDING → ACCEPTED | DECLINED | CANCELED
+  JoinRequest: PENDING → ACCEPTED | DECLINED | CANCELED | EXPIRED
     - CANCELED: 요청자 본인만 취소 가능 (PENDING 상태에서만)
     - 리더는 DECLINE으로 거절 (CANCEL 아님)
     - ACCEPTED 처리로 멤버가 정원(`maxMembers`)에 도달하면 Party 상태를 자동으로 CLOSED 전이
+    - 정원이 가득 차면 남은 PENDING 요청은 EXPIRED + CAPACITY_FULL로 종료하며 자리 발생 후 복원하지 않음
 
 동시성 제어:
   - Party 엔티티의 `@Version` 기반 Optimistic Lock으로 동시 동승 요청/수락 충돌을 방어
@@ -305,7 +306,7 @@ endReason 종류:
   - 일반 멤버 탈퇴는 `OPEN`, `CLOSED` 상태에서만 자동 이탈 허용
   - 일반 멤버가 `ARRIVED` 파티에 속해 있으면 정산 회피 방지를 위해 회원 탈퇴를 거부
   - 탈퇴 회원이 요청자인 `PENDING` join request는 `CANCELED`로 정리
-  - 동일 파티의 PENDING 참가 요청과 친구 초대가 경쟁하면 먼저 수락된 참가 경로를 유지하고, 초대 수락은 참가 요청을 `CANCELED`, 참가 요청 수락은 초대를 `EXPIRED + ALREADY_JOINED`로 정리
+  - 동일 파티의 PENDING 참가 요청과 친구 초대가 함께 있으면 파티장 초대 수락은 즉시 참가를 확정하고 참가 요청을 `CANCELED`로 정리. 일반 참가자 초대 수락은 기존 요청을 재사용하거나 새 요청을 만들어 파티장 승인을 기다림. 참가 요청 수락이 실제 참가를 확정하면 아직 PENDING인 초대는 `EXPIRED + ALREADY_JOINED`로 정리
   - 회원 탈퇴·학과 변경으로 파티나 공개방 멤버십을 일괄 제거할 때 발송자·수신자 중 더 이상 유효하지 않은 PENDING 친구 초대도 함께 만료. 회원 탈퇴는 발송·수신 초대 대상과 실제 참여 대상 aggregate ID를 먼저 모아 정렬하고 Party/ChatRoom 잠금 뒤 해당 Invitation만 잠가 수락 경로와 잠금 순서를 일치시킨다.
   - 학과 변경 시 변경 회원이 받은 기존 학과방 PENDING 초대도 `EXPIRED + ELIGIBILITY_CHANGED`로 즉시 만료
   - Friend inbox 초대 count는 초대 수만큼 mutation transaction을 열지 않는다. 파티는 선제 terminal 전이 결과를 직접 집계하고, 공개방은 기한이 남은 PENDING만 집계하며 최대 100건의 시간 만료만 저장한다. 상세 목록·mutation은 lazy reconciliation 안전망을 유지한다.
@@ -814,7 +815,7 @@ Hooks:
 
 ### 3.9 Friend (친구, Phase 14 관계 Core 구현)
 
-> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유 전달 완료. TaxiParty·Chat 초대는 런타임 구현 단계이며 알림은 후속 구현 예정
+> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대 전달 완료. 초대·정원·파티원 UX 보완 진행 중이며 알림은 후속 구현 예정
 > 상세 기준: `docs/features/friends.md`
 
 ```
@@ -1451,6 +1452,9 @@ public class JoinRequest extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     private JoinRequestStatus status = JoinRequestStatus.PENDING;
 
+    @Enumerated(EnumType.STRING)
+    private JoinRequestExpiryReason expiryReason;
+
     public void accept() {
         validatePending();
         this.status = JoinRequestStatus.ACCEPTED;
@@ -1466,6 +1470,12 @@ public class JoinRequest extends BaseTimeEntity {
         this.status = JoinRequestStatus.CANCELED;
     }
 
+    public void expire(JoinRequestExpiryReason reason) {
+        validatePending();
+        this.status = JoinRequestStatus.EXPIRED;
+        this.expiryReason = reason;
+    }
+
     private void validatePending() {
         if (this.status != JoinRequestStatus.PENDING) {
             throw new AlreadyProcessedException();
@@ -1474,7 +1484,7 @@ public class JoinRequest extends BaseTimeEntity {
 }
 
 public enum JoinRequestStatus {
-    PENDING, ACCEPTED, DECLINED, CANCELED
+    PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED
 }
 ```
 
@@ -1750,8 +1760,9 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
   - [x] 관계 Core OpenAPI·ERD·Contract·Service 테스트 동기화
   - [x] Academic 시간표 공유·Minecraft projection 협력 구현
   - [x] Academic·Minecraft 협력 API의 OpenAPI·ERD·Contract·Service 테스트 동기화
-  - [ ] TaxiParty·Chat 초대와 Notification 협력 구현
-  - [ ] 남은 후속 도메인 협력 API의 OpenAPI·ERD·Contract·Service 테스트 동기화
+  - [x] TaxiParty·Chat 초대 협력 구현
+  - [x] TaxiParty·Chat 초대 API의 OpenAPI·ERD·Contract·Service 테스트 동기화
+  - [ ] Notification과 남은 회원 탈퇴 cleanup 협력 구현·문서 동기화
 
 ---
 
@@ -1766,6 +1777,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
 ---
 
 > **문서 이력**
+> - 2026-08-24: 친구 초대 보완 반영 — 파티장·참가자 초대 수락 경로 분리, 정원 도달 JoinRequest 만료, 파티원 조회·리더 강퇴 책임을 현재 런타임으로 동기화
 > - 2026-08-23: 예약어 닉네임을 유지한 미완료 회원의 최초 프로필 완료 전환 거부와 기존 완료 예약어 회원 grandfathering을 반영
 > - 2026-08-23: Phase 14 Academic 시간표 공유 협력을 런타임 상태로 동기화하고, TaxiParty·Chat 초대를 런타임 구현 단계로 전환
 > - 2026-08-18: Phase 14 Friend 관계 Core 구현 반영 — 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록을 현재 런타임으로 전환하고 후속 도메인 협력 범위를 분리

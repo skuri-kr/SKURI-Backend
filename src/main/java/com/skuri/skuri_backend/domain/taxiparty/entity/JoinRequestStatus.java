@@ -4,5 +4,6 @@ public enum JoinRequestStatus {
     PENDING,
     ACCEPTED,
     DECLINED,
-    CANCELED
+    CANCELED,
+    EXPIRED
 }

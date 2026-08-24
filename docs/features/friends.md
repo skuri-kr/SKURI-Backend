@@ -1,8 +1,8 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유 전달 완료. 택시파티·공개 채팅방 친구 초대는 Backend [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85)·Frontend [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27) 리뷰 중이며, 알림과 PENDING 초대 정리를 제외한 회원 탈퇴 cleanup은 후속 단계다.
+> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유와 친구 초대 Backend [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85)·Frontend [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27) 전달 완료. 초대·정원·파티원 UX 보완 진행 중이며 알림과 PENDING 초대 정리를 제외한 회원 탈퇴 cleanup은 후속 단계다.
 > 기준일: 2026-08-24
-> 다음 구현 단위: 현재 친구 초대 Backend·Frontend 전달을 완료한 뒤 알림·PENDING 초대 외 회원 탈퇴 cleanup을 구현한다.
+> 다음 구현 단위: 초대·정원·파티원 UX 보완을 전달한 뒤 알림·PENDING 초대 외 회원 탈퇴 cleanup을 구현한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
 ---
@@ -187,8 +187,9 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 - OPEN 상태 파티에서만 초대를 보낼 수 있다.
 - 초대자는 발송 시점에 파티 참가자여야 한다.
 - 수신자는 초대자의 현재 친구여야 한다.
-- 수신자의 명시적 수락 후 파티에 참여한다.
-- 리더의 추가 승인은 요구하지 않는다.
+- 수신자의 명시적 수락은 항상 필요하다.
+- 파티장이 보낸 초대는 수신자 수락과 동시에 참여가 확정된다.
+- 일반 참가자가 보낸 초대는 수신자 수락 시 같은 파티의 PENDING 동승 요청을 재사용하거나 없으면 새로 만들고, 파티장의 수락을 한 번 더 받아야 참여가 확정된다.
 - 초대는 좌석을 예약하지 않는다.
 - 남은 자리보다 많은 대기 초대를 발송할 수 있다.
 - 수락 시점에 파티 상태, 정원, 기존 참여, 다른 활성 파티 참여 여부, 친구·차단 관계를 다시 검증한다.
@@ -199,7 +200,7 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 - 파티 상태·정원·참여자·친구 관계 변경 시 선제적으로 만료시키고, 받은 초대 목록·수락 처리에서도 누락된 만료를 재검증한다. badge count는 이 선제 전이가 저장한 PENDING 상태를 DB에서 바로 집계해 초대 수에 비례한 보정 transaction을 만들지 않는다.
 - 관리자 `CLOSE`, `CANCEL`, `END`도 PENDING 초대를 EXPIRED + TARGET_UNAVAILABLE로 정리한다. 이후 `REOPEN`해도 만료된 초대는 복원하지 않는다.
 - 관리자가 일반 참가자를 제거하면 그 참가자가 해당 파티에 보낸 PENDING 초대는 EXPIRED + INVITER_LEFT로 정리한다.
-- 같은 파티에 대한 참가 요청과 친구 초대가 동시에 PENDING이면 먼저 수락된 경로만 참가를 확정한다. 초대 수락 시 참가 요청은 CANCELED, 참가 요청 수락 시 초대는 EXPIRED + ALREADY_JOINED로 같은 트랜잭션에서 정리한다.
+- 같은 파티에 대한 PENDING 참가 요청과 친구 초대가 함께 있으면, 파티장 초대 수락은 즉시 참가를 확정하고 참가 요청을 CANCELED로 정리한다. 일반 참가자 초대 수락은 기존 요청을 재사용하거나 새 요청을 만들어 파티장 승인을 기다린다. 참가 요청 수락이 실제 참가를 확정하면 아직 PENDING인 초대는 EXPIRED + ALREADY_JOINED로 같은 트랜잭션에서 정리한다.
 - 다중 선택 발송은 batch 전체 원자성이 아니라 수신자별 원자성을 사용한다. 각 수신자는 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE 중 하나의 결과를 가진다.
 - 응답 item 순서는 요청의 friendPublicId 순서를 유지하고 SENT item만 새 초대를 생성한다. 차단·친구 관계 상실·다른 활성 파티처럼 민감하거나 변동 가능한 사유는 NOT_ELIGIBLE로 통합한다.
 - 파티 없음·비OPEN, 초대자 비참여, 잘못된 batch 형식 같은 요청 전체 조건이 실패할 때만 초대를 하나도 만들지 않고 4xx로 응답한다.
@@ -536,7 +537,8 @@ ACTIVE ── 어느 한쪽 차단 ──> 삭제
 ### 7.3 택시파티 초대
 
 ~~~text
-PENDING ── 수락 성공 ──> ACCEPTED + 파티 참여
+PENDING ── 파티장 초대 수락 ──> ACCEPTED + 파티 참여 (같은 파티 PENDING 동승 요청은 CANCELED)
+   ├────── 참가자 초대 수락 ──> ACCEPTED + 동승 요청 PENDING (기존 요청 재사용 또는 새 생성)
    ├────── 거절 ──> DECLINED
    ├────── 발송자 취소 ──> CANCELED
    ├────── 파티 비OPEN·정원 마감 ──> EXPIRED
@@ -544,11 +546,11 @@ PENDING ── 수락 성공 ──> ACCEPTED + 파티 참여
    └────── 친구 해제·차단 ──> EXPIRED
 ~~~
 
-정원 확인과 파티 참여는 같은 트랜잭션과 잠금 경계에서 처리한다. 정원이 가득 차는 순간 남아 있는 PENDING 초대를 EXPIRED로 전환하며, 초대 목록·수락 진입에서는 누락된 terminal 조건을 lazy reconciliation한다. badge count는 선제 전이 결과를 DB에서 직접 집계한다. EXPIRED는 파티 재개방이나 자리 발생으로 복원하지 않는다. 수신자의 다른 활성 파티 참여만 대상 초대의 다른 terminal 조건이 충족되지 않은 동안 PENDING을 유지할 수 있는 재시도 가능 사유다.
+정원 확인과 파티 참여 또는 동승 요청 생성은 같은 트랜잭션과 잠금 경계에서 처리한다. 일반 참가자의 초대 수락은 같은 파티의 기존 PENDING 동승 요청이 있으면 이를 재사용하고, 없으면 새로 생성한 뒤 `result=LEADER_APPROVAL_PENDING`과 해당 `joinRequestId`를 반환한다. 파티장 초대 수락은 즉시 참가하며 `result=JOINED`를 반환하고 같은 파티의 PENDING 동승 요청을 CANCELED로 정리한다. 정원이 가득 차는 순간 남아 있는 PENDING 초대와 동승 요청을 각각 `EXPIRED + CAPACITY_FULL`로 전환하며, 초대 목록·수락 진입에서는 누락된 terminal 조건을 lazy reconciliation한다. badge count는 선제 전이 결과를 DB에서 직접 세며, EXPIRED는 파티 재개방이나 자리 발생으로 복원하지 않는다. 수신자의 다른 활성 파티 참여만 대상 초대의 다른 terminal 조건이 충족되지 않은 동안 PENDING을 유지할 수 있는 재시도 가능 사유다.
 
 관리자 `CLOSE`, `CANCEL`, `END`도 같은 만료 규칙을 적용하고 `REOPEN`은 기존 EXPIRED 초대를 복원하지 않는다. 관리자 멤버 제거는 제거된 참가자가 보낸 해당 파티의 PENDING 초대를 INVITER_LEFT로 만료한다.
 
-같은 회원이 동일 파티에 PENDING 참가 요청과 PENDING 친구 초대를 함께 가진 경우, 초대 수락은 참가 요청을 CANCELED로 만들고 참가 요청 수락은 초대를 EXPIRED + ALREADY_JOINED로 만든다. 두 흐름 중 실제 참가를 먼저 확정한 경로가 승리하며 경쟁 경로는 다시 처리할 수 없는 terminal 상태로 정리한다.
+같은 회원이 동일 파티에 PENDING 참가 요청과 PENDING 친구 초대를 함께 가진 경우, 파티장 초대 수락은 즉시 참가를 확정하고 참가 요청을 CANCELED로 만든다. 일반 참가자의 초대 수락은 참가를 확정하지 않고 기존 참가 요청을 재사용해 파티장 승인을 기다린다. 참가 요청 수락이 먼저 실제 참가를 확정하면 아직 PENDING인 초대는 EXPIRED + ALREADY_JOINED로 정리한다.
 
 ### 7.4 공개방 초대
 
@@ -727,7 +729,7 @@ semester는 `2026-1` 형식의 필수 query parameter다. 친구 시간표 응�
 | POST | /v1/party-invitations/{invitationId}/decline | 초대 거절 |
 | DELETE | /v1/party-invitations/{invitationId} | 발송자 취소 |
 
-eligible 응답은 이미 참여, 다른 활성 파티, 차단, 중복 PENDING 등 초대 불가 대상을 제외한다.
+eligible 응답은 `friends`, `alreadyPendingFriends`, `alreadyMemberFriends`를 분리한다. 다른 활성 파티, 차단 등 민감한 사유는 목록에서 제외하고 `notEligibleCount`에만 포함한다. 정원이 가득 찬 파티는 조회 자체를 실패시키지 않고 `canInvite=false`, `unavailableReason=PARTY_FULL`, `remainingCapacity=0`과 세 목록을 반환한다.
 
 batch 요청과 응답:
 
@@ -775,7 +777,7 @@ batch 요청과 응답:
 - 친구 관계를 전제로 하는 택시파티·공개방 초대 생성과 수락은 위 고정 순서 안에서 친구·차단 상태를 재검증한다.
 - 친구 코드 발급·재발급과 lazy provisioning은 해당 Member row를 PESSIMISTIC_WRITE로 잠근 뒤 ACTIVE를 재확인한다. 탈퇴가 먼저 확정됐다면 FriendProfile이나 ACTIVE 코드 registry row를 생성하지 않는다.
 - 양방향 동시 요청은 friendship 한 건만 만든다.
-- 같은 요청·초대의 accept 재호출은 이미 성공한 동일 수신자라면 멱등 응답을 우선한다.
+- 같은 요청·초대의 accept 재호출은 이미 성공한 동일 수신자라면 멱등 응답을 우선한다. 택시 초대는 최초 수락 결과(`JOINED` 또는 `LEADER_APPROVAL_PENDING`)와 후자의 `joinRequestId`를 초대 행에 확정 저장해, 이후 동승 요청 처리·파티 상태 변화와 무관하게 동일 응답을 반환한다.
 - 택시 초대 수락은 기존 TaxiParty 참여 로직과 같은 잠금 경계를 사용한다.
 - 공개방 초대 수락은 기존 joinChatRoom 자격 검증을 재사용한다.
 - 발송량 제한은 두지 않지만 입력 검증, PENDING 중복 방지와 payload 크기 제한은 적용한다.
@@ -829,13 +831,19 @@ batch 요청과 응답:
 10. Frontend #25 친구 화면 완성 UX
 11. Backend #84 시간표 공유 API
 12. Frontend #26 시간표 공유 UX
+13. Backend #85 친구 초대 API
+14. Frontend #27 친구 초대 UX
 
-시간표 공유는 Backend #84·Frontend #26에서 구현·테스트·문서 정합성 점검과 리뷰 보완을 마쳐 전달을 완료했다. 친구 초대는 Backend #85·Frontend #27에서 리뷰 중이며, 그 뒤 남는 승인 구현은 알림·PENDING 초대 외 탈퇴 정리 한 단계다.
+시간표 공유는 Backend #84·Frontend #26에서, 친구 초대는 Backend #85·Frontend #27에서 구현·테스트·문서 정합성 점검과 리뷰 보완을 마쳐 전달을 완료했다. 현재 초대·정원·파티원 UX 보완을 진행하며, 그 뒤 남는 승인 구현은 알림·PENDING 초대 외 탈퇴 정리 한 단계다.
 
-1. 친구 초대 (Backend #85·Frontend #27 리뷰 중)
+1. 친구 초대 (Backend #85·Frontend #27 전달 완료)
    - TaxiParty와 공개 Chat 수신자별 부분 성공 초대
    - FriendHub 초대 탭과 공통 친구 선택 UX
-2. 알림·나머지 탈퇴 정리 (후속)
+2. 초대·정원·파티원 UX 보완 (진행 중)
+   - 파티장과 일반 참가자 초대의 수락 후 상태 전이 분리
+   - 가득 찬 파티의 초대·동승 요청 종료와 재개 차단
+   - 초대 가능·초대 중·참여 중 목록과 파티원 목록·리더 강퇴 UI
+3. 알림·나머지 탈퇴 정리 (후속)
    - 친구 요청·수락·거절과 초대 인박스·FCM·SSE·화면 이동
    - PENDING 초대 외 모든 Friend·공유 파생 데이터의 회원 탈퇴 cleanup
 
@@ -999,3 +1007,6 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-23 | 프로필 미완료 회원은 예약어 닉네임을 변경하지 않은 부분 수정으로 최초 완료 상태가 될 수 없고, 이미 완료된 기존 예약어 닉네임 회원은 계속 허용 |
 | 2026-08-23 | 시간표 공유 예외의 friend→owner 역방향 조회에 `(friend_member_id, owner_member_id)` 인덱스 사용 |
 | 2026-08-23 | 시간표 공유 Backend #84·Frontend #26의 리뷰 보완과 문서 정합성 점검을 마쳐 3단계 전달 완료로 전환 |
+| 2026-08-24 | 친구 초대 Backend #85·Frontend #27 전달 후 보완 단계에서 파티장 초대는 수락 즉시 참가, 일반 참가자 초대는 수락 후 동승 요청과 파티장 승인을 거치도록 확정 |
+| 2026-08-24 | 가득 찬 파티는 모집 재개·새 동승 요청·초대 발송을 차단하고 남은 PENDING 동승 요청을 EXPIRED + CAPACITY_FULL로 종료하며, eligible 조회는 상태 목록과 canInvite=false를 정상 반환 |
+| 2026-08-24 | 초대 시트는 초대 가능·초대 중·참여 중을 함께 표시하고, 파티원 목록은 참가자 전체에게 제공하되 강퇴는 파티장에게만 허용 |

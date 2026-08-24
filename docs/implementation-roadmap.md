@@ -14,7 +14,7 @@
 | Java | 21 |
 | 빌드 도구 | Gradle |
 | 현재 의존성 | JPA, Web MVC, Validation, Security, Firebase Admin, Springdoc OpenAPI(Swagger UI/Scalar), Thumbnailator, TwelveMonkeys WebP, Lombok, MySQL Connector |
-| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation·관계 Core·출시 준비·친구 화면 완성·시간표 공유 전달 완료, 친구 초대 Backend #85·Frontend #27 리뷰 중, 알림/나머지 탈퇴 정리 후속 예정 |
+| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation·관계 Core·출시 준비·친구 화면 완성·시간표 공유·친구 초대 전달 완료, 초대·정원·파티원 UX 보완 진행 중, 알림/나머지 탈퇴 정리 후속 예정 |
 
 ---
 
@@ -1041,7 +1041,7 @@ SSE 운영 제약:
 
 ### Phase 14: 친구·시간표 공유·친구 초대
 
-> 상태: Backend #78·#79·#80·#81·#82·#83·#84와 Frontend #22·#23·#24·#25·#26 전달 완료, 친구 초대 Backend #85·Frontend #27 리뷰 중, 알림·나머지 탈퇴 정리 후속 예정
+> 상태: Backend #78~#85와 Frontend #22~#27 전달 완료, 초대·정원·파티원 UX 보완 진행 중, 알림·나머지 탈퇴 정리 후속 예정
 > 상세 기준: docs/features/friends.md
 > 후속 구현 시작 조건: 해당 기능 기준 문서 검토 후 사용자의 별도 코드 구현 승인
 
@@ -1084,11 +1084,13 @@ SSE 운영 제약:
 | Backend | [#82](https://github.com/skuri-kr/SKURI-Backend/pull/82) | 친구 출시 운영 postcheck CTE 검증 보정 |
 | Backend | [#83](https://github.com/skuri-kr/SKURI-Backend/pull/83) | 친구 Minecraft 안전 projection과 목록·수락 응답 요약 |
 | Backend | [#84](https://github.com/skuri-kr/SKURI-Backend/pull/84) | 시간표 공개 범위·친구별 예외·친구 시간표 projection과 관계 종료 cleanup |
+| Backend | [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85) | 택시파티·공개방 친구 초대와 받은 초대 mutation·만료 정합성 |
 | Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 모바일 친구 기능 구현 계획 |
 | Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings와 관계 Core 연동 |
 | Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX와 수동 QA 보완 |
 | Frontend | [#25](https://github.com/skuri-kr/SKURI-Frontend/pull/25) | 친구 QR 생성·스캔과 Minecraft 계정 표시 |
 | Frontend | [#26](https://github.com/skuri-kr/SKURI-Frontend/pull/26) | 시간표 공유 설정과 친구 시간표 accordion·공통 공강·같이 듣는 수업 |
+| Frontend | [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27) | 택시파티·공개방 친구 초대 sheet와 FriendHub 받은 초대 흐름 |
 
 #### 14-4. 시간표 공유 후 구현 단위
 
@@ -1097,9 +1099,13 @@ SSE 운영 제약:
 1. [x] 시간표 공유 (전달 완료)
    - 시간표 공유 설정·친구별 예외·친구 시간표 조회
    - 모바일 accordion·공통 공강·같이 듣는 수업
-2. [~] 친구 초대 (Backend #85·Frontend #27 리뷰 중)
+2. [x] 친구 초대 (Backend #85·Frontend #27 전달 완료)
    - TaxiParty·공개 Chat 수신자별 부분 성공 친구 초대
    - FriendHub 초대 탭·공통 친구 선택 UX
+2-a. [~] 초대·정원·파티원 UX 보완
+   - 파티장 초대 즉시 참가, 참가자 초대 리더 승인 대기
+   - 가득 찬 파티의 동승 요청·초대 차단과 PENDING 요청 만료
+   - 초대 가능·초대 중·참여 중 목록, 학과방 안내, 파티원 목록·리더 강퇴 UI
 3. [ ] 알림·나머지 탈퇴 정리
    - 친구 요청·수락·거절·초대 인박스·FCM·SSE·이동
    - Notification 설정·badge와 PENDING 초대 외 회원 탈퇴 cleanup
@@ -1210,6 +1216,7 @@ Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 > - 2026-08-22: Phase 14 1·2단계 완료 반영 — Backend #81·#82·#83과 Frontend #24·#25 완료 범위, Friend 전용 신고 제외, 저장소별 남은 3단계 PR 계획을 동기화
 > - 2026-08-22: Phase 14 시간표 공유 구현 반영 — Backend·Frontend 각각 한 PR의 구현·테스트·문서 정합성 점검을 반영하고, 남은 2단계 PR 계획으로 전환
 > - 2026-08-24: Phase 14 친구 초대 PR 생성 — Backend #85·Frontend #27의 런타임·테스트·문서 동기화와 후속 알림·나머지 탈퇴 정리 경계를 기록
+> - 2026-08-24: Phase 14 친구 초대 보완 — 파티장·참가자 수락 경로 분리, 정원 도달 JoinRequest 만료, 상태별 초대 목록과 파티원 관리 범위를 동기화
 > - 2026-08-21: Phase 14 전달 이력·출시 준비 계획 갱신 — Backend #78·#79·#80과 Frontend #22·#23 완료 범위, 프로필 완료 eligibility와 저장소별 5단계 후속 PR 계획을 반영
 > - 2026-04-06: Admin Chat read API 구현 반영 — 공개 채팅방 관리자 목록/상세/메시지 조회와 관리자 파티 메시지 조회를 Phase 3/Phase 2 운영 API 및 완료 기준에 추가
 > - 2026-04-01: Phase 13 구현 반영 완료 상태로 갱신 — 마인크래프트 public/internal API, public SSE, bridge outbox, IMAGE placeholder, notification policy, 테스트/문서 완료 기준을 체크 상태로 동기화

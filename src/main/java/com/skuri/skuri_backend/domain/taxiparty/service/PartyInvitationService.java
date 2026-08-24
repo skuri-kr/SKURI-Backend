@@ -7,11 +7,13 @@ import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService;
 import com.skuri.skuri_backend.domain.friend.service.FriendRelationshipQueryService.InvitationCandidate;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationBatchResponse;
+import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationAcceptResult;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationEligibleFriendsResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationMutationResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationReceivedResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationSendResultResponse;
 import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationTargetResponse;
+import com.skuri.skuri_backend.domain.taxiparty.dto.response.PartyInvitationUnavailableReason;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus;
@@ -51,15 +53,12 @@ public class PartyInvitationService {
     @Transactional
     public PartyInvitationEligibleFriendsResponse getEligibleFriends(String inviterMemberId, String partyId) {
         pairLockService.requireActiveProfileCompleteMember(inviterMemberId);
-        Party party = requireOpenPartyMember(partyId, inviterMemberId);
-        if (party.getCurrentMembers() >= party.getMaxMembers()) {
-            throw new BusinessException(ErrorCode.PARTY_FULL);
-        }
+        Party party = requirePartyMemberForEligibility(partyId, inviterMemberId);
 
         List<InvitationCandidate> candidates = friendRelationshipQueryService.getInvitationCandidates(inviterMemberId);
         Set<String> candidateMemberIds = candidates.stream().map(InvitationCandidate::memberId).collect(Collectors.toSet());
         if (candidateMemberIds.isEmpty()) {
-            return eligibleResponse(party, List.of(), 0, 0, 0);
+            return eligibleResponse(party, List.of(), List.of(), List.of(), 0);
         }
         Set<String> partyMemberIds = Set.copyOf(party.getMemberIds());
         Set<String> activePartyMemberIds = Set.copyOf(
@@ -69,22 +68,22 @@ public class PartyInvitationService {
                 partyInvitationRepository.findPendingInviteeIds(partyId, candidateMemberIds)
         );
 
-        int alreadyMemberCount = 0;
-        int alreadyPendingCount = 0;
         int notEligibleCount = 0;
         List<FriendInvitationCandidateResponse> eligible = new java.util.ArrayList<>();
+        List<FriendInvitationCandidateResponse> alreadyMembers = new java.util.ArrayList<>();
+        List<FriendInvitationCandidateResponse> alreadyPending = new java.util.ArrayList<>();
         for (InvitationCandidate candidate : candidates) {
             if (partyMemberIds.contains(candidate.memberId())) {
-                alreadyMemberCount++;
+                alreadyMembers.add(candidate.response());
             } else if (pendingInviteeIds.contains(candidate.memberId())) {
-                alreadyPendingCount++;
+                alreadyPending.add(candidate.response());
             } else if (activePartyMemberIds.contains(candidate.memberId())) {
                 notEligibleCount++;
             } else {
                 eligible.add(candidate.response());
             }
         }
-        return eligibleResponse(party, eligible, alreadyMemberCount, alreadyPendingCount, notEligibleCount);
+        return eligibleResponse(party, eligible, alreadyMembers, alreadyPending, notEligibleCount);
     }
 
     public PartyInvitationBatchResponse send(
@@ -135,10 +134,19 @@ public class PartyInvitationService {
     public PartyInvitationMutationResponse accept(String inviteeMemberId, String invitationId) {
         PartyInvitationTransitionService.AcceptAttempt attempt = transitionService.accept(inviteeMemberId, invitationId);
         return switch (attempt.outcome()) {
-            case ACCEPTED -> new PartyInvitationMutationResponse(
+            case JOINED -> new PartyInvitationMutationResponse(
                     invitationId,
                     attempt.partyId(),
-                    PartyInvitationStatus.ACCEPTED
+                    PartyInvitationStatus.ACCEPTED,
+                    PartyInvitationAcceptResult.JOINED,
+                    null
+            );
+            case LEADER_APPROVAL_PENDING -> new PartyInvitationMutationResponse(
+                    invitationId,
+                    attempt.partyId(),
+                    PartyInvitationStatus.ACCEPTED,
+                    PartyInvitationAcceptResult.LEADER_APPROVAL_PENDING,
+                    attempt.joinRequestId()
             );
             case OTHER_ACTIVE_PARTY -> throw new BusinessException(ErrorCode.ALREADY_IN_PARTY);
             case EXPIRED, STATE_NOT_ALLOWED -> throw new BusinessException(ErrorCode.PARTY_INVITATION_STATE_NOT_ALLOWED);
@@ -151,7 +159,13 @@ public class PartyInvitationService {
         }
         PartyInvitation invitation = partyInvitationRepository.findById(invitationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARTY_INVITATION_NOT_FOUND));
-        return new PartyInvitationMutationResponse(invitationId, invitation.getPartyId(), invitation.getStatus());
+        return new PartyInvitationMutationResponse(
+                invitationId,
+                invitation.getPartyId(),
+                invitation.getStatus(),
+                null,
+                null
+        );
     }
 
     public void cancel(String inviterMemberId, String invitationId) {
@@ -171,20 +185,38 @@ public class PartyInvitationService {
         return party;
     }
 
+    private Party requirePartyMemberForEligibility(String partyId, String inviterMemberId) {
+        Party party = partyRepository.findDetailById(partyId).orElseThrow(PartyNotFoundException::new);
+        if (!party.isMember(inviterMemberId)) {
+            throw new BusinessException(ErrorCode.NOT_PARTY_MEMBER);
+        }
+        boolean full = party.getCurrentMembers() >= party.getMaxMembers();
+        if (party.getStatus() != PartyStatus.OPEN && !(party.getStatus() == PartyStatus.CLOSED && full)) {
+            throw new BusinessException(ErrorCode.PARTY_CLOSED);
+        }
+        return party;
+    }
+
     private PartyInvitationEligibleFriendsResponse eligibleResponse(
             Party party,
             List<FriendInvitationCandidateResponse> eligible,
-            int alreadyMemberCount,
-            int alreadyPendingCount,
+            List<FriendInvitationCandidateResponse> alreadyMembers,
+            List<FriendInvitationCandidateResponse> alreadyPending,
             int notEligibleCount
     ) {
+        int remainingCapacity = Math.max(0, party.getMaxMembers() - party.getCurrentMembers());
+        boolean canInvite = party.getStatus() == PartyStatus.OPEN && remainingCapacity > 0;
         return new PartyInvitationEligibleFriendsResponse(
                 party.getId(),
                 party.getDeparture().getName() + " → " + party.getDestination().getName(),
-                Math.max(0, party.getMaxMembers() - party.getCurrentMembers()),
+                remainingCapacity,
+                canInvite,
+                canInvite ? null : PartyInvitationUnavailableReason.PARTY_FULL,
                 eligible,
-                alreadyMemberCount,
-                alreadyPendingCount,
+                alreadyMembers,
+                alreadyPending,
+                alreadyMembers.size(),
+                alreadyPending.size(),
                 notEligibleCount
         );
     }
