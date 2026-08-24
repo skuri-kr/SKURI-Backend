@@ -17,10 +17,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -58,6 +60,8 @@ class FriendWithdrawalCleanupServiceTest {
     @Test
     void cleanupWithdrawnMember_친구관계와시간표공유파생데이터를정리한다() {
         LocalDateTime withdrawnAt = LocalDateTime.of(2026, 8, 24, 12, 0);
+        when(friendProfileProvisioningService.retireForWithdrawnMember("member-1", withdrawnAt))
+                .thenReturn(Optional.empty());
         when(friendRequestRepository.findByRequesterIdOrRecipientId("member-1", "member-1"))
                 .thenReturn(List.of());
 
@@ -65,7 +69,7 @@ class FriendWithdrawalCleanupServiceTest {
 
         verify(friendProfileProvisioningService).retireForWithdrawnMember("member-1", withdrawnAt);
         verify(friendRequestRepository).findByRequesterIdOrRecipientId("member-1", "member-1");
-        verify(notificationService).deleteFriendRequestRelatedNotifications(Map.of());
+        verify(notificationService).deleteFriendRelatedNotifications(Map.of(), null);
         verify(friendRequestRepository).deleteByRequesterIdOrRecipientId("member-1", "member-1");
         verify(friendshipRepository).deleteByMemberLowIdOrMemberHighId("member-1", "member-1");
         verify(friendPreferenceRepository).deleteByOwnerMemberIdOrFriendMemberId("member-1", "member-1");
@@ -77,6 +81,8 @@ class FriendWithdrawalCleanupServiceTest {
     @Test
     void cleanupWithdrawnMember_상대방의친구요청알림을요청삭제전에정리한다() {
         LocalDateTime withdrawnAt = LocalDateTime.of(2026, 8, 24, 12, 0);
+        when(friendProfileProvisioningService.retireForWithdrawnMember("member-1", withdrawnAt))
+                .thenReturn(Optional.of("friend-public-1"));
         FriendRequest sentRequest = friendRequest("request-1", "member-1", "member-2");
         FriendRequest receivedRequest = friendRequest("request-2", "member-3", "member-1");
         when(friendRequestRepository.findByRequesterIdOrRecipientId("member-1", "member-1"))
@@ -85,7 +91,7 @@ class FriendWithdrawalCleanupServiceTest {
         friendWithdrawalCleanupService.cleanupWithdrawnMember("member-1", withdrawnAt);
 
         org.mockito.ArgumentCaptor<Map<String, Set<String>>> requestIdsCaptor = org.mockito.ArgumentCaptor.forClass(Map.class);
-        verify(notificationService).deleteFriendRequestRelatedNotifications(requestIdsCaptor.capture());
+        verify(notificationService).deleteFriendRelatedNotifications(requestIdsCaptor.capture(), eq("friend-public-1"));
         assertEquals(
                 Map.of("member-2", Set.of("request-1"), "member-3", Set.of("request-2")),
                 requestIdsCaptor.getValue()
@@ -93,7 +99,7 @@ class FriendWithdrawalCleanupServiceTest {
 
         org.mockito.InOrder inOrder = inOrder(friendRequestRepository, notificationService);
         inOrder.verify(friendRequestRepository).findByRequesterIdOrRecipientId("member-1", "member-1");
-        inOrder.verify(notificationService).deleteFriendRequestRelatedNotifications(anyMap());
+        inOrder.verify(notificationService).deleteFriendRelatedNotifications(anyMap(), org.mockito.ArgumentMatchers.any());
         inOrder.verify(friendRequestRepository).deleteByRequesterIdOrRecipientId("member-1", "member-1");
     }
 

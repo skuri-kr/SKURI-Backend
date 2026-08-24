@@ -157,7 +157,7 @@ class NotificationServiceTest {
     }
 
     @Test
-    void deleteFriendRequestRelatedNotifications_해당요청을참조하는친구알림만정리하고미읽음수를갱신한다() {
+    void deleteFriendRelatedNotifications_탈퇴로유효하지않아진친구알림만정리하고미읽음수를갱신한다() {
         UserNotification unreadRequest = unreadFriendRequestNotification(
                 "notification-1",
                 "member-2",
@@ -177,24 +177,44 @@ class NotificationServiceTest {
                 "friend-request-3"
         );
         UserNotification partyRequest = unreadNotification("notification-4", "member-2");
+        UserNotification unreadAccepted = unreadFriendAcceptedNotification(
+                "notification-5",
+                "member-2",
+                "friend-public-1"
+        );
+        UserNotification differentAccepted = unreadFriendAcceptedNotification(
+                "notification-6",
+                "member-2",
+                "friend-public-2"
+        );
 
         when(userNotificationRepository.findByUserIdInAndTypeIn(
                 anyCollection(),
                 anyCollection()
-        )).thenReturn(List.of(unreadRequest, readDeclined, differentRequest, partyRequest));
+        )).thenReturn(List.of(
+                unreadRequest,
+                readDeclined,
+                differentRequest,
+                partyRequest,
+                unreadAccepted,
+                differentAccepted
+        ));
         when(userNotificationRepository.countUnreadByUserIds(
                 Set.of("member-2"),
                 NotificationType.APP_NOTICE
         )).thenReturn(List.of(unreadCount("member-2", 1L)));
 
-        notificationService.deleteFriendRequestRelatedNotifications(Map.of(
-                "member-2", Set.of("friend-request-1"),
-                "member-3", Set.of("friend-request-2")
-        ));
+        notificationService.deleteFriendRelatedNotifications(
+                Map.of(
+                        "member-2", Set.of("friend-request-1"),
+                        "member-3", Set.of("friend-request-2")
+                ),
+                "friend-public-1"
+        );
 
         ArgumentCaptor<List<UserNotification>> captor = ArgumentCaptor.forClass(List.class);
         verify(userNotificationRepository).deleteAllInBatch(captor.capture());
-        assertEquals(List.of(unreadRequest, readDeclined), captor.getValue());
+        assertEquals(List.of(unreadRequest, readDeclined, unreadAccepted), captor.getValue());
         verify(notificationSseService).publishUnreadCountChanged("member-2", 1L);
         verify(notificationSseService, org.mockito.Mockito.never())
                 .publishUnreadCountChanged("member-3", 0L);
@@ -285,6 +305,19 @@ class NotificationServiceTest {
     ) {
         UserNotification notification = unreadFriendRequestNotification(id, userId, type, requestId);
         notification.markRead(LocalDateTime.of(2026, 3, 8, 10, 0));
+        return notification;
+    }
+
+    private UserNotification unreadFriendAcceptedNotification(String id, String userId, String friendPublicId) {
+        UserNotification notification = UserNotification.create(
+                userId,
+                NotificationType.FRIEND_ACCEPTED,
+                "친구 요청 수락 알림",
+                "친구가 되었어요.",
+                NotificationData.ofFriendAccepted(friendPublicId)
+        );
+        ReflectionTestUtils.setField(notification, "id", id);
+        ReflectionTestUtils.setField(notification, "createdAt", LocalDateTime.of(2026, 3, 8, 9, 11));
         return notification;
     }
 
