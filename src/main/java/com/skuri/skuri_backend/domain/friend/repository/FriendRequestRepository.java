@@ -71,6 +71,8 @@ public interface FriendRequestRepository extends JpaRepository<FriendRequest, St
 
     List<FriendRequest> findAllByActivePairKeyIn(Collection<String> activePairKeys);
 
+    List<FriendRequest> findByRequesterIdOrRecipientId(String requesterId, String recipientId);
+
     long deleteByRequesterIdOrRecipientId(String requesterId, String recipientId);
 
     @Query("""

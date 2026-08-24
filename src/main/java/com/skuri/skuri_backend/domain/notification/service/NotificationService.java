@@ -21,8 +21,11 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -43,6 +46,10 @@ public class NotificationService {
             NotificationType.PARTY_ENDED,
             NotificationType.MEMBER_KICKED,
             NotificationType.SETTLEMENT_COMPLETED
+    );
+    private static final List<NotificationType> FRIEND_REQUEST_RELATED_TYPES = List.of(
+            NotificationType.FRIEND_REQUEST,
+            NotificationType.FRIEND_DECLINED
     );
 
     private final UserNotificationRepository userNotificationRepository;
@@ -147,6 +154,42 @@ public class NotificationService {
         }
     }
 
+    /**
+     * 회원 탈퇴로 hard delete되는 친구 요청을 참조하는 상대방의 인앱 알림을 함께 정리한다.
+     * 호출자는 탈퇴 트랜잭션 안에서 이 메서드를 호출해야 하며, unread-count SSE는 outer transaction commit 뒤에만 발행된다.
+     */
+    @Transactional
+    public void deleteFriendRequestRelatedNotifications(Map<String, Set<String>> requestIdsByMemberId) {
+        Map<String, Set<String>> validRequestIdsByMemberId = resolveFriendRequestIdsByMemberId(requestIdsByMemberId);
+        if (validRequestIdsByMemberId.isEmpty()) {
+            return;
+        }
+
+        List<UserNotification> targets = userNotificationRepository.findByUserIdInAndTypeIn(
+                        validRequestIdsByMemberId.keySet(),
+                        FRIEND_REQUEST_RELATED_TYPES
+                ).stream()
+                .filter(notification -> FRIEND_REQUEST_RELATED_TYPES.contains(notification.getType()))
+                .filter(notification -> validRequestIdsByMemberId
+                        .getOrDefault(notification.getUserId(), Set.of())
+                        .stream()
+                        .anyMatch(notification::matchesFriendRequest))
+                .toList();
+
+        if (targets.isEmpty()) {
+            return;
+        }
+
+        Set<String> unreadAffectedMemberIds = targets.stream()
+                .filter(notification -> !notification.isRead())
+                .map(UserNotification::getUserId)
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        userNotificationRepository.deleteAllInBatch(targets);
+        if (!unreadAffectedMemberIds.isEmpty()) {
+            runAfterCommit(() -> publishUnreadCounts(unreadAffectedMemberIds));
+        }
+    }
+
     @Transactional
     public void deleteAllByUserId(String memberId) {
         userNotificationRepository.deleteByUserId(memberId);
@@ -228,7 +271,7 @@ public class NotificationService {
             return Map.of();
         }
 
-        Map<String, Long> unreadCounts = new java.util.LinkedHashMap<>();
+        Map<String, Long> unreadCounts = new LinkedHashMap<>();
         memberIds.forEach(memberId -> unreadCounts.put(memberId, 0L));
         userNotificationRepository.countUnreadByUserIds(memberIds, UNREAD_COUNT_EXCLUDED_TYPE)
                 .forEach(count -> unreadCounts.put(count.getUserId(), count.getUnreadCount()));
@@ -244,6 +287,27 @@ public class NotificationService {
                 .map(UserNotification::getUserId)
                 .distinct()
                 .toList();
+    }
+
+    private Map<String, Set<String>> resolveFriendRequestIdsByMemberId(Map<String, Set<String>> requestIdsByMemberId) {
+        Map<String, Set<String>> validRequestIdsByMemberId = new LinkedHashMap<>();
+        if (requestIdsByMemberId == null || requestIdsByMemberId.isEmpty()) {
+            return validRequestIdsByMemberId;
+        }
+
+        requestIdsByMemberId.forEach((memberId, requestIds) -> {
+            if (memberId == null || memberId.isBlank() || requestIds == null || requestIds.isEmpty()) {
+                return;
+            }
+
+            Set<String> validRequestIds = requestIds.stream()
+                    .filter(requestId -> requestId != null && !requestId.isBlank())
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            if (!validRequestIds.isEmpty()) {
+                validRequestIdsByMemberId.put(memberId, validRequestIds);
+            }
+        });
+        return validRequestIdsByMemberId;
     }
 
     private long countUnreadNotifications(String memberId) {

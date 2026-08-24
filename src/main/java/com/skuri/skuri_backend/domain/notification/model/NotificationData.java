@@ -9,7 +9,7 @@ import java.util.Map;
 public record NotificationData(
         @Schema(description = "파티 ID (파티 알림 계열에서 사용, CHAT_MESSAGE는 chatRoomId를 canonical로 사용)", example = "party-uuid", nullable = true)
         String partyId,
-        @Schema(description = "동승 요청 ID", example = "request-uuid", nullable = true)
+        @Schema(description = "동승·친구 요청 ID (PARTY_JOIN_*·FRIEND_REQUEST·FRIEND_DECLINED에서 사용)", example = "request-uuid", nullable = true)
         String requestId,
         @Schema(description = "채팅방 ID (CHAT_MESSAGE canonical 식별자)", example = "party:party-uuid", nullable = true)
         String chatRoomId,
@@ -101,6 +101,10 @@ public record NotificationData(
 
     public boolean matchesParty(String targetPartyId) {
         return targetPartyId != null && targetPartyId.equals(partyId);
+    }
+
+    public boolean matchesFriendRequest(String targetRequestId) {
+        return targetRequestId != null && targetRequestId.equals(requestId);
     }
 
     private static void putIfPresent(Map<String, String> data, String key, String value) {
