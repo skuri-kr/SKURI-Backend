@@ -390,11 +390,12 @@ public class TaxiPartyService {
 
     @Transactional
     public JoinRequestAcceptResponse acceptJoinRequest(String leaderId, String requestId) {
-        JoinRequest joinRequest = findJoinRequestOrThrow(requestId);
-        String requesterId = joinRequest.getRequesterId();
+        JoinRequestRepository.TransitionSnapshot snapshot = findJoinRequestSnapshotOrThrow(requestId);
+        String requesterId = snapshot.getRequesterId();
         lockMemberOrThrow(requesterId);
-        Party party = partyRepository.findDetailByIdForUpdate(joinRequest.getParty().getId())
+        Party party = partyRepository.findDetailByIdForUpdate(snapshot.getPartyId())
                 .orElseThrow(PartyNotFoundException::new);
+        JoinRequest joinRequest = findJoinRequestForUpdateOrThrow(requestId);
         JoinRequestStatus previousStatus = joinRequest.getStatus();
         PartyStatus beforeStatus = party.getStatus();
         requireJoinRequestLeader(joinRequest, leaderId);
@@ -450,7 +451,10 @@ public class TaxiPartyService {
 
     @Transactional
     public JoinRequestResponse declineJoinRequest(String leaderId, String requestId) {
-        JoinRequest joinRequest = findJoinRequestOrThrow(requestId);
+        JoinRequestRepository.TransitionSnapshot snapshot = findJoinRequestSnapshotOrThrow(requestId);
+        partyRepository.findDetailByIdForUpdate(snapshot.getPartyId())
+                .orElseThrow(PartyNotFoundException::new);
+        JoinRequest joinRequest = findJoinRequestForUpdateOrThrow(requestId);
         JoinRequestStatus previousStatus = joinRequest.getStatus();
         requireJoinRequestLeader(joinRequest, leaderId);
         joinRequest.decline();
@@ -462,7 +466,10 @@ public class TaxiPartyService {
 
     @Transactional
     public JoinRequestResponse cancelJoinRequest(String requesterId, String requestId) {
-        JoinRequest joinRequest = findJoinRequestOrThrow(requestId);
+        JoinRequestRepository.TransitionSnapshot snapshot = findJoinRequestSnapshotOrThrow(requestId);
+        partyRepository.findDetailByIdForUpdate(snapshot.getPartyId())
+                .orElseThrow(PartyNotFoundException::new);
+        JoinRequest joinRequest = findJoinRequestForUpdateOrThrow(requestId);
         if (!joinRequest.isRequester(requesterId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "요청자 본인만 취소할 수 있습니다.");
         }
@@ -527,6 +534,7 @@ public class TaxiPartyService {
         );
         targetPartyIds.addAll(partyInvitationLifecycleService.findPendingPartyIdsByInviter(memberId));
         targetPartyIds.addAll(partyInvitationLifecycleService.findPendingPartyIdsByInvitee(memberId));
+        targetPartyIds.addAll(joinRequestRepository.findPendingPartyIdsByRequesterId(memberId));
         for (String partyId : targetPartyIds) {
             Party party = partyRepository.findDetailByIdForUpdate(partyId).orElse(null);
             partyInvitationLifecycleService.expirePendingByInviterInParty(
@@ -539,7 +547,11 @@ public class TaxiPartyService {
                     memberId,
                     PartyInvitationExpiryReason.MEMBER_WITHDRAWN
             );
-            if (party == null || !ACTIVE_PARTY_STATUSES.contains(party.getStatus()) || !party.isMember(memberId)) {
+            if (party == null) {
+                continue;
+            }
+            cancelPendingJoinRequestsForInvitee(partyId, memberId);
+            if (!ACTIVE_PARTY_STATUSES.contains(party.getStatus()) || !party.isMember(memberId)) {
                 continue;
             }
             if (party.isLeader(memberId)) {
@@ -557,13 +569,6 @@ public class TaxiPartyService {
             partySseService.publishPartyMemberLeft(party, memberId, "WITHDRAWN", party.getMemberIds());
         }
 
-        joinRequestRepository.findByRequesterIdAndStatusOrderByCreatedAtDesc(memberId, JoinRequestStatus.PENDING)
-                .forEach(request -> {
-                    JoinRequestStatus previousStatus = request.getStatus();
-                    request.cancel();
-                    joinRequestRepository.save(request);
-                    joinRequestSseService.publishJoinRequestUpdated(request, previousStatus);
-                });
     }
 
     private List<JoinRequestListItemResponse> mapJoinRequestResponses(List<JoinRequest> requests) {
@@ -590,8 +595,13 @@ public class TaxiPartyService {
                 .orElseThrow(PartyNotFoundException::new);
     }
 
-    private JoinRequest findJoinRequestOrThrow(String requestId) {
-        return joinRequestRepository.findDetailById(requestId)
+    private JoinRequestRepository.TransitionSnapshot findJoinRequestSnapshotOrThrow(String requestId) {
+        return joinRequestRepository.findTransitionSnapshotById(requestId)
+                .orElseThrow(JoinRequestNotFoundException::new);
+    }
+
+    private JoinRequest findJoinRequestForUpdateOrThrow(String requestId) {
+        return joinRequestRepository.findByIdForUpdate(requestId)
                 .orElseThrow(JoinRequestNotFoundException::new);
     }
 
@@ -612,7 +622,7 @@ public class TaxiPartyService {
                 com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.TARGET_UNAVAILABLE
         );
 
-        joinRequestRepository.findByParty_IdAndStatusOrderByCreatedAtDesc(party.getId(), JoinRequestStatus.PENDING)
+        joinRequestRepository.findPendingByPartyIdForUpdate(party.getId())
                 .forEach(request -> {
                     JoinRequestStatus previousStatus = request.getStatus();
                     request.decline();

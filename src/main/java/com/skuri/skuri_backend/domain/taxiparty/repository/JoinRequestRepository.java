@@ -19,6 +19,21 @@ public interface JoinRequestRepository extends JpaRepository<JoinRequest, String
     @EntityGraph(attributePaths = "party")
     Optional<JoinRequest> findDetailById(String id);
 
+    @Query("""
+            select request.id as id,
+                   request.party.id as partyId,
+                   request.leaderId as leaderId,
+                   request.requesterId as requesterId,
+                   request.status as status
+            from JoinRequest request
+            where request.id = :id
+            """)
+    Optional<TransitionSnapshot> findTransitionSnapshotById(@Param("id") String id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select request from JoinRequest request where request.id = :id")
+    Optional<JoinRequest> findByIdForUpdate(@Param("id") String id);
+
     List<JoinRequest> findByParty_IdOrderByCreatedAtDesc(String partyId);
 
     List<JoinRequest> findByParty_IdAndStatusOrderByCreatedAtDesc(String partyId, JoinRequestStatus status);
@@ -28,6 +43,24 @@ public interface JoinRequestRepository extends JpaRepository<JoinRequest, String
     List<JoinRequest> findByRequesterIdOrderByCreatedAtDesc(String requesterId);
 
     List<JoinRequest> findByRequesterIdAndStatusOrderByCreatedAtDesc(String requesterId, JoinRequestStatus status);
+
+    @Query("""
+            select distinct request.party.id
+            from JoinRequest request
+            where request.requesterId = :requesterId
+              and request.status = com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestStatus.PENDING
+            """)
+    List<String> findPendingPartyIdsByRequesterId(@Param("requesterId") String requesterId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select request
+            from JoinRequest request
+            where request.party.id = :partyId
+              and request.status = com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestStatus.PENDING
+            order by request.id asc
+            """)
+    List<JoinRequest> findPendingByPartyIdForUpdate(@Param("partyId") String partyId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
@@ -42,4 +75,17 @@ public interface JoinRequestRepository extends JpaRepository<JoinRequest, String
             @Param("partyId") String partyId,
             @Param("requesterId") String requesterId
     );
+
+    interface TransitionSnapshot {
+
+        String getId();
+
+        String getPartyId();
+
+        String getLeaderId();
+
+        String getRequesterId();
+
+        JoinRequestStatus getStatus();
+    }
 }
