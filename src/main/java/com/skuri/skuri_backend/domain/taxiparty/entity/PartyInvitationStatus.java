@@ -5,5 +5,6 @@ public enum PartyInvitationStatus {
     ACCEPTED,
     DECLINED,
     CANCELED,
-    EXPIRED
+    EXPIRED,
+    DISMISSED
 }

@@ -18,6 +18,8 @@ public record JoinRequestListItemResponse(
         String requesterName,
         @Schema(description = "요청자 프로필 이미지", nullable = true)
         String requesterPhotoUrl,
+        @Schema(description = "친구 초대로 생성된 요청의 초대자 닉네임. 일반 동승 요청이면 null", nullable = true, example = "김길동")
+        String invitationInviterName,
         @Schema(description = "요청 상태", example = "PENDING")
         JoinRequestStatus status,
         @Schema(description = "만료 사유. EXPIRED 상태가 아니면 null", nullable = true, example = "CAPACITY_FULL")

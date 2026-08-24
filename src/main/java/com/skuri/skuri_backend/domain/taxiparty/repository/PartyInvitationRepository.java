@@ -101,6 +101,17 @@ public interface PartyInvitationRepository extends JpaRepository<PartyInvitation
     );
 
     @Query("""
+            select invitation.acceptedJoinRequestId as joinRequestId,
+                   invitation.inviterId as inviterId
+            from PartyInvitation invitation
+            where invitation.status = com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus.ACCEPTED
+              and invitation.acceptedJoinRequestId in :joinRequestIds
+            """)
+    List<AcceptedJoinRequestSource> findAcceptedJoinRequestSources(
+            @Param("joinRequestIds") Collection<String> joinRequestIds
+    );
+
+    @Query("""
             select invitation.inviteeId
             from PartyInvitation invitation
             where invitation.partyId = :partyId
@@ -130,5 +141,11 @@ public interface PartyInvitationRepository extends JpaRepository<PartyInvitation
         default boolean isPending() {
             return getStatus() == PartyInvitationStatus.PENDING;
         }
+    }
+
+    interface AcceptedJoinRequestSource {
+        String getJoinRequestId();
+
+        String getInviterId();
     }
 }

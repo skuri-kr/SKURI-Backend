@@ -140,17 +140,25 @@ public class PartyInvitationTransitionService {
     }
 
     @Transactional
-    public boolean cancel(String inviterMemberId, String invitationId) {
+    public boolean cancel(String actorMemberId, String invitationId) {
         PartyInvitation invitation = partyInvitationRepository.findByIdForUpdate(invitationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARTY_INVITATION_NOT_FOUND));
-        if (!invitation.getInviterId().equals(inviterMemberId)) {
+        if (invitation.getInviterId().equals(actorMemberId)) {
+            if (!invitation.isPending()) {
+                return false;
+            }
+            invitation.cancel(LocalDateTime.now());
+            return true;
+        }
+        if (invitation.getInviteeId().equals(actorMemberId) && invitation.isExpired()) {
+            invitation.dismiss();
+            return true;
+        }
+        if (!invitation.getInviterId().equals(actorMemberId)
+                && !invitation.getInviteeId().equals(actorMemberId)) {
             throw new BusinessException(ErrorCode.PARTY_INVITATION_INVITER_REQUIRED);
         }
-        if (!invitation.isPending()) {
-            return false;
-        }
-        invitation.cancel(LocalDateTime.now());
-        return true;
+        return false;
     }
 
     @Transactional
@@ -198,7 +206,7 @@ public class PartyInvitationTransitionService {
             PartyInvitation invitation,
             FriendMemberPair pair
     ) {
-        if (party.getStatus() != PartyStatus.OPEN) {
+        if (party.getStatus() != PartyStatus.OPEN && party.getStatus() != PartyStatus.CLOSED) {
             return PartyInvitationExpiryReason.TARGET_UNAVAILABLE;
         }
         if (party.getCurrentMembers() >= party.getMaxMembers()) {

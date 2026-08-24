@@ -179,8 +179,8 @@ public class ChatRoomInvitationService {
         return new ChatRoomInvitationMutationResponse(invitationId, invitation.getChatRoomId(), invitation.getStatus());
     }
 
-    public void cancel(String inviterMemberId, String invitationId) {
-        if (!transitionService.cancel(inviterMemberId, invitationId)) {
+    public void cancel(String actorMemberId, String invitationId) {
+        if (!transitionService.cancel(actorMemberId, invitationId)) {
             throw new BusinessException(ErrorCode.CHAT_ROOM_INVITATION_STATE_NOT_ALLOWED);
         }
     }

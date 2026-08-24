@@ -161,9 +161,6 @@ public class Party extends BaseTimeEntity {
         if (this.status != PartyStatus.CLOSED) {
             throw new BusinessException(ErrorCode.INVALID_PARTY_STATE_TRANSITION, "CLOSED 상태에서만 모집 재개할 수 있습니다.");
         }
-        if (this.currentMembers >= this.maxMembers) {
-            throw new BusinessException(ErrorCode.PARTY_FULL);
-        }
         this.status = PartyStatus.OPEN;
     }
 
@@ -308,12 +305,20 @@ public class Party extends BaseTimeEntity {
     }
 
     public void addMember(String memberId) {
-        if (this.status == PartyStatus.ENDED) {
-            throw new BusinessException(ErrorCode.PARTY_ENDED);
-        }
         if (this.status != PartyStatus.OPEN) {
             throw new BusinessException(ErrorCode.PARTY_CLOSED);
         }
+        addMemberInternalWithCapacityCheck(memberId);
+    }
+
+    public void addInvitedMember(String memberId) {
+        if (this.status != PartyStatus.OPEN && this.status != PartyStatus.CLOSED) {
+            throw new BusinessException(this.status == PartyStatus.ENDED ? ErrorCode.PARTY_ENDED : ErrorCode.PARTY_CLOSED);
+        }
+        addMemberInternalWithCapacityCheck(memberId);
+    }
+
+    private void addMemberInternalWithCapacityCheck(String memberId) {
         if (isMember(memberId)) {
             throw new BusinessException(ErrorCode.ALREADY_IN_PARTY);
         }
@@ -322,10 +327,6 @@ public class Party extends BaseTimeEntity {
         }
 
         addMemberInternal(memberId);
-
-        if (this.currentMembers >= this.maxMembers) {
-            this.status = PartyStatus.CLOSED;
-        }
     }
 
     public void removeMember(String memberId) {

@@ -10,6 +10,7 @@ import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.exception.PartyNotFoundException;
 import com.skuri.skuri_backend.domain.taxiparty.repository.JoinRequestRepository;
+import com.skuri.skuri_backend.domain.taxiparty.repository.PartyInvitationRepository;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class JoinRequestSseSnapshotService {
 
     private final PartyRepository partyRepository;
     private final JoinRequestRepository joinRequestRepository;
+    private final PartyInvitationRepository partyInvitationRepository;
     private final MemberRepository memberRepository;
 
     public Map<String, Object> createPartyJoinRequestsSnapshotPayload(String actorId, String partyId) {
@@ -46,7 +48,11 @@ public class JoinRequestSseSnapshotService {
 
     public JoinRequestListItemResponse toSseItem(JoinRequest joinRequest) {
         Member requester = memberRepository.findById(joinRequest.getRequesterId()).orElse(null);
-        return toSseItem(joinRequest, requester);
+        String invitationInviterId = findInvitationInviterId(joinRequest.getId());
+        Member invitationInviter = invitationInviterId == null
+                ? null
+                : memberRepository.findById(invitationInviterId).orElse(null);
+        return toSseItem(joinRequest, requester, invitationInviter);
     }
 
     private List<JoinRequestListItemResponse> getPartyJoinRequestSnapshot(String partyId) {
@@ -63,22 +69,60 @@ public class JoinRequestSseSnapshotService {
 
     private List<JoinRequestListItemResponse> toSseItems(List<JoinRequest> requests) {
         Map<String, Member> requesterMap = getMemberMap(requests.stream().map(JoinRequest::getRequesterId).toList());
+        Map<String, String> invitationInviterIdsByRequestId = getInvitationInviterIdsByRequestId(requests);
+        Map<String, Member> invitationInviterMap = getMemberMap(
+                invitationInviterIdsByRequestId.values().stream().toList()
+        );
         return requests.stream()
-                .map(request -> toSseItem(request, requesterMap.get(request.getRequesterId())))
+                .map(request -> {
+                    String invitationInviterId = invitationInviterIdsByRequestId.get(request.getId());
+                    Member invitationInviter = invitationInviterId == null
+                            ? null
+                            : invitationInviterMap.get(invitationInviterId);
+                    return toSseItem(
+                            request,
+                            requesterMap.get(request.getRequesterId()),
+                            invitationInviter
+                    );
+                })
                 .toList();
     }
 
-    private JoinRequestListItemResponse toSseItem(JoinRequest joinRequest, Member requester) {
+    private JoinRequestListItemResponse toSseItem(
+            JoinRequest joinRequest,
+            Member requester,
+            Member invitationInviter
+    ) {
         return new JoinRequestListItemResponse(
                 joinRequest.getId(),
                 joinRequest.getParty().getId(),
                 joinRequest.getRequesterId(),
                 requester != null ? requester.getNickname() : null,
                 requester != null ? requester.getPhotoUrl() : null,
+                invitationInviter != null ? invitationInviter.getNickname() : null,
                 joinRequest.getStatus(),
                 joinRequest.getExpiryReason(),
                 joinRequest.getCreatedAt()
         );
+    }
+
+    private Map<String, String> getInvitationInviterIdsByRequestId(List<JoinRequest> requests) {
+        List<String> requestIds = requests.stream().map(JoinRequest::getId).toList();
+        if (requestIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, String> result = new HashMap<>();
+        partyInvitationRepository.findAcceptedJoinRequestSources(requestIds)
+                .forEach(source -> result.putIfAbsent(source.getJoinRequestId(), source.getInviterId()));
+        return result;
+    }
+
+    private String findInvitationInviterId(String joinRequestId) {
+        return partyInvitationRepository.findAcceptedJoinRequestSources(List.of(joinRequestId)).stream()
+                .map(PartyInvitationRepository.AcceptedJoinRequestSource::getInviterId)
+                .findFirst()
+                .orElse(null);
     }
 
     private Map<String, Member> getMemberMap(List<String> memberIds) {
