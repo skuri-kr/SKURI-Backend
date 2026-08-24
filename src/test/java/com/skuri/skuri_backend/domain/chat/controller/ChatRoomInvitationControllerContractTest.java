@@ -95,6 +95,18 @@ class ChatRoomInvitationControllerContractTest {
     }
 
     @Test
+    void 초대가능친구조회는_회원이없으면_404이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.MEMBER_NOT_FOUND))
+                .when(invitationService).getEligibleFriends("firebase-uid", "room-1");
+
+        mockMvc.perform(get("/v1/chat-rooms/room-1/invitations/eligible-friends")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("MEMBER_NOT_FOUND"));
+    }
+
+    @Test
     void 초대발송은_요청순서의_개별결과를_반환한다() throws Exception {
         mockValidToken();
         when(invitationService.send("firebase-uid", "room-1", List.of("friend-1", "friend-2")))
@@ -122,6 +134,20 @@ class ChatRoomInvitationControllerContractTest {
                         .content("{\"friendPublicIds\":[]}"))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void 초대발송은_회원이없으면_404이다() throws Exception {
+        mockValidToken();
+        doThrow(new BusinessException(ErrorCode.MEMBER_NOT_FOUND))
+                .when(invitationService).send("firebase-uid", "room-1", List.of("friend-1"));
+
+        mockMvc.perform(post("/v1/chat-rooms/room-1/invitations")
+                        .header(AUTHORIZATION, "Bearer valid-token")
+                        .contentType(APPLICATION_JSON)
+                        .content("{\"friendPublicIds\":[\"friend-1\"]}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("MEMBER_NOT_FOUND"));
     }
 
     @Test
