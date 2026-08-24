@@ -62,7 +62,7 @@ class PartyInvitationTransitionServiceTest {
     void 수락시점에_다시검증하고_파티참가를_처리한다() {
         Party party = party("party-1", 3);
         PartyInvitation invitation = invitation("invite-1");
-        stubAcceptBoundary(party, invitation);
+        stubAcceptBoundary(party, invitation, invitation);
         when(partyRepository.existsActivePartyByMemberId("invitee-1", PartyInvitationTransitionServiceTestHelper.ACTIVE_STATUSES, "party-1"))
                 .thenReturn(false);
 
@@ -82,7 +82,7 @@ class PartyInvitationTransitionServiceTest {
     void 발송뒤_정원이차면_좌석을예약하지않고_만료한다() {
         Party party = party("party-1", 1);
         PartyInvitation invitation = invitation("invite-1");
-        stubAcceptBoundary(party, invitation);
+        stubAcceptBoundary(party, invitation, invitation);
 
         PartyInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
 
@@ -92,19 +92,63 @@ class PartyInvitationTransitionServiceTest {
         verify(taxiPartyService, never()).acceptInvitedMemberWithLockedParty(party, "invitee-1", "inviter-1");
     }
 
-    private void stubAcceptBoundary(Party party, PartyInvitation invitation) {
+    @Test
+    void 잠금전에_종료된_초대는_파티에_참가시키지않는다() {
+        Party party = party("party-1", 3);
+        PartyInvitation initialSnapshot = invitation("invite-1");
+        PartyInvitation lockedInvitation = invitation("invite-1");
+        lockedInvitation.cancel(LocalDateTime.now());
+        stubAcceptBoundary(party, initialSnapshot, lockedInvitation);
+
+        PartyInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
+
+        assertThat(result.outcome()).isEqualTo(PartyInvitationTransitionService.AcceptOutcome.STATE_NOT_ALLOWED);
+        verify(taxiPartyService, never()).acceptInvitedMemberWithLockedParty(party, "invitee-1", "inviter-1");
+        verify(invitationRepository, never()).findById("invite-1");
+    }
+
+    private void stubAcceptBoundary(
+            Party party,
+            PartyInvitation snapshot,
+            PartyInvitation lockedInvitation
+    ) {
         Member inviter = completeMember("inviter-1");
         Member invitee = completeMember("invitee-1");
         FriendMemberPair pair = FriendMemberPair.of("inviter-1", "invitee-1");
-        when(invitationRepository.findById("invite-1")).thenReturn(Optional.of(invitation));
+        when(invitationRepository.findAcceptanceSnapshotById("invite-1"))
+                .thenReturn(Optional.of(acceptanceSnapshot(snapshot)));
         when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
         when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(memberRepository.findActiveById("inviter-1")).thenReturn(Optional.of(inviter));
         when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(invitee));
         when(pairLockService.lockActivePair("inviter-1", "invitee-1")).thenReturn(pair);
-        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(invitation));
+        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(lockedInvitation));
         lenient().when(friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId()))
                 .thenReturn(Optional.of(Friendship.create(pair.lowMemberId(), pair.highMemberId())));
+    }
+
+    private PartyInvitationRepository.AcceptanceSnapshot acceptanceSnapshot(PartyInvitation invitation) {
+        return new PartyInvitationRepository.AcceptanceSnapshot() {
+            @Override
+            public String getPartyId() {
+                return invitation.getPartyId();
+            }
+
+            @Override
+            public String getInviterId() {
+                return invitation.getInviterId();
+            }
+
+            @Override
+            public String getInviteeId() {
+                return invitation.getInviteeId();
+            }
+
+            @Override
+            public PartyInvitationStatus getStatus() {
+                return invitation.getStatus();
+            }
+        };
     }
 
     private Party party(String partyId, int maxMembers) {

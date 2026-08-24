@@ -66,7 +66,7 @@ class ChatRoomInvitationTransitionServiceTest {
     void 수락시점에_다시검증하고_공개방에_참가시킨다() {
         ChatRoom room = room(3, 1);
         ChatRoomInvitation invitation = invitation(LocalDateTime.now());
-        stubAcceptBoundary(room, invitation);
+        stubAcceptBoundary(room, invitation, invitation);
 
         ChatRoomInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
 
@@ -86,7 +86,7 @@ class ChatRoomInvitationTransitionServiceTest {
     void 발송뒤_정원이차면_좌석을예약하지않고_만료한다() {
         ChatRoom room = room(1, 1);
         ChatRoomInvitation invitation = invitation(LocalDateTime.now());
-        stubAcceptBoundary(room, invitation);
+        stubAcceptBoundary(room, invitation, invitation);
 
         ChatRoomInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
 
@@ -100,9 +100,28 @@ class ChatRoomInvitationTransitionServiceTest {
     }
 
     @Test
+    void 잠금전에_종료된_초대는_공개방에_참가시키지않는다() {
+        ChatRoom room = room(3, 1);
+        ChatRoomInvitation initialSnapshot = invitation(LocalDateTime.now());
+        ChatRoomInvitation lockedInvitation = invitation(LocalDateTime.now());
+        lockedInvitation.decline(LocalDateTime.now());
+        stubAcceptBoundary(room, initialSnapshot, lockedInvitation);
+
+        ChatRoomInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
+
+        assertThat(result.outcome()).isEqualTo(ChatRoomInvitationTransitionService.AcceptOutcome.STATE_NOT_ALLOWED);
+        verify(chatService, never()).joinInvitedMemberWithLockedRoom(
+                eq(room),
+                argThat(member -> member.getId().equals("invitee-1"))
+        );
+        verify(invitationRepository, never()).findById("invite-1");
+    }
+
+    @Test
     void 칠일이지난_초대는_수락전에_만료한다() {
         ChatRoomInvitation invitation = invitation(LocalDateTime.now().minusDays(8));
-        when(invitationRepository.findById("invite-1")).thenReturn(Optional.of(invitation));
+        when(invitationRepository.findAcceptanceSnapshotById("invite-1"))
+                .thenReturn(Optional.of(acceptanceSnapshot(invitation)));
         when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(invitation));
 
         ChatRoomInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
@@ -124,23 +143,59 @@ class ChatRoomInvitationTransitionServiceTest {
         assertThat(invitation.getExpiryReason()).isEqualTo(ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT);
     }
 
-    private void stubAcceptBoundary(ChatRoom room, ChatRoomInvitation invitation) {
+    private void stubAcceptBoundary(
+            ChatRoom room,
+            ChatRoomInvitation snapshot,
+            ChatRoomInvitation lockedInvitation
+    ) {
         Member inviter = completeMember("inviter-1");
         Member invitee = completeMember("invitee-1");
         FriendMemberPair pair = FriendMemberPair.of("inviter-1", "invitee-1");
-        when(invitationRepository.findById("invite-1")).thenReturn(Optional.of(invitation));
+        when(invitationRepository.findAcceptanceSnapshotById("invite-1"))
+                .thenReturn(Optional.of(acceptanceSnapshot(snapshot)));
         when(chatRoomRepository.findById("room-1")).thenReturn(Optional.of(room));
         when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(room));
         when(memberRepository.findActiveById("inviter-1")).thenReturn(Optional.of(inviter));
         when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(invitee));
         when(pairLockService.lockActivePair("inviter-1", "invitee-1")).thenReturn(pair);
-        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(invitation));
+        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(lockedInvitation));
         lenient().when(chatRoomMemberRepository.existsById_ChatRoomIdAndId_MemberId("room-1", "inviter-1"))
                 .thenReturn(true);
         lenient().when(chatRoomMemberRepository.existsById_ChatRoomIdAndId_MemberId("room-1", "invitee-1"))
                 .thenReturn(false);
         lenient().when(friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId()))
                 .thenReturn(Optional.of(Friendship.create(pair.lowMemberId(), pair.highMemberId())));
+    }
+
+    private ChatRoomInvitationRepository.AcceptanceSnapshot acceptanceSnapshot(
+            ChatRoomInvitation invitation
+    ) {
+        return new ChatRoomInvitationRepository.AcceptanceSnapshot() {
+            @Override
+            public String getChatRoomId() {
+                return invitation.getChatRoomId();
+            }
+
+            @Override
+            public String getInviterId() {
+                return invitation.getInviterId();
+            }
+
+            @Override
+            public String getInviteeId() {
+                return invitation.getInviteeId();
+            }
+
+            @Override
+            public ChatRoomInvitationStatus getStatus() {
+                return invitation.getStatus();
+            }
+
+            @Override
+            public LocalDateTime getExpiresAt() {
+                return invitation.getExpiresAt();
+            }
+        };
     }
 
     private ChatRoom room(int maxMembers, int memberCount) {
