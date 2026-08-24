@@ -80,6 +80,7 @@ class ChatRoomInvitationTransitionServiceTest {
         lockOrder.verify(pairLockService).lockActivePair("inviter-1", "invitee-1");
         lockOrder.verify(chatRoomRepository).findByIdForUpdate("room-1");
         lockOrder.verify(invitationRepository).findByIdForUpdate("invite-1");
+        verify(chatRoomRepository, never()).findById("room-1");
     }
 
     @Test
@@ -153,7 +154,7 @@ class ChatRoomInvitationTransitionServiceTest {
         FriendMemberPair pair = FriendMemberPair.of("inviter-1", "invitee-1");
         when(invitationRepository.findAcceptanceSnapshotById("invite-1"))
                 .thenReturn(Optional.of(acceptanceSnapshot(snapshot)));
-        when(chatRoomRepository.findById("room-1")).thenReturn(Optional.of(room));
+        when(chatRoomRepository.existsByIdForInvitationAcceptance("room-1")).thenReturn(true);
         when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(room));
         when(memberRepository.findActiveById("inviter-1")).thenReturn(Optional.of(inviter));
         when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(invitee));
