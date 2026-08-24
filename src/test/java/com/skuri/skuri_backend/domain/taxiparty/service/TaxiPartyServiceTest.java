@@ -964,6 +964,8 @@ class TaxiPartyServiceTest {
                 .thenReturn(List.of("party-1"));
         when(partyInvitationLifecycleService.findPendingPartyIdsByInviter("leader"))
                 .thenReturn(List.of("invitation-only-party"));
+        when(partyInvitationLifecycleService.findPendingPartyIdsByInvitee("leader"))
+                .thenReturn(List.of());
         when(partyRepository.findDetailByIdForUpdate("invitation-only-party")).thenReturn(Optional.empty());
         when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -984,11 +986,35 @@ class TaxiPartyServiceTest {
                 "leader",
                 PartyInvitationExpiryReason.MEMBER_WITHDRAWN
         );
+        verify(partyInvitationLifecycleService).expirePendingForInviteeInParty(
+                "invitation-only-party",
+                "leader",
+                PartyInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
         InOrder lockOrder = inOrder(partyRepository, partyInvitationLifecycleService);
         lockOrder.verify(partyRepository).findDetailByIdForUpdate("party-1");
         lockOrder.verify(partyInvitationLifecycleService).expirePendingByInviterInParty(
                 "party-1",
                 "leader",
+                PartyInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
+    }
+
+    @Test
+    void handleMemberWithdrawal_수신대기초대만있어도만료처리한다() {
+        when(partyRepository.findActiveIdsByMemberId("invitee-1", java.util.EnumSet.of(PartyStatus.OPEN, PartyStatus.CLOSED, PartyStatus.ARRIVED)))
+                .thenReturn(List.of());
+        when(partyInvitationLifecycleService.findPendingPartyIdsByInviter("invitee-1"))
+                .thenReturn(List.of());
+        when(partyInvitationLifecycleService.findPendingPartyIdsByInvitee("invitee-1"))
+                .thenReturn(List.of("party-invited"));
+        when(partyRepository.findDetailByIdForUpdate("party-invited")).thenReturn(Optional.empty());
+
+        taxiPartyService.handleMemberWithdrawal("invitee-1");
+
+        verify(partyInvitationLifecycleService).expirePendingForInviteeInParty(
+                "party-invited",
+                "invitee-1",
                 PartyInvitationExpiryReason.MEMBER_WITHDRAWN
         );
     }
