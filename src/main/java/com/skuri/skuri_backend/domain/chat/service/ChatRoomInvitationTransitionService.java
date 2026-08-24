@@ -135,12 +135,9 @@ public class ChatRoomInvitationTransitionService {
                 invitation.dismiss();
                 return true;
             }
-        }
-        if (!invitation.getInviterId().equals(actorMemberId)
-                && !invitation.getInviteeId().equals(actorMemberId)) {
             throw new BusinessException(ErrorCode.CHAT_ROOM_INVITATION_INVITER_REQUIRED);
         }
-        return false;
+        throw new BusinessException(ErrorCode.CHAT_ROOM_INVITATION_INVITER_REQUIRED);
     }
 
     @Transactional

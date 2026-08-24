@@ -154,15 +154,14 @@ public class PartyInvitationTransitionService {
             invitation.cancel(LocalDateTime.now());
             return true;
         }
-        if (invitation.getInviteeId().equals(actorMemberId) && invitation.isExpired()) {
-            invitation.dismiss();
-            return true;
-        }
-        if (!invitation.getInviterId().equals(actorMemberId)
-                && !invitation.getInviteeId().equals(actorMemberId)) {
+        if (invitation.getInviteeId().equals(actorMemberId)) {
+            if (invitation.isExpired()) {
+                invitation.dismiss();
+                return true;
+            }
             throw new BusinessException(ErrorCode.PARTY_INVITATION_INVITER_REQUIRED);
         }
-        return false;
+        throw new BusinessException(ErrorCode.PARTY_INVITATION_INVITER_REQUIRED);
     }
 
     @Transactional
