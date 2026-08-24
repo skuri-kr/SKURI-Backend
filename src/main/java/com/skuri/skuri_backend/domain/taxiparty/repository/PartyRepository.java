@@ -90,6 +90,9 @@ public interface PartyRepository extends JpaRepository<Party, String> {
     @Query("select p from Party p where p.id = :id")
     java.util.Optional<Party> findDetailById(@Param("id") String id);
 
+    @Query("select count(p) > 0 from Party p where p.id = :partyId")
+    boolean existsByIdForInvitationAcceptance(@Param("partyId") String partyId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @EntityGraph(attributePaths = {"members"})
     @Query("select p from Party p where p.id = :id")

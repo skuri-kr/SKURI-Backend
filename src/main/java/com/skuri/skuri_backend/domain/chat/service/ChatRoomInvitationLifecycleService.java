@@ -28,6 +28,11 @@ public class ChatRoomInvitationLifecycleService {
         return invitationRepository.findPendingChatRoomIdsByInviterId(inviterId);
     }
 
+    @Transactional(readOnly = true)
+    public List<String> findPendingChatRoomIdsByInvitee(String inviteeId) {
+        return invitationRepository.findPendingChatRoomIdsByInviteeId(inviteeId);
+    }
+
     @Transactional
     public void expirePendingByInviterInRoom(
             String chatRoomId,

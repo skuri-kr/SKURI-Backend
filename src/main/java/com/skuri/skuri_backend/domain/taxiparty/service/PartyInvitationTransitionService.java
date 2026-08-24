@@ -52,7 +52,7 @@ public class PartyInvitationTransitionService {
             return AcceptAttempt.stateNotAllowed(snapshot.getPartyId());
         }
 
-        if (partyRepository.findDetailById(snapshot.getPartyId()).isEmpty()) {
+        if (!partyRepository.existsByIdForInvitationAcceptance(snapshot.getPartyId())) {
             expireWithoutAggregate(invitationId, PartyInvitationExpiryReason.TARGET_UNAVAILABLE);
             return AcceptAttempt.expired(snapshot.getPartyId());
         }
@@ -133,11 +133,13 @@ public class PartyInvitationTransitionService {
 
     @Transactional
     public void reconcile(String invitationId) {
-        PartyInvitation snapshot = partyInvitationRepository.findById(invitationId).orElse(null);
+        PartyInvitationRepository.AcceptanceSnapshot snapshot = partyInvitationRepository
+                .findAcceptanceSnapshotById(invitationId)
+                .orElse(null);
         if (snapshot == null || !snapshot.isPending()) {
             return;
         }
-        if (partyRepository.findDetailById(snapshot.getPartyId()).isEmpty()) {
+        if (!partyRepository.existsByIdForInvitationAcceptance(snapshot.getPartyId())) {
             expireWithoutAggregate(invitationId, PartyInvitationExpiryReason.TARGET_UNAVAILABLE);
             return;
         }

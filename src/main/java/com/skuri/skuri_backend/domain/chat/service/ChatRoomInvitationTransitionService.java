@@ -131,7 +131,9 @@ public class ChatRoomInvitationTransitionService {
 
     @Transactional
     public void reconcile(String invitationId) {
-        ChatRoomInvitation snapshot = invitationRepository.findById(invitationId).orElse(null);
+        ChatRoomInvitationRepository.AcceptanceSnapshot snapshot = invitationRepository
+                .findAcceptanceSnapshotById(invitationId)
+                .orElse(null);
         if (snapshot == null || !snapshot.isPending()) {
             return;
         }

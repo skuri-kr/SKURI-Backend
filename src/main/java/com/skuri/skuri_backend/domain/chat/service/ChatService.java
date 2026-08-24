@@ -621,9 +621,17 @@ public class ChatService {
         targetChatRoomIds.addAll(
                 chatRoomInvitationLifecycleService.findPendingChatRoomIdsByInviter(memberId)
         );
+        targetChatRoomIds.addAll(
+                chatRoomInvitationLifecycleService.findPendingChatRoomIdsByInvitee(memberId)
+        );
         for (String chatRoomId : targetChatRoomIds) {
             ChatRoom room = chatRoomRepository.findByIdForUpdate(chatRoomId).orElse(null);
             chatRoomInvitationLifecycleService.expirePendingByInviterInRoom(
+                    chatRoomId,
+                    memberId,
+                    ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN
+            );
+            chatRoomInvitationLifecycleService.expirePendingForInviteeInRoom(
                     chatRoomId,
                     memberId,
                     ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN

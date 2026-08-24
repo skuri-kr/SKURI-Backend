@@ -54,6 +54,15 @@ public interface ChatRoomInvitationRepository extends JpaRepository<ChatRoomInvi
             """)
     List<String> findPendingChatRoomIdsByInviterId(@Param("inviterId") String inviterId);
 
+    @Query("""
+            select distinct invitation.chatRoomId
+            from ChatRoomInvitation invitation
+            where invitation.inviteeId = :inviteeId
+              and invitation.status = com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationStatus.PENDING
+            order by invitation.chatRoomId asc
+            """)
+    List<String> findPendingChatRoomIdsByInviteeId(@Param("inviteeId") String inviteeId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select invitation
