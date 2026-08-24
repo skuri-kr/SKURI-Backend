@@ -23,10 +23,6 @@ import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
-import com.skuri.skuri_backend.domain.friend.entity.FriendProfile;
-import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
-import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
-import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
 import com.skuri.skuri_backend.domain.notice.repository.NoticeCommentRepository;
 import com.skuri.skuri_backend.domain.notice.repository.NoticeRepository;
 import com.skuri.skuri_backend.domain.notification.entity.NotificationType;
@@ -94,10 +90,6 @@ class NotificationEventHandlerTest {
     @Mock
     private AcademicScheduleRepository academicScheduleRepository;
     @Mock
-    private FriendRequestRepository friendRequestRepository;
-    @Mock
-    private FriendProfileRepository friendProfileRepository;
-    @Mock
     private PartyInvitationRepository partyInvitationRepository;
     @Mock
     private MemberRepository memberRepository;
@@ -105,6 +97,8 @@ class NotificationEventHandlerTest {
     private NotificationService notificationService;
     @Mock
     private PushNotificationService pushNotificationService;
+    @Mock
+    private FriendNotificationDeliveryService friendNotificationDeliveryService;
 
     @InjectMocks
     private NotificationEventHandler notificationEventHandler;
@@ -138,64 +132,24 @@ class NotificationEventHandlerTest {
     }
 
     @Test
-    void handleFriendRequestCreated_유효설정수신자에게요청식별자를보낸다() {
-        FriendRequest request = FriendRequest.create("requester-1", "recipient-1", "requester-1:recipient-1", LocalDateTime.now());
-        ReflectionTestUtils.setField(request, "id", "friend-request-1");
-        Member requester = Member.create("requester-1", "requester@sungkyul.ac.kr", "요청자", LocalDateTime.now());
-        Member recipient = Member.create("recipient-1", "recipient@sungkyul.ac.kr", "수신자", LocalDateTime.now());
-
-        when(friendRequestRepository.findById("friend-request-1")).thenReturn(Optional.of(request));
-        when(memberRepository.findActiveById("requester-1")).thenReturn(Optional.of(requester));
-        when(memberRepository.findActiveById("recipient-1")).thenReturn(Optional.of(recipient));
-
+    void handleFriendRequestCreated_전용전달서비스에위임한다() {
         notificationEventHandler.handle(new NotificationDomainEvent.FriendRequestCreated("friend-request-1"));
 
-        ArgumentCaptor<NotificationDispatchRequest> captor = ArgumentCaptor.forClass(NotificationDispatchRequest.class);
-        verify(notificationService).createInboxNotifications(captor.capture());
-        verify(pushNotificationService).send(captor.getValue());
-        assertEquals(NotificationType.FRIEND_REQUEST, captor.getValue().type());
-        assertEquals("friend-request-1", captor.getValue().data().requestId());
-        assertTrue(captor.getValue().inboxEnabled());
+        verify(friendNotificationDeliveryService).deliverFriendRequestCreated("friend-request-1");
     }
 
     @Test
-    void handleFriendRequestAccepted_원요청자에게수락친구공개식별자를보낸다() {
-        FriendRequest request = FriendRequest.create("requester-1", "accepter-1", "accepter-1:requester-1", LocalDateTime.now());
-        ReflectionTestUtils.setField(request, "id", "friend-request-1");
-        request.accept(LocalDateTime.now());
-        Member requester = Member.create("requester-1", "requester@sungkyul.ac.kr", "요청자", LocalDateTime.now());
-        Member accepter = Member.create("accepter-1", "accepter@sungkyul.ac.kr", "수락자", LocalDateTime.now());
-        FriendProfile accepterProfile = FriendProfile.create("accepter-1", "friend-public-1", "code-1");
-
-        when(friendRequestRepository.findById("friend-request-1")).thenReturn(Optional.of(request));
-        when(memberRepository.findActiveById("requester-1")).thenReturn(Optional.of(requester));
-        when(memberRepository.findActiveById("accepter-1")).thenReturn(Optional.of(accepter));
-        when(friendProfileRepository.findByMemberId("accepter-1")).thenReturn(Optional.of(accepterProfile));
-
+    void handleFriendRequestAccepted_전용전달서비스에위임한다() {
         notificationEventHandler.handle(new NotificationDomainEvent.FriendRequestAccepted("friend-request-1"));
 
-        ArgumentCaptor<NotificationDispatchRequest> captor = ArgumentCaptor.forClass(NotificationDispatchRequest.class);
-        verify(notificationService).createInboxNotifications(captor.capture());
-        assertEquals(NotificationType.FRIEND_ACCEPTED, captor.getValue().type());
-        assertEquals("friend-public-1", captor.getValue().data().friendPublicId());
+        verify(friendNotificationDeliveryService).deliverFriendRequestAccepted("friend-request-1");
     }
 
     @Test
-    void handleFriendRequestDeclined_원요청자에게요청탭용식별자를보낸다() {
-        FriendRequest request = FriendRequest.create("requester-1", "recipient-1", "recipient-1:requester-1", LocalDateTime.now());
-        ReflectionTestUtils.setField(request, "id", "friend-request-1");
-        request.decline(LocalDateTime.now());
-        Member requester = Member.create("requester-1", "requester@sungkyul.ac.kr", "요청자", LocalDateTime.now());
-
-        when(friendRequestRepository.findById("friend-request-1")).thenReturn(Optional.of(request));
-        when(memberRepository.findActiveById("requester-1")).thenReturn(Optional.of(requester));
-
+    void handleFriendRequestDeclined_전용전달서비스에위임한다() {
         notificationEventHandler.handle(new NotificationDomainEvent.FriendRequestDeclined("friend-request-1"));
 
-        ArgumentCaptor<NotificationDispatchRequest> captor = ArgumentCaptor.forClass(NotificationDispatchRequest.class);
-        verify(notificationService).createInboxNotifications(captor.capture());
-        assertEquals(NotificationType.FRIEND_DECLINED, captor.getValue().type());
-        assertEquals("friend-request-1", captor.getValue().data().requestId());
+        verify(friendNotificationDeliveryService).deliverFriendRequestDeclined("friend-request-1");
     }
 
     @Test

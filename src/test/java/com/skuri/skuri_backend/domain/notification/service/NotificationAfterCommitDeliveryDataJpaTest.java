@@ -4,6 +4,7 @@ import com.skuri.skuri_backend.common.config.JpaAuditingConfig;
 import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
 import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
+import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.domain.notification.entity.NotificationType;
@@ -37,6 +38,8 @@ import static org.mockito.Mockito.verify;
         DomainEventNotificationListener.class,
         NotificationEventHandler.class,
         NotificationService.class,
+        FriendMemberPairLockService.class,
+        FriendNotificationDeliveryService.class,
         NotificationAfterCommitDeliveryDataJpaTest.TransactionalEventPublisher.class
 })
 class NotificationAfterCommitDeliveryDataJpaTest {
@@ -69,10 +72,32 @@ class NotificationAfterCommitDeliveryDataJpaTest {
     }
 
     @Test
-    void 외부트랜잭션커밋후_친구요청인앱알림을독립트랜잭션으로저장하고SSE를발행한다() {
+    void 친구잠금전달의인앱알림저장은현재트랜잭션을요구한다() throws Exception {
+        assertThat(NotificationService.class
+                .getMethod("createInboxNotificationsInCurrentTransaction", NotificationDispatchRequest.class)
+                .getAnnotation(Transactional.class)
+                .propagation())
+                .isEqualTo(Propagation.MANDATORY);
+    }
+
+    @Test
+    void 친구잠금알림전달은원본이벤트커밋뒤에도독립트랜잭션으로시작한다() throws Exception {
+        assertThat(FriendNotificationDeliveryService.class
+                .getMethod("deliverFriendRequestCreated", String.class)
+                .getAnnotation(Transactional.class)
+                .propagation())
+                .isEqualTo(Propagation.REQUIRES_NEW);
+    }
+
+    @Test
+    void 외부트랜잭션커밋후_친구요청인앱알림을회원잠금트랜잭션에저장하고SSE를발행한다() {
         LocalDateTime now = LocalDateTime.now();
-        memberRepository.saveAndFlush(Member.create("requester", "requester@sungkyul.ac.kr", "요청자", now));
-        memberRepository.saveAndFlush(Member.create("recipient", "recipient@sungkyul.ac.kr", "수신자", now));
+        Member requester = Member.create("requester", "requester@sungkyul.ac.kr", "요청자", now);
+        requester.updateProfile("요청자", null, "20260001", "컴퓨터공학과", null);
+        Member recipient = Member.create("recipient", "recipient@sungkyul.ac.kr", "수신자", now);
+        recipient.updateProfile("수신자", null, "20260002", "컴퓨터공학과", null);
+        memberRepository.saveAndFlush(requester);
+        memberRepository.saveAndFlush(recipient);
         FriendRequest request = friendRequestRepository.saveAndFlush(
                 FriendRequest.create("requester", "recipient", "recipient:requester", now)
         );
