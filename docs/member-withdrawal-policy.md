@@ -166,4 +166,4 @@ ALTER TABLE members
 - Support 자유서술 본문의 고급 PII 탐지/마스킹
 - 유예 기간/탈퇴 취소 워크플로우
 - Chat 과거 메시지 전면 익명화 정책
-- Phase 14 Friend 도메인과 택시파티·공개방 초대의 탈퇴 cleanup 구현 및 회귀 테스트
+- Phase 14 Friend·공유 파생 데이터의 나머지 탈퇴 cleanup 구현 및 회귀 테스트 (택시파티·공개방 PENDING 초대의 발송·수신 정리는 구현됨)

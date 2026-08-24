@@ -14,6 +14,9 @@ import java.util.Optional;
 
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
 
+    @Query("select count(room) > 0 from ChatRoom room where room.id = :chatRoomId")
+    boolean existsByIdForInvitationAcceptance(@Param("chatRoomId") String chatRoomId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select r

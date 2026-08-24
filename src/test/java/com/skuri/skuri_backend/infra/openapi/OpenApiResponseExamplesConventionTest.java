@@ -12,6 +12,7 @@ import com.skuri.skuri_backend.domain.board.controller.MemberBoardController;
 import com.skuri.skuri_backend.domain.board.controller.PostController;
 import com.skuri.skuri_backend.domain.chat.controller.ChatAdminRoomController;
 import com.skuri.skuri_backend.domain.chat.controller.ChatRoomController;
+import com.skuri.skuri_backend.domain.chat.controller.ChatRoomInvitationController;
 import com.skuri.skuri_backend.domain.friend.controller.FriendFoundationController;
 import com.skuri.skuri_backend.domain.friend.controller.FriendRelationshipController;
 import com.skuri.skuri_backend.domain.image.controller.ImageController;
@@ -35,6 +36,7 @@ import com.skuri.skuri_backend.domain.support.controller.ReportController;
 import com.skuri.skuri_backend.domain.taxiparty.controller.JoinRequestController;
 import com.skuri.skuri_backend.domain.taxiparty.controller.PartyAdminController;
 import com.skuri.skuri_backend.domain.taxiparty.controller.PartyController;
+import com.skuri.skuri_backend.domain.taxiparty.controller.PartyInvitationController;
 import com.skuri.skuri_backend.domain.taxiparty.controller.PartySseController;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -70,6 +72,7 @@ class OpenApiResponseExamplesConventionTest {
             FriendFoundationController.class,
             FriendRelationshipController.class,
             ChatRoomController.class,
+            ChatRoomInvitationController.class,
             ChatAdminRoomController.class,
             ImageController.class,
             MemberController.class,
@@ -85,6 +88,7 @@ class OpenApiResponseExamplesConventionTest {
             NotificationSseController.class,
             PartyAdminController.class,
             PartyController.class,
+            PartyInvitationController.class,
             JoinRequestController.class,
             PartySseController.class
     );

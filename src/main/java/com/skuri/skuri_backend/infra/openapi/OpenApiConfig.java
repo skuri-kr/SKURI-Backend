@@ -111,6 +111,7 @@ public class OpenApiConfig {
                 .group("taxiparty")
                 .pathsToMatch(
                         "/v1/parties/**",
+                        "/v1/party-invitations/**",
                         "/v1/admin/parties/**",
                         "/v1/join-requests/**",
                         "/v1/members/me/parties",
@@ -127,7 +128,11 @@ public class OpenApiConfig {
     public GroupedOpenApi chatApi() {
         return GroupedOpenApi.builder()
                 .group("chat")
-                .pathsToMatch("/v1/chat-rooms/**", "/v1/admin/chat-rooms/**")
+                .pathsToMatch(
+                        "/v1/chat-rooms/**",
+                        "/v1/chat-room-invitations/**",
+                        "/v1/admin/chat-rooms/**"
+                )
                 .build();
     }
 

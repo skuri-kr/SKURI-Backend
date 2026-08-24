@@ -16,6 +16,7 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatAccountData;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessage;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMemberId;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
@@ -118,6 +119,9 @@ class ChatServiceTest {
 
     @Mock
     private ChatRoomSummaryEventPublisher chatRoomSummaryEventPublisher;
+
+    @Mock
+    private ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
 
     @InjectMocks
     private ChatService chatService;
@@ -378,7 +382,7 @@ class ChatServiceTest {
 
     @Test
     void joinChatRoom_기존메시지가있으면_초기unread를0으로시작한다() {
-        ChatRoom room = ChatRoom.create("room-1", "시험기간 밤샘 메이트", ChatRoomType.CUSTOM, null, null, null, true, null);
+        ChatRoom room = ChatRoom.create("room-1", "시험기간 밤샘 메이트", ChatRoomType.CUSTOM, null, null, null, true, 11);
         ReflectionTestUtils.setField(room, "memberCount", 10);
         ReflectionTestUtils.setField(room, "lastMessageTimestamp", LocalDateTime.of(2026, 3, 5, 22, 0, 0));
         AtomicReference<ChatRoomMember> savedMemberRef = new AtomicReference<>();
@@ -418,6 +422,16 @@ class ChatServiceTest {
         verify(messagingTemplate).convertAndSend(eq("/topic/chat/room-1"), joinPayloadCaptor.capture());
         assertEquals("https://cdn.skuri.app/uploads/profiles/member-1.jpg", joinPayloadCaptor.getValue().senderPhotoUrl());
         verify(chatRoomSummaryEventPublisher).publishCurrent("room-1");
+        InOrder invitationExpiryOrder = inOrder(chatRoomInvitationLifecycleService);
+        invitationExpiryOrder.verify(chatRoomInvitationLifecycleService).expirePendingForInviteeInRoom(
+                "room-1",
+                "member-1",
+                ChatRoomInvitationExpiryReason.ALREADY_JOINED
+        );
+        invitationExpiryOrder.verify(chatRoomInvitationLifecycleService).expirePendingForRoom(
+                "room-1",
+                ChatRoomInvitationExpiryReason.CAPACITY_FULL
+        );
     }
 
     @Test
@@ -531,6 +545,15 @@ class ChatServiceTest {
         assertEquals(ChatMessage.SOURCE_MEMBER_LEAVE, departmentLeaveCaptor.getValue().getSource());
         assertEquals("홍길동님이 나갔어요.", departmentLeaveCaptor.getValue().getText());
         verify(messagingTemplate).convertAndSend(eq("/topic/chat/public:department:cs"), any(ChatMessageResponse.class));
+        verify(chatRoomInvitationLifecycleService).expirePendingByInviterInRoom(
+                "public:department:cs",
+                "member-1",
+                ChatRoomInvitationExpiryReason.INVITER_LEFT
+        );
+        verify(chatRoomInvitationLifecycleService).expirePendingDepartmentRoomInvitationsForInvitee(
+                "member-1",
+                ChatRoomInvitationExpiryReason.ELIGIBILITY_CHANGED
+        );
     }
 
     @Test
@@ -546,6 +569,10 @@ class ChatServiceTest {
 
         verify(chatRoomMemberRepository, never()).delete(any(ChatRoomMember.class));
         verify(chatMessageRepository, never()).save(any(ChatMessage.class));
+        verify(chatRoomInvitationLifecycleService).expirePendingDepartmentRoomInvitationsForInvitee(
+                "member-1",
+                ChatRoomInvitationExpiryReason.ELIGIBILITY_CHANGED
+        );
     }
 
     @Test
@@ -565,7 +592,13 @@ class ChatServiceTest {
 
         when(chatRoomMemberRepository.findChatRoomIdsByMemberId("member-1"))
                 .thenReturn(List.of("deleted-room", "room-1"));
+        when(chatRoomInvitationLifecycleService.findPendingChatRoomIdsByInviter("member-1"))
+                .thenReturn(List.of("invitation-room"));
+        when(chatRoomInvitationLifecycleService.findPendingChatRoomIdsByInvitee("member-1"))
+                .thenReturn(List.of("received-invitation-room"));
         when(chatRoomRepository.findByIdForUpdate("deleted-room")).thenReturn(Optional.empty());
+        when(chatRoomRepository.findByIdForUpdate("invitation-room")).thenReturn(Optional.empty());
+        when(chatRoomRepository.findByIdForUpdate("received-invitation-room")).thenReturn(Optional.empty());
         when(chatRoomRepository.findByIdForUpdate("room-1")).thenReturn(Optional.of(remainingRoom));
         when(chatRoomMemberRepository.findById_ChatRoomIdAndId_MemberId("room-1", "member-1"))
                 .thenReturn(Optional.of(remainingMembership));
@@ -576,6 +609,23 @@ class ChatServiceTest {
         verify(chatRoomMemberRepository).delete(remainingMembership);
         verify(chatRoomMemberRepository, times(1)).delete(any(ChatRoomMember.class));
         verify(chatRoomSummaryEventPublisher).publishCurrent("room-1");
+        verify(chatRoomInvitationLifecycleService).expirePendingByInviterInRoom(
+                "invitation-room",
+                "member-1",
+                ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
+        verify(chatRoomInvitationLifecycleService).expirePendingForInviteeInRoom(
+                "received-invitation-room",
+                "member-1",
+                ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
+        InOrder lockOrder = inOrder(chatRoomRepository, chatRoomInvitationLifecycleService);
+        lockOrder.verify(chatRoomRepository).findByIdForUpdate("room-1");
+        lockOrder.verify(chatRoomInvitationLifecycleService).expirePendingByInviterInRoom(
+                "room-1",
+                "member-1",
+                ChatRoomInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
     }
 
     @Test

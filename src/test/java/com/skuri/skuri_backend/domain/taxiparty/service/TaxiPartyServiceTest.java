@@ -28,6 +28,7 @@ import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Location;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyEndReason;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.SettlementAccountSnapshot;
 import com.skuri.skuri_backend.domain.taxiparty.entity.SettlementTargetSnapshot;
@@ -92,6 +93,9 @@ class TaxiPartyServiceTest {
 
     @Mock
     private AfterCommitApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private PartyInvitationLifecycleService partyInvitationLifecycleService;
 
     @InjectMocks
     private TaxiPartyService taxiPartyService;
@@ -465,7 +469,8 @@ class TaxiPartyServiceTest {
         ReflectionTestUtils.setField(joinRequest, "id", "request-1");
         Member requester = member("requester-1");
 
-        when(joinRequestRepository.findDetailById("request-1")).thenReturn(Optional.of(joinRequest));
+        stubTransitionRequest("request-1", joinRequest);
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(memberRepository.findActiveByIdForUpdate("requester-1")).thenReturn(Optional.of(requester));
         when(memberRepository.findById("requester-1")).thenReturn(Optional.of(requester));
         when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -495,7 +500,8 @@ class TaxiPartyServiceTest {
         ReflectionTestUtils.setField(joinRequest, "id", "request-1");
         Member requester = member("requester-1");
 
-        when(joinRequestRepository.findDetailById("request-1")).thenReturn(Optional.of(joinRequest));
+        stubTransitionRequest("request-1", joinRequest);
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(memberRepository.findActiveByIdForUpdate("requester-1")).thenReturn(Optional.of(requester));
         when(memberRepository.findById("requester-1")).thenReturn(Optional.of(requester));
         when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -507,9 +513,38 @@ class TaxiPartyServiceTest {
         assertEquals(JoinRequestStatus.ACCEPTED, response.status());
         assertEquals(2, party.getCurrentMembers());
         assertEquals(PartyStatus.OPEN, party.getStatus());
+        InOrder aggregateLockOrder = inOrder(memberRepository, partyRepository);
+        aggregateLockOrder.verify(memberRepository).findActiveByIdForUpdate("requester-1");
+        aggregateLockOrder.verify(partyRepository).findDetailByIdForUpdate("party-1");
         verify(chatService).createPartyMemberJoinSystemMessage(party, "leader", "스쿠리 유저님이 입장했어요.");
         verify(chatService, never()).createPartySystemMessage(party, "leader", "모집이 마감되었어요.");
         verify(partySseService, never()).publishPartyStatusChanged(party);
+        verify(partyInvitationLifecycleService).expirePendingForInviteeInParty(
+                "party-1",
+                "requester-1",
+                PartyInvitationExpiryReason.ALREADY_JOINED
+        );
+    }
+
+    @Test
+    void 초대수락으로참가하면_같은파티의대기중참가요청을취소한다() {
+        Party party = sampleParty("party-1", "leader", 3, false);
+        JoinRequest pendingRequest = JoinRequest.create(party, "invitee-1");
+        ReflectionTestUtils.setField(pendingRequest, "id", "request-1");
+        Member invitee = member("invitee-1");
+
+        when(partyRepository.existsActivePartyByMemberId(eq("invitee-1"), anySet(), eq("party-1"))).thenReturn(false);
+        when(joinRequestRepository.findPendingByPartyIdAndRequesterIdForUpdate("party-1", "invitee-1"))
+                .thenReturn(List.of(pendingRequest));
+        when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(memberRepository.findById("invitee-1")).thenReturn(Optional.of(invitee));
+
+        taxiPartyService.acceptInvitedMemberWithLockedParty(party, "invitee-1", "leader");
+
+        assertEquals(JoinRequestStatus.CANCELED, pendingRequest.getStatus());
+        assertTrue(party.isMember("invitee-1"));
+        verify(joinRequestSseService).publishJoinRequestUpdated(pendingRequest, JoinRequestStatus.PENDING);
     }
 
     @Test
@@ -519,7 +554,8 @@ class TaxiPartyServiceTest {
         ReflectionTestUtils.setField(joinRequest, "id", "request-1");
         Member requester = member("requester-1", "   ");
 
-        when(joinRequestRepository.findDetailById("request-1")).thenReturn(Optional.of(joinRequest));
+        stubTransitionRequest("request-1", joinRequest);
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(memberRepository.findActiveByIdForUpdate("requester-1")).thenReturn(Optional.of(requester));
         when(memberRepository.findById("requester-1")).thenReturn(Optional.of(requester));
         when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -536,7 +572,8 @@ class TaxiPartyServiceTest {
         Party party = sampleParty("party-1", "leader", 4, false);
         JoinRequest joinRequest = JoinRequest.create(party, "requester-1");
         ReflectionTestUtils.setField(joinRequest, "id", "request-1");
-        when(joinRequestRepository.findDetailById("request-1")).thenReturn(Optional.of(joinRequest));
+        stubTransitionRequest("request-1", joinRequest);
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         JoinRequestResponse response = taxiPartyService.declineJoinRequest("leader", "request-1");
@@ -547,11 +584,44 @@ class TaxiPartyServiceTest {
     }
 
     @Test
+    void declineJoinRequest_파티잠금후최신요청상태가처리완료면덮어쓰지않는다() {
+        Party party = sampleParty("party-1", "leader", 4, false);
+        JoinRequest canceledRequest = JoinRequest.create(party, "requester-1");
+        ReflectionTestUtils.setField(canceledRequest, "id", "request-1");
+        canceledRequest.cancel();
+
+        when(joinRequestRepository.findTransitionSnapshotById("request-1"))
+                .thenReturn(Optional.of(transitionSnapshot(
+                        "request-1",
+                        "party-1",
+                        "leader",
+                        "requester-1",
+                        JoinRequestStatus.PENDING
+                )));
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
+        when(joinRequestRepository.findByIdForUpdate("request-1")).thenReturn(Optional.of(canceledRequest));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> taxiPartyService.declineJoinRequest("leader", "request-1")
+        );
+
+        assertEquals(ErrorCode.REQUEST_ALREADY_PROCESSED, exception.getErrorCode());
+        assertEquals(JoinRequestStatus.CANCELED, canceledRequest.getStatus());
+        verify(joinRequestRepository, never()).save(canceledRequest);
+        InOrder lockOrder = inOrder(joinRequestRepository, partyRepository);
+        lockOrder.verify(joinRequestRepository).findTransitionSnapshotById("request-1");
+        lockOrder.verify(partyRepository).findDetailByIdForUpdate("party-1");
+        lockOrder.verify(joinRequestRepository).findByIdForUpdate("request-1");
+    }
+
+    @Test
     void cancelJoinRequest_정상처리시_SSE업데이트발행() {
         Party party = sampleParty("party-1", "leader", 4, false);
         JoinRequest joinRequest = JoinRequest.create(party, "requester-1");
         ReflectionTestUtils.setField(joinRequest, "id", "request-1");
-        when(joinRequestRepository.findDetailById("request-1")).thenReturn(Optional.of(joinRequest));
+        stubTransitionRequest("request-1", joinRequest);
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         JoinRequestResponse response = taxiPartyService.cancelJoinRequest("requester-1", "request-1");
@@ -569,7 +639,8 @@ class TaxiPartyServiceTest {
         JoinRequest currentRequest = JoinRequest.create(party, "requester-1");
         ReflectionTestUtils.setField(currentRequest, "id", "request-2");
 
-        when(joinRequestRepository.findDetailById("request-2")).thenReturn(Optional.of(currentRequest));
+        stubTransitionRequest("request-2", currentRequest);
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         JoinRequestResponse response = taxiPartyService.declineJoinRequest("leader", "request-2");
@@ -587,7 +658,8 @@ class TaxiPartyServiceTest {
         JoinRequest currentRequest = JoinRequest.create(party, "requester-1");
         ReflectionTestUtils.setField(currentRequest, "id", "request-2");
 
-        when(joinRequestRepository.findDetailById("request-2")).thenReturn(Optional.of(currentRequest));
+        stubTransitionRequest("request-2", currentRequest);
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         JoinRequestResponse response = taxiPartyService.cancelJoinRequest("requester-1", "request-2");
@@ -603,7 +675,8 @@ class TaxiPartyServiceTest {
         JoinRequest joinRequest = JoinRequest.create(party, "requester-1");
         ReflectionTestUtils.setField(joinRequest, "id", "request-1");
 
-        when(joinRequestRepository.findDetailById("request-1")).thenReturn(Optional.of(joinRequest));
+        stubTransitionRequest("request-1", joinRequest);
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(memberRepository.findActiveByIdForUpdate("requester-1")).thenReturn(Optional.of(member("requester-1")));
         when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(partyRepository.existsActivePartyByMemberId(eq("requester-1"), anySet(), eq("party-1"))).thenReturn(false);
@@ -889,7 +962,8 @@ class TaxiPartyServiceTest {
         when(partyRepository.findDetailById("arrived-party")).thenReturn(Optional.of(arrivedParty));
         when(memberRepository.findById("member-1")).thenReturn(Optional.of(member("member-1", "홍길동")));
         when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(joinRequestRepository.findDetailById("request-after-leave")).thenReturn(Optional.of(joinRequest));
+        stubTransitionRequest("request-after-leave", joinRequest);
+        when(partyRepository.findDetailByIdForUpdate("target-party")).thenReturn(Optional.of(targetParty));
         when(memberRepository.findActiveByIdForUpdate("member-1")).thenReturn(Optional.of(member("member-1", "홍길동")));
         when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(partyRepository.existsActivePartyByMemberId(eq("member-1"), anySet(), eq("target-party"))).thenReturn(false);
@@ -922,10 +996,16 @@ class TaxiPartyServiceTest {
         JoinRequest joinRequest = JoinRequest.create(party, "requester-1");
         ReflectionTestUtils.setField(joinRequest, "id", "request-1");
 
-        when(partyRepository.findActiveDetailsByMemberId("leader", java.util.EnumSet.of(PartyStatus.OPEN, PartyStatus.CLOSED, PartyStatus.ARRIVED)))
-                .thenReturn(List.of(party));
+        when(partyRepository.findActiveIdsByMemberId("leader", java.util.EnumSet.of(PartyStatus.OPEN, PartyStatus.CLOSED, PartyStatus.ARRIVED)))
+                .thenReturn(List.of("party-1"));
+        when(partyInvitationLifecycleService.findPendingPartyIdsByInviter("leader"))
+                .thenReturn(List.of("invitation-only-party"));
+        when(partyInvitationLifecycleService.findPendingPartyIdsByInvitee("leader"))
+                .thenReturn(List.of());
+        when(partyRepository.findDetailByIdForUpdate("invitation-only-party")).thenReturn(Optional.empty());
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
         when(partyRepository.saveAndFlush(any(Party.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(joinRequestRepository.findByParty_IdAndStatusOrderByCreatedAtDesc("party-1", JoinRequestStatus.PENDING))
+        when(joinRequestRepository.findPendingByPartyIdForUpdate("party-1"))
                 .thenReturn(List.of(joinRequest));
         when(joinRequestRepository.save(any(JoinRequest.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -937,6 +1017,42 @@ class TaxiPartyServiceTest {
         verify(chatService).createPartyEndMessage(party, "leader");
         verify(partySseService).publishPartyStatusChanged(party);
         verify(joinRequestSseService).publishJoinRequestUpdated(joinRequest, JoinRequestStatus.PENDING);
+        verify(partyInvitationLifecycleService).expirePendingByInviterInParty(
+                "invitation-only-party",
+                "leader",
+                PartyInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
+        verify(partyInvitationLifecycleService).expirePendingForInviteeInParty(
+                "invitation-only-party",
+                "leader",
+                PartyInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
+        InOrder lockOrder = inOrder(partyRepository, partyInvitationLifecycleService);
+        lockOrder.verify(partyRepository).findDetailByIdForUpdate("party-1");
+        lockOrder.verify(partyInvitationLifecycleService).expirePendingByInviterInParty(
+                "party-1",
+                "leader",
+                PartyInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
+    }
+
+    @Test
+    void handleMemberWithdrawal_수신대기초대만있어도만료처리한다() {
+        when(partyRepository.findActiveIdsByMemberId("invitee-1", java.util.EnumSet.of(PartyStatus.OPEN, PartyStatus.CLOSED, PartyStatus.ARRIVED)))
+                .thenReturn(List.of());
+        when(partyInvitationLifecycleService.findPendingPartyIdsByInviter("invitee-1"))
+                .thenReturn(List.of());
+        when(partyInvitationLifecycleService.findPendingPartyIdsByInvitee("invitee-1"))
+                .thenReturn(List.of("party-invited"));
+        when(partyRepository.findDetailByIdForUpdate("party-invited")).thenReturn(Optional.empty());
+
+        taxiPartyService.handleMemberWithdrawal("invitee-1");
+
+        verify(partyInvitationLifecycleService).expirePendingForInviteeInParty(
+                "party-invited",
+                "invitee-1",
+                PartyInvitationExpiryReason.MEMBER_WITHDRAWN
+        );
     }
 
     @Test
@@ -1053,6 +1169,53 @@ class TaxiPartyServiceTest {
         );
         ReflectionTestUtils.setField(party, "id", partyId);
         return party;
+    }
+
+    private void stubTransitionRequest(String requestId, JoinRequest joinRequest) {
+        when(joinRequestRepository.findTransitionSnapshotById(requestId))
+                .thenReturn(Optional.of(transitionSnapshot(
+                        requestId,
+                        joinRequest.getParty().getId(),
+                        joinRequest.getLeaderId(),
+                        joinRequest.getRequesterId(),
+                        joinRequest.getStatus()
+                )));
+        when(joinRequestRepository.findByIdForUpdate(requestId)).thenReturn(Optional.of(joinRequest));
+    }
+
+    private JoinRequestRepository.TransitionSnapshot transitionSnapshot(
+            String id,
+            String partyId,
+            String leaderId,
+            String requesterId,
+            JoinRequestStatus status
+    ) {
+        return new JoinRequestRepository.TransitionSnapshot() {
+            @Override
+            public String getId() {
+                return id;
+            }
+
+            @Override
+            public String getPartyId() {
+                return partyId;
+            }
+
+            @Override
+            public String getLeaderId() {
+                return leaderId;
+            }
+
+            @Override
+            public String getRequesterId() {
+                return requesterId;
+            }
+
+            @Override
+            public JoinRequestStatus getStatus() {
+                return status;
+            }
+        };
     }
 
     private Member member(String memberId) {

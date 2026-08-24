@@ -38,6 +38,7 @@ import com.skuri.skuri_backend.domain.taxiparty.entity.Location;
 import com.skuri.skuri_backend.domain.taxiparty.entity.MemberSettlement;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyEndReason;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyMember;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.SettlementAccountSnapshot;
@@ -65,6 +66,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 @Service
 @RequiredArgsConstructor
@@ -79,6 +81,7 @@ public class TaxiPartyService {
     private final ChatService chatService;
     private final PartySseService partySseService;
     private final JoinRequestSseService joinRequestSseService;
+    private final PartyInvitationLifecycleService partyInvitationLifecycleService;
     private final AfterCommitApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -220,6 +223,10 @@ public class TaxiPartyService {
         chatService.createPartySystemMessage(party, actorId, "모집이 마감되었어요.");
         partySseService.publishPartyStatusChanged(party);
         eventPublisher.publish(new NotificationDomainEvent.PartyStatusChanged(party.getId(), beforeStatus, party.getStatus()));
+        partyInvitationLifecycleService.expirePendingForParty(
+                party.getId(),
+                com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.TARGET_UNAVAILABLE
+        );
         return toPartyStatusResponse(party);
     }
 
@@ -252,6 +259,10 @@ public class TaxiPartyService {
         chatService.createPartyArrivalMessage(party, actorId);
         partySseService.publishPartyStatusChanged(party);
         eventPublisher.publish(new NotificationDomainEvent.PartyStatusChanged(party.getId(), beforeStatus, party.getStatus()));
+        partyInvitationLifecycleService.expirePendingForParty(
+                party.getId(),
+                com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.TARGET_UNAVAILABLE
+        );
 
         Map<String, Member> memberMap = getMemberMap(getVisibleMemberIds(party));
         return toPartyDetailResponse(party, memberMap);
@@ -267,6 +278,10 @@ public class TaxiPartyService {
         chatService.createPartyEndMessage(party, actorId);
         partySseService.publishPartyStatusChanged(party);
         eventPublisher.publish(new NotificationDomainEvent.PartyStatusChanged(party.getId(), beforeStatus, party.getStatus()));
+        partyInvitationLifecycleService.expirePendingForParty(
+                party.getId(),
+                com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.TARGET_UNAVAILABLE
+        );
         return toPartyStatusResponse(party);
     }
 
@@ -280,6 +295,10 @@ public class TaxiPartyService {
         chatService.createPartyEndMessage(party, actorId);
         partySseService.publishPartyDeleted(party.getId());
         eventPublisher.publish(new NotificationDomainEvent.PartyStatusChanged(party.getId(), beforeStatus, party.getStatus()));
+        partyInvitationLifecycleService.expirePendingForParty(
+                party.getId(),
+                com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.TARGET_UNAVAILABLE
+        );
         return toPartyStatusResponse(party);
     }
 
@@ -310,6 +329,11 @@ public class TaxiPartyService {
         );
         partySseService.publishPartyMemberLeft(party, memberId, "KICKED", recipientsBeforeRemoval);
         eventPublisher.publish(new NotificationDomainEvent.PartyMemberKicked(party.getId(), memberId));
+        partyInvitationLifecycleService.expirePendingByInviterInParty(
+                partyId,
+                memberId,
+                com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.INVITER_LEFT
+        );
     }
 
     @Transactional
@@ -366,8 +390,12 @@ public class TaxiPartyService {
 
     @Transactional
     public JoinRequestAcceptResponse acceptJoinRequest(String leaderId, String requestId) {
-        JoinRequest joinRequest = findJoinRequestOrThrow(requestId);
-        Party party = joinRequest.getParty();
+        JoinRequestRepository.TransitionSnapshot snapshot = findJoinRequestSnapshotOrThrow(requestId);
+        String requesterId = snapshot.getRequesterId();
+        lockMemberOrThrow(requesterId);
+        Party party = partyRepository.findDetailByIdForUpdate(snapshot.getPartyId())
+                .orElseThrow(PartyNotFoundException::new);
+        JoinRequest joinRequest = findJoinRequestForUpdateOrThrow(requestId);
         JoinRequestStatus previousStatus = joinRequest.getStatus();
         PartyStatus beforeStatus = party.getStatus();
         requireJoinRequestLeader(joinRequest, leaderId);
@@ -379,8 +407,6 @@ public class TaxiPartyService {
             throw new BusinessException(ErrorCode.PARTY_CLOSED);
         }
 
-        String requesterId = joinRequest.getRequesterId();
-        lockMemberOrThrow(requesterId);
         if (party.isMember(requesterId)) {
             throw new BusinessException(ErrorCode.ALREADY_IN_PARTY);
         }
@@ -390,6 +416,12 @@ public class TaxiPartyService {
 
         joinRequest.accept();
         party.addMember(requesterId);
+
+        partyInvitationLifecycleService.expirePendingForInviteeInParty(
+                party.getId(),
+                requesterId,
+                com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.ALREADY_JOINED
+        );
 
         joinRequestRepository.save(joinRequest);
         savePartyWithLockHandling(party);
@@ -408,6 +440,10 @@ public class TaxiPartyService {
         if (beforeStatus != party.getStatus()) {
             partySseService.publishPartyStatusChanged(party);
             eventPublisher.publish(new NotificationDomainEvent.PartyStatusChanged(party.getId(), beforeStatus, party.getStatus()));
+            partyInvitationLifecycleService.expirePendingForParty(
+                    party.getId(),
+                    com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.CAPACITY_FULL
+            );
         }
         eventPublisher.publish(new NotificationDomainEvent.PartyJoinRequestProcessed(joinRequest.getId(), joinRequest.getStatus()));
         return toJoinRequestAcceptResponse(joinRequest);
@@ -415,7 +451,10 @@ public class TaxiPartyService {
 
     @Transactional
     public JoinRequestResponse declineJoinRequest(String leaderId, String requestId) {
-        JoinRequest joinRequest = findJoinRequestOrThrow(requestId);
+        JoinRequestRepository.TransitionSnapshot snapshot = findJoinRequestSnapshotOrThrow(requestId);
+        partyRepository.findDetailByIdForUpdate(snapshot.getPartyId())
+                .orElseThrow(PartyNotFoundException::new);
+        JoinRequest joinRequest = findJoinRequestForUpdateOrThrow(requestId);
         JoinRequestStatus previousStatus = joinRequest.getStatus();
         requireJoinRequestLeader(joinRequest, leaderId);
         joinRequest.decline();
@@ -427,7 +466,10 @@ public class TaxiPartyService {
 
     @Transactional
     public JoinRequestResponse cancelJoinRequest(String requesterId, String requestId) {
-        JoinRequest joinRequest = findJoinRequestOrThrow(requestId);
+        JoinRequestRepository.TransitionSnapshot snapshot = findJoinRequestSnapshotOrThrow(requestId);
+        partyRepository.findDetailByIdForUpdate(snapshot.getPartyId())
+                .orElseThrow(PartyNotFoundException::new);
+        JoinRequest joinRequest = findJoinRequestForUpdateOrThrow(requestId);
         if (!joinRequest.isRequester(requesterId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "요청자 본인만 취소할 수 있습니다.");
         }
@@ -487,8 +529,31 @@ public class TaxiPartyService {
 
     @Transactional
     public void handleMemberWithdrawal(String memberId) {
-        List<Party> activeParties = partyRepository.findActiveDetailsByMemberId(memberId, ACTIVE_PARTY_STATUSES);
-        for (Party party : activeParties) {
+        Set<String> targetPartyIds = new TreeSet<>(
+                partyRepository.findActiveIdsByMemberId(memberId, ACTIVE_PARTY_STATUSES)
+        );
+        targetPartyIds.addAll(partyInvitationLifecycleService.findPendingPartyIdsByInviter(memberId));
+        targetPartyIds.addAll(partyInvitationLifecycleService.findPendingPartyIdsByInvitee(memberId));
+        targetPartyIds.addAll(joinRequestRepository.findPendingPartyIdsByRequesterId(memberId));
+        for (String partyId : targetPartyIds) {
+            Party party = partyRepository.findDetailByIdForUpdate(partyId).orElse(null);
+            partyInvitationLifecycleService.expirePendingByInviterInParty(
+                    partyId,
+                    memberId,
+                    PartyInvitationExpiryReason.MEMBER_WITHDRAWN
+            );
+            partyInvitationLifecycleService.expirePendingForInviteeInParty(
+                    partyId,
+                    memberId,
+                    PartyInvitationExpiryReason.MEMBER_WITHDRAWN
+            );
+            if (party == null) {
+                continue;
+            }
+            cancelPendingJoinRequestsForInvitee(partyId, memberId);
+            if (!ACTIVE_PARTY_STATUSES.contains(party.getStatus()) || !party.isMember(memberId)) {
+                continue;
+            }
             if (party.isLeader(memberId)) {
                 withdrawLeaderFromParty(party);
                 continue;
@@ -504,13 +569,6 @@ public class TaxiPartyService {
             partySseService.publishPartyMemberLeft(party, memberId, "WITHDRAWN", party.getMemberIds());
         }
 
-        joinRequestRepository.findByRequesterIdAndStatusOrderByCreatedAtDesc(memberId, JoinRequestStatus.PENDING)
-                .forEach(request -> {
-                    JoinRequestStatus previousStatus = request.getStatus();
-                    request.cancel();
-                    joinRequestRepository.save(request);
-                    joinRequestSseService.publishJoinRequestUpdated(request, previousStatus);
-                });
     }
 
     private List<JoinRequestListItemResponse> mapJoinRequestResponses(List<JoinRequest> requests) {
@@ -537,8 +595,13 @@ public class TaxiPartyService {
                 .orElseThrow(PartyNotFoundException::new);
     }
 
-    private JoinRequest findJoinRequestOrThrow(String requestId) {
-        return joinRequestRepository.findDetailById(requestId)
+    private JoinRequestRepository.TransitionSnapshot findJoinRequestSnapshotOrThrow(String requestId) {
+        return joinRequestRepository.findTransitionSnapshotById(requestId)
+                .orElseThrow(JoinRequestNotFoundException::new);
+    }
+
+    private JoinRequest findJoinRequestForUpdateOrThrow(String requestId) {
+        return joinRequestRepository.findByIdForUpdate(requestId)
                 .orElseThrow(JoinRequestNotFoundException::new);
     }
 
@@ -554,8 +617,12 @@ public class TaxiPartyService {
         chatService.createPartyEndMessage(party, party.getLeaderId());
         partySseService.publishPartyStatusChanged(party);
         eventPublisher.publish(new NotificationDomainEvent.PartyStatusChanged(party.getId(), beforeStatus, party.getStatus()));
+        partyInvitationLifecycleService.expirePendingForParty(
+                party.getId(),
+                com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.TARGET_UNAVAILABLE
+        );
 
-        joinRequestRepository.findByParty_IdAndStatusOrderByCreatedAtDesc(party.getId(), JoinRequestStatus.PENDING)
+        joinRequestRepository.findPendingByPartyIdForUpdate(party.getId())
                 .forEach(request -> {
                     JoinRequestStatus previousStatus = request.getStatus();
                     request.decline();
@@ -582,6 +649,59 @@ public class TaxiPartyService {
         } catch (ObjectOptimisticLockingFailureException | OptimisticLockException e) {
             throw new BusinessException(ErrorCode.PARTY_CONCURRENT_MODIFICATION);
         }
+    }
+
+    void acceptInvitedMemberWithLockedParty(Party party, String inviteeMemberId, String inviterMemberId) {
+        if (party.getStatus() != PartyStatus.OPEN) {
+            throw new BusinessException(ErrorCode.PARTY_CLOSED);
+        }
+        if (!party.isMember(inviterMemberId)) {
+            throw new BusinessException(ErrorCode.NOT_PARTY_MEMBER);
+        }
+        if (party.isMember(inviteeMemberId)) {
+            throw new BusinessException(ErrorCode.ALREADY_IN_PARTY);
+        }
+        if (partyRepository.existsActivePartyByMemberId(inviteeMemberId, ACTIVE_PARTY_STATUSES, party.getId())) {
+            throw new BusinessException(ErrorCode.ALREADY_IN_PARTY);
+        }
+
+        PartyStatus beforeStatus = party.getStatus();
+        party.addMember(inviteeMemberId);
+        cancelPendingJoinRequestsForInvitee(party.getId(), inviteeMemberId);
+        savePartyWithLockHandling(party);
+        chatService.syncPartyChatRoomMembers(party);
+        String inviteeName = resolveMembershipDisplayName(inviteeMemberId);
+        chatService.createPartyMemberJoinSystemMessage(
+                party,
+                inviterMemberId,
+                toMemberJoinSystemMessage(inviteeName)
+        );
+        if (beforeStatus == PartyStatus.OPEN && party.getStatus() == PartyStatus.CLOSED) {
+            chatService.createPartySystemMessage(party, inviterMemberId, "모집이 마감되었어요.");
+        }
+        partySseService.publishPartyMemberJoined(party, inviteeMemberId, inviteeName, party.getMemberIds());
+        if (beforeStatus != party.getStatus()) {
+            partySseService.publishPartyStatusChanged(party);
+            eventPublisher.publish(new NotificationDomainEvent.PartyStatusChanged(
+                    party.getId(),
+                    beforeStatus,
+                    party.getStatus()
+            ));
+            partyInvitationLifecycleService.expirePendingForParty(
+                    party.getId(),
+                    com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.CAPACITY_FULL
+            );
+        }
+    }
+
+    private void cancelPendingJoinRequestsForInvitee(String partyId, String inviteeMemberId) {
+        joinRequestRepository.findPendingByPartyIdAndRequesterIdForUpdate(partyId, inviteeMemberId)
+                .forEach(request -> {
+                    JoinRequestStatus previousStatus = request.getStatus();
+                    request.cancel();
+                    joinRequestRepository.save(request);
+                    joinRequestSseService.publishJoinRequestUpdated(request, previousStatus);
+                });
     }
 
     private PartySummaryResponse toPartySummaryResponse(
@@ -800,6 +920,11 @@ public class TaxiPartyService {
         chatService.syncPartyChatRoomMembers(party);
         chatService.createPartyMemberLeaveSystemMessage(party, memberId, leaveSystemMessage);
         partySseService.publishPartyMemberLeft(party, memberId, "LEFT", party.getMemberIds());
+        partyInvitationLifecycleService.expirePendingByInviterInParty(
+                party.getId(),
+                memberId,
+                com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.INVITER_LEFT
+        );
     }
 
     private void leaveArrivedParty(Party party, String memberId, String leaveSystemMessage) {
@@ -809,6 +934,11 @@ public class TaxiPartyService {
         chatService.syncPartyArrivalMessageSnapshot(party);
         chatService.createPartyMemberLeaveSystemMessage(party, memberId, leaveSystemMessage);
         partySseService.publishPartyMemberLeft(party, memberId, "LEFT", party.getMemberIds());
+        partyInvitationLifecycleService.expirePendingByInviterInParty(
+                party.getId(),
+                memberId,
+                com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason.INVITER_LEFT
+        );
     }
 
     private List<SettlementTargetSnapshot> toSettlementTargetSnapshots(

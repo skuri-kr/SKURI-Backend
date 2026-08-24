@@ -27,6 +27,10 @@ import com.skuri.skuri_backend.domain.minecraft.entity.MinecraftAccountRole;
 import com.skuri.skuri_backend.domain.minecraft.entity.MinecraftEdition;
 import com.skuri.skuri_backend.domain.minecraft.repository.MinecraftAccountRepository;
 import com.skuri.skuri_backend.domain.minecraft.service.FriendMinecraftProjectionService;
+import com.skuri.skuri_backend.domain.chat.service.ChatRoomInvitationInboxService;
+import com.skuri.skuri_backend.domain.chat.service.ChatRoomInvitationLifecycleService;
+import com.skuri.skuri_backend.domain.taxiparty.service.PartyInvitationInboxService;
+import com.skuri.skuri_backend.domain.taxiparty.service.PartyInvitationLifecycleService;
 import org.springframework.data.domain.Pageable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -34,11 +38,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -71,6 +77,18 @@ import static org.mockito.Mockito.verify;
         FriendMinecraftProjectionService.class
 })
 class FriendRelationshipServiceDataJpaTest {
+
+    @MockitoBean
+    private PartyInvitationInboxService partyInvitationInboxService;
+
+    @MockitoBean
+    private ChatRoomInvitationInboxService chatRoomInvitationInboxService;
+
+    @MockitoBean
+    private PartyInvitationLifecycleService partyInvitationLifecycleService;
+
+    @MockitoBean
+    private ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
 
     @Autowired
     private MemberRepository memberRepository;
@@ -571,6 +589,23 @@ class FriendRelationshipServiceDataJpaTest {
 
         assertThat(friendRelationshipQueryService.getFriends(pair.firstMemberId())).isEmpty();
         assertThat(friendRelationshipQueryService.getFriends(pair.secondMemberId())).isEmpty();
+    }
+
+    @Test
+    void 초대이력의_회원표시는_양방향차단대상을_마스킹한다() {
+        FriendPair pair = createPair();
+
+        assertThat(friendRelationshipQueryService.findInvitationCandidatesByMemberIds(
+                pair.firstMemberId(),
+                Set.of(pair.secondMemberId())
+        )).containsKey(pair.secondMemberId());
+
+        memberBlockRepository.saveAndFlush(MemberBlock.create(pair.secondMemberId(), pair.firstMemberId()));
+
+        assertThat(friendRelationshipQueryService.findInvitationCandidatesByMemberIds(
+                pair.firstMemberId(),
+                Set.of(pair.secondMemberId())
+        )).doesNotContainKey(pair.secondMemberId());
     }
 
     @Test

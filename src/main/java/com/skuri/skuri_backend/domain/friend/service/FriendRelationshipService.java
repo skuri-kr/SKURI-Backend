@@ -3,6 +3,8 @@ package com.skuri.skuri_backend.domain.friend.service;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.academic.service.TimetableSharingRelationshipCleanupService;
+import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationExpiryReason;
+import com.skuri.skuri_backend.domain.chat.service.ChatRoomInvitationLifecycleService;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendSummaryResponse;
 import com.skuri.skuri_backend.domain.friend.entity.FriendPreference;
 import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
@@ -15,6 +17,8 @@ import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
 import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason;
+import com.skuri.skuri_backend.domain.taxiparty.service.PartyInvitationLifecycleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +41,8 @@ public class FriendRelationshipService {
     private final FriendSummarySnapshotFactory friendSummarySnapshotFactory;
     private final MemberRepository memberRepository;
     private final TimetableSharingRelationshipCleanupService timetableSharingRelationshipCleanupService;
+    private final PartyInvitationLifecycleService partyInvitationLifecycleService;
+    private final ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
 
     @Transactional
     public FriendRequestCreationResult createRequest(String requesterMemberId, String targetFriendPublicId) {
@@ -125,6 +131,7 @@ public class FriendRelationshipService {
         friendPreferenceRepository.deleteByOwnerMemberIdAndFriendMemberId(ownerMemberId, friendMemberId);
         friendPreferenceRepository.deleteByOwnerMemberIdAndFriendMemberId(friendMemberId, ownerMemberId);
         timetableSharingRelationshipCleanupService.deleteOverridesForMemberPair(ownerMemberId, friendMemberId);
+        expirePendingInvitationsForRelationship(ownerMemberId, friendMemberId);
     }
 
     @Transactional
@@ -150,6 +157,7 @@ public class FriendRelationshipService {
         friendPreferenceRepository.deleteByOwnerMemberIdAndFriendMemberId(blockerMemberId, blockedMemberId);
         friendPreferenceRepository.deleteByOwnerMemberIdAndFriendMemberId(blockedMemberId, blockerMemberId);
         timetableSharingRelationshipCleanupService.deleteOverridesForMemberPair(blockerMemberId, blockedMemberId);
+        expirePendingInvitationsForRelationship(blockerMemberId, blockedMemberId);
         memberBlockRepository.save(MemberBlock.create(blockerMemberId, blockedMemberId));
     }
 
@@ -181,6 +189,19 @@ public class FriendRelationshipService {
     private Friendship requireFriendship(FriendMemberPair pair) {
         return friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.FRIENDSHIP_NOT_FOUND));
+    }
+
+    private void expirePendingInvitationsForRelationship(String firstMemberId, String secondMemberId) {
+        partyInvitationLifecycleService.expirePendingForMemberPair(
+                firstMemberId,
+                secondMemberId,
+                PartyInvitationExpiryReason.RELATIONSHIP_UNAVAILABLE
+        );
+        chatRoomInvitationLifecycleService.expirePendingForMemberPair(
+                firstMemberId,
+                secondMemberId,
+                ChatRoomInvitationExpiryReason.RELATIONSHIP_UNAVAILABLE
+        );
     }
 
     public record FriendRequestCreationResult(String requestId, FriendSummaryResponse friend, boolean accepted) {

@@ -425,7 +425,7 @@ public class FriendRelationshipController {
     }
 
     @GetMapping("/v1/friends/inbox-counts")
-    @Operation(summary = "친구 허브 처리 필요 항목 수 조회", description = "현재 Core에서는 친구 요청 수만 계산하고 초대 수는 0입니다.")
+    @Operation(summary = "친구 허브 처리 필요 항목 수 조회", description = "친구 요청과 택시파티·공개 채팅방 초대의 유효 PENDING 수를 계산합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiFriendSchemas.FriendInboxCountsApiResponse.class), examples = @ExampleObject(value = OpenApiFriendExamples.SUCCESS_FRIEND_INBOX_COUNTS))),

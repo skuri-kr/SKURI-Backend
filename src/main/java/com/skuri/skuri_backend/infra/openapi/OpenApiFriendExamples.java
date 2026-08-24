@@ -194,9 +194,9 @@ public final class OpenApiFriendExamples {
               "success": true,
               "data": {
                 "incomingRequestCount": 1,
-                "partyInvitationCount": 0,
-                "chatRoomInvitationCount": 0,
-                "totalActionCount": 1
+                "partyInvitationCount": 1,
+                "chatRoomInvitationCount": 1,
+                "totalActionCount": 3
               }
             }
             """;

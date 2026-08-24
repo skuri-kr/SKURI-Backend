@@ -20,6 +20,10 @@ import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.domain.minecraft.service.FriendMinecraftProjectionService;
+import com.skuri.skuri_backend.domain.chat.service.ChatRoomInvitationInboxService;
+import com.skuri.skuri_backend.domain.chat.service.ChatRoomInvitationLifecycleService;
+import com.skuri.skuri_backend.domain.taxiparty.service.PartyInvitationInboxService;
+import com.skuri.skuri_backend.domain.taxiparty.service.PartyInvitationLifecycleService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +31,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +63,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         FriendPrivacyService.class
 })
 class FriendFoundationDataJpaTest {
+
+    @MockitoBean
+    private PartyInvitationInboxService partyInvitationInboxService;
+
+    @MockitoBean
+    private ChatRoomInvitationInboxService chatRoomInvitationInboxService;
+
+    @MockitoBean
+    private PartyInvitationLifecycleService partyInvitationLifecycleService;
+
+    @MockitoBean
+    private ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
 
     @Autowired
     private MemberRepository memberRepository;

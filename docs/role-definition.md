@@ -107,7 +107,7 @@ Spring 백엔드는 마인크래프트 기능도 예외 없이 최종 판단한�
 
 ### 4.5 Phase 14 Friend 도메인과 협력 책임
 
-> 상태: Foundation과 친구 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·PENDING 목록), Minecraft 안전 projection, 시간표 공유 전달 완료. 초대·알림은 후속 구현 예정
+> 상태: Foundation과 친구 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·PENDING 목록), Minecraft 안전 projection, 시간표 공유 전달 완료. TaxiParty·Chat 초대는 런타임 구현 단계이며 알림은 후속 구현 예정
 
 Friend는 Supporting 도메인으로서 영구 미재사용 친구 코드 registry·요청·상호 관계·즐겨찾기·친구 끊기·차단을 소유한다. FriendProfile·최초 코드는 유효 닉네임·학번·학과를 갖춘 프로필 완료 ACTIVE 회원에게만 발급한다. 모든 mutation과 lazy provisioning은 Member 잠금 후 요청자·대상이 이 조건을 만족하는지 다시 확인한다. Minecraft는 friendship·차단 확인 뒤 안전한 SELF·FRIEND 계정 projection을 제공한다. 다른 기능의 최종 규칙은 해당 도메인이 계속 소유하며 Friend가 내부 엔티티를 직접 수정하지 않는다. 친구 끊기·차단은 Friend가 관계 전이를 orchestration하되, 양방향 시간표 공유 예외 삭제는 같은 트랜잭션에 참여하는 Academic cleanup 서비스가 수행한다.
 
@@ -122,7 +122,7 @@ Friend는 Supporting 도메인으로서 영구 미재사용 친구 코드 regist
 | Notification | FRIEND_REQUEST, FRIEND_ACCEPTED, PARTY_INVITATION, CHAT_ROOM_INVITATION의 인박스·SSE·FCM 전달 |
 | Support | 기존 신고 저장·중복 정책·운영 처리 |
 
-Friend Foundation과 관계 Core, Minecraft 안전 projection, 시간표 공유의 API·DB 조회는 현재 런타임에 존재한다. 친구 요청은 30일 PENDING·역방향 자동 수락·수락 멱등성·terminal 409을 서버가 강제하며, 차단은 일반 대상 없음으로 마스킹한다. 시간표 공유는 `PRIVATE` 기본값, 친구별 예외 우선, friendship 종료·차단 시 양방향 예외 정리를 서버가 강제한다. 택시·공개방 초대·알림은 아직 계획 상태이며, 상세 상태 전이와 데이터 노출 정책은 `docs/features/friends.md`를 기준으로 한다.
+Friend Foundation과 관계 Core, Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대의 API·DB 조회는 현재 런타임에 존재한다. 친구 요청은 30일 PENDING·역방향 자동 수락·수락 멱등성·terminal 409을 서버가 강제하며, 차단은 일반 대상 없음으로 마스킹한다. 시간표 공유는 `PRIVATE` 기본값, 친구별 예외 우선, friendship 종료·차단 시 양방향 예외 정리를 서버가 강제한다. 초대는 수신자별 부분 성공, 수락 시 자격·정원 재검증, terminal EXPIRED 사유와 공개방 7일 만료를 각 소유 도메인이 강제한다. 알림은 아직 계획 상태이며 상세 정책은 `docs/features/friends.md`를 기준으로 한다.
 
 ---
 
@@ -512,7 +512,7 @@ Spring 백엔드는 본 프로젝트에서 다음과 같은 역할을 수행한�
 - 데이터 접근의 단일 관문
 - 실시간 데이터 제공자
 - 인증 결과를 신뢰하고 권한을 판단하는 서버
-- Friend Foundation·관계 Core와 후속 기존 도메인 협력 규칙을 최종 강제하는 서버 (Foundation·관계 Core 구현, 후속 협력 기능 계획)
+- Friend Foundation·관계 Core, Academic 시간표 공유, TaxiParty·공개방 초대 규칙을 최종 강제하고 후속 Notification 협력을 제공하는 서버
 
 ---
 

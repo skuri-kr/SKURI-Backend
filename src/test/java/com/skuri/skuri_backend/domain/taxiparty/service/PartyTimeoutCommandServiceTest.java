@@ -39,6 +39,9 @@ class PartyTimeoutCommandServiceTest {
     @Mock
     private AfterCommitApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private PartyInvitationLifecycleService partyInvitationLifecycleService;
+
     @InjectMocks
     private PartyTimeoutCommandService partyTimeoutCommandService;
 

@@ -12,10 +12,12 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -252,6 +254,59 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         assertTrue(example.path("errorCode").asText().equals("VALIDATION_ERROR"));
         assertTrue(example.path("message").asText()
                 .equals("semester는 yyyy-1 또는 yyyy-2 형식이어야 합니다."));
+    }
+
+    @Test
+    void 친구초대_OpenAPI는_endpoint별_정확한403과409예시를제공한다() throws Exception {
+        JsonNode partyPaths = apiDocs("/v3/api-docs/taxiparty").path("paths");
+        assertEquals(
+                Set.of("PARTY_CLOSED", "PARTY_FULL", "MEMBER_PROFILE_INCOMPLETE"),
+                exampleNames(partyPaths, "/v1/parties/{partyId}/invitations/eligible-friends", "get", "409")
+        );
+        assertEquals(
+                Set.of("PARTY_CLOSED", "MEMBER_PROFILE_INCOMPLETE"),
+                exampleNames(partyPaths, "/v1/parties/{partyId}/invitations", "post", "409")
+        );
+        assertEquals(
+                Set.of("PARTY_INVITATION_RECIPIENT_REQUIRED"),
+                exampleNames(partyPaths, "/v1/party-invitations/{invitationId}/accept", "post", "403")
+        );
+        assertEquals(
+                Set.of("PARTY_INVITATION_INVITER_REQUIRED"),
+                exampleNames(partyPaths, "/v1/party-invitations/{invitationId}", "delete", "403")
+        );
+
+        JsonNode chatPaths = apiDocs("/v3/api-docs/chat").path("paths");
+        assertEquals(
+                Set.of("CHAT_ROOM_FULL", "MEMBER_PROFILE_INCOMPLETE"),
+                exampleNames(chatPaths, "/v1/chat-rooms/{chatRoomId}/invitations/eligible-friends", "get", "409")
+        );
+        assertEquals(
+                Set.of("MEMBER_PROFILE_INCOMPLETE"),
+                exampleNames(chatPaths, "/v1/chat-rooms/{chatRoomId}/invitations", "post", "409")
+        );
+        assertEquals(
+                Set.of("CHAT_ROOM_INVITATION_RECIPIENT_REQUIRED"),
+                exampleNames(chatPaths, "/v1/chat-room-invitations/{invitationId}/accept", "post", "403")
+        );
+        assertEquals(
+                Set.of("CHAT_ROOM_INVITATION_INVITER_REQUIRED"),
+                exampleNames(chatPaths, "/v1/chat-room-invitations/{invitationId}", "delete", "403")
+        );
+    }
+
+    private Set<String> exampleNames(JsonNode paths, String path, String method, String responseCode) {
+        Set<String> names = new LinkedHashSet<>();
+        paths.path(path)
+                .path(method)
+                .path("responses")
+                .path(responseCode)
+                .path("content")
+                .path("application/json")
+                .path("examples")
+                .fieldNames()
+                .forEachRemaining(names::add);
+        return names;
     }
 
     private JsonNode apiDocs() throws Exception {

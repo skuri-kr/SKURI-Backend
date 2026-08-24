@@ -1,8 +1,8 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유 Backend [#84](https://github.com/skuri-kr/SKURI-Backend/pull/84)·Frontend [#26](https://github.com/skuri-kr/SKURI-Frontend/pull/26) 전달 완료. 친구 초대·알림·회원 탈퇴 cleanup은 후속 단계다.
-> 기준일: 2026-08-23
-> 다음 구현 단위: 시간표 공유 실제 기기 QA 후 친구 초대, 알림·회원 탈퇴 cleanup을 순차 구현한다.
+> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유 전달 완료. 택시파티·공개 채팅방 친구 초대는 Backend [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85)·Frontend [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27) 리뷰 중이며, 알림과 PENDING 초대 정리를 제외한 회원 탈퇴 cleanup은 후속 단계다.
+> 기준일: 2026-08-24
+> 다음 구현 단위: 현재 친구 초대 Backend·Frontend 전달을 완료한 뒤 알림·PENDING 초대 외 회원 탈퇴 cleanup을 구현한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
 ---
@@ -13,7 +13,7 @@
 
 - 친구 관계와 차단, 초대, 시간표 공개 범위의 최종 판단자는 백엔드다.
 - 모바일은 이 문서의 계약을 소비하며 클라이언트 상태만으로 권한을 판단하지 않는다.
-- `GET /v1/friends/me/code`, `POST /v1/friends/me/code/regenerate`, `POST /v1/friend-codes/preview`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.3의 관계 Core API, 9.4의 시간표 공유와 9.5의 Minecraft projection은 런타임 API다. 9.6 이후의 초대·알림 API는 예정 계약이며 현재 운영 API로 해석하지 않는다.
+- `GET /v1/friends/me/code`, `POST /v1/friends/me/code/regenerate`, `POST /v1/friend-codes/preview`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.7의 관계 Core·시간표 공유·Minecraft projection·친구 초대는 런타임 API다. 9.8 이후의 알림 확장은 예정 계약이며 현재 운영 API로 해석하지 않는다.
 - 실제 구현 시 런타임 OpenAPI와 docs/api-specification.md를 같은 PR에서 동기화한다.
 - 구현 중 정책 변경이 필요하면 코드를 먼저 바꾸지 않고 이 문서의 결정 기록을 갱신한 뒤 승인을 받는다.
 
@@ -196,7 +196,10 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 - 초대자가 파티 참가자가 아니게 되거나 기존 친구 관계가 종료·차단된 경우에도 해당 PENDING 초대를 EXPIRED로 확정한다.
 - 정원이 다시 생기거나 파티가 다시 열려도 EXPIRED 초대는 복원하지 않으며 새 초대를 발송해야 한다.
 - 수신자가 다른 활성 파티에 참여 중인 상태는 대상 파티가 여전히 OPEN이고 자리가 있으며 친구 관계가 유효한 동안에만 PENDING을 유지할 수 있는 일시적 수락 실패다.
-- 파티 상태·정원·참여자·친구 관계 변경 시 선제적으로 만료시키고, 받은 초대 목록·badge count·수락 처리에서도 누락된 만료를 재검증한다.
+- 파티 상태·정원·참여자·친구 관계 변경 시 선제적으로 만료시키고, 받은 초대 목록·수락 처리에서도 누락된 만료를 재검증한다. badge count는 이 선제 전이가 저장한 PENDING 상태를 DB에서 바로 집계해 초대 수에 비례한 보정 transaction을 만들지 않는다.
+- 관리자 `CLOSE`, `CANCEL`, `END`도 PENDING 초대를 EXPIRED + TARGET_UNAVAILABLE로 정리한다. 이후 `REOPEN`해도 만료된 초대는 복원하지 않는다.
+- 관리자가 일반 참가자를 제거하면 그 참가자가 해당 파티에 보낸 PENDING 초대는 EXPIRED + INVITER_LEFT로 정리한다.
+- 같은 파티에 대한 참가 요청과 친구 초대가 동시에 PENDING이면 먼저 수락된 경로만 참가를 확정한다. 초대 수락 시 참가 요청은 CANCELED, 참가 요청 수락 시 초대는 EXPIRED + ALREADY_JOINED로 같은 트랜잭션에서 정리한다.
 - 다중 선택 발송은 batch 전체 원자성이 아니라 수신자별 원자성을 사용한다. 각 수신자는 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE 중 하나의 결과를 가진다.
 - 응답 item 순서는 요청의 friendPublicId 순서를 유지하고 SENT item만 새 초대를 생성한다. 차단·친구 관계 상실·다른 활성 파티처럼 민감하거나 변동 가능한 사유는 NOT_ELIGIBLE로 통합한다.
 - 파티 없음·비OPEN, 초대자 비참여, 잘못된 batch 형식 같은 요청 전체 조건이 실패할 때만 초대를 하나도 만들지 않고 4xx로 응답한다.
@@ -212,7 +215,10 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 - 공개방 초대는 생성 후 7일이 지나면 만료된다.
 - 방 삭제, 비공개 전환, 정원 마감, 기존 참여, 친구 해제, 차단, 초대자 탈퇴 시 PENDING 초대를 EXPIRED로 확정한다.
 - 정원이 다시 생기거나 최대 인원이 늘어나도 EXPIRED 초대는 복원하지 않으며 새 초대를 발송해야 한다.
-- 방 상태·정원·참여자·친구 관계 변경 시 선제적으로 만료시키고, 받은 초대 목록·badge count·수락 처리에서도 누락된 만료를 재검증한다.
+- 방 상태·정원·참여자·친구 관계 변경 시 선제적으로 만료시키고, 받은 초대 목록·수락 처리에서도 누락된 만료를 재검증한다. badge count는 `expires_at > now`인 PENDING만 DB에서 집계하고 시간 만료 저장은 한 호출당 최대 100건으로 제한한다.
+- 회원 탈퇴로 모든 방에서 제거될 때 해당 회원이 발송·수신한 PENDING 초대는 EXPIRED + MEMBER_WITHDRAWN으로 정리한다.
+- 학과 변경으로 기존 학과방에서 제거될 때 그 방에서 보낸 PENDING 초대는 EXPIRED + INVITER_LEFT, 해당 회원이 받은 모든 학과방 PENDING 초대는 EXPIRED + ELIGIBILITY_CHANGED로 정리한다.
+- 관리자 공개방 삭제는 방 행을 먼저 잠그고 그 방의 PENDING 초대를 EXPIRED + TARGET_UNAVAILABLE로 정리한 뒤 메시지·멤버십·방을 삭제한다.
 - 다중 선택 발송은 택시파티와 같은 수신자별 SENT, ALREADY_PENDING, ALREADY_MEMBER, NOT_ELIGIBLE 결과를 요청 순서대로 반환한다.
 - 공개 non-PARTY 방 여부, 초대자 참여와 방 전체 자격이 실패하면 전체 4xx이며, 수신자별 관계·차단·입장 자격 경쟁은 NOT_ELIGIBLE로 처리해 다른 SENT 결과를 되돌리지 않는다.
 
@@ -329,7 +335,7 @@ Friend 도메인은 다른 도메인의 내부 엔티티를 직접 수정하지 
 
 ## 6. 데이터 모델
 
-`friend_profiles`, `friend_code_registry`, `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`와 시간표 공유의 `timetable_sharing_settings`, `timetable_share_overrides`는 런타임 테이블이다. 택시파티 초대·공개방 초대·알림 설정 관련 표는 이후 구현 단위의 논리 모델이며 실제 컬럼명과 마이그레이션은 해당 구현 PR에서 ERD와 함께 확정한다.
+`friend_profiles`, `friend_code_registry`, `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`, 시간표 공유의 `timetable_sharing_settings`, `timetable_share_overrides`, 초대의 `party_invitations`, `chat_room_invitations`는 런타임 테이블이다. 알림 설정 관련 표는 이후 구현 단위의 논리 모델이며 실제 컬럼명과 마이그레이션은 해당 구현 PR에서 ERD와 함께 확정한다.
 
 ACTIVE 닉네임 중복은 서비스 조회만으로 판단하지 않고 동시 저장도 막는 DB unique claim을 사용한다. `members.nickname_key`는 새로 가입하거나 닉네임을 변경해 정책을 통과한 ACTIVE 회원의 정규화 키이며 nullable unique다. 운영 MySQL `utf8mb4_unicode_ci` 비교로 대소문자·악센트 차이는 같은 claim으로 취급한다. 기존 중복 닉네임은 임의 변경하지 않고 grandfathering을 위해 claim을 강제로 채우지 않는다. 기존 닉네임과 동일한 값을 유지한 프로필 수정은 허용하고, 새 값으로 변경할 때는 claim이 없는 기존 ACTIVE 닉네임까지 조회해 중복을 거부한다. 탈퇴 시 claim을 해제해 닉네임 재사용을 허용한다. 실제 컬럼·인덱스는 Core 출시 준비 PR에서 `docs/erd.md`와 동기화한다.
 
@@ -454,6 +460,8 @@ member_low_id + member_high_id는 unique다.
 | status | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
 | expiry_reason | EXPIRED terminal 사유, 그 외 상태는 null |
 | responded_at | 처리 시각 |
+| active_target_key | `{partyId}:{inviteeId}`. PENDING일 때만 non-null unique |
+| created_at, updated_at | 생성·수정 시각 |
 
 ### 6.9 chat_room_invitations
 
@@ -467,6 +475,8 @@ member_low_id + member_high_id는 unique다.
 | expires_at | created_at + 7일 |
 | expiry_reason | EXPIRED terminal 사유, 그 외 상태는 null |
 | responded_at | 처리 시각 |
+| active_target_key | `{chatRoomId}:{inviteeId}`. PENDING일 때만 non-null unique |
+| created_at, updated_at | 생성·수정 시각 |
 
 동일 파티·방과 같은 수신자에 대한 PENDING 초대는 중복 생성하지 않는다.
 
@@ -475,9 +485,12 @@ member_low_id + member_high_id는 unique다.
 - INVITATION_TIMEOUT, TARGET_UNAVAILABLE, CAPACITY_FULL, INVITER_LEFT, ALREADY_JOINED, RELATIONSHIP_UNAVAILABLE, ELIGIBILITY_CHANGED, MEMBER_WITHDRAWN을 외부 안전 enum으로 사용한다.
 - expires_at 경과는 INVITATION_TIMEOUT, 파티 비OPEN·방 삭제·비공개 전환 등 대상 aggregate 사용 불가는 TARGET_UNAVAILABLE, 정원 마감은 CAPACITY_FULL, 초대자의 파티·방 이탈은 INVITER_LEFT, 수신자의 기존 참여는 ALREADY_JOINED로 기록한다.
 - 차단 여부와 구체적인 관계 상실 원인은 RELATIONSHIP_UNAVAILABLE로 통합한다.
-- 관계 외 학과방 자격 같은 입장 조건 변경은 ELIGIBILITY_CHANGED, 초대자·수신자 탈퇴는 MEMBER_WITHDRAWN으로 기록한다. 택시 수신자의 다른 활성 파티 참여는 앞선 terminal 조건이 없는 동안 재시도 가능한 상태이므로 expiry_reason을 기록하지 않고 PENDING을 유지한다.
+- 관계 외 학과방 자격 같은 입장 조건 변경은 ELIGIBILITY_CHANGED, 초대자·수신자 탈퇴는 MEMBER_WITHDRAWN으로 기록한다. 학과 변경 시 수신자가 받은 기존 학과방 초대도 ELIGIBILITY_CHANGED로 즉시 만료한다. 택시 수신자의 다른 활성 파티 참여는 앞선 terminal 조건이 없는 동안 재시도 가능한 상태이므로 expiry_reason을 기록하지 않고 PENDING을 유지한다.
 - PENDING에서 EXPIRED로 전이하는 트랜잭션이 expiry_reason과 responded_at을 함께 한 번만 기록하며 이후 상태 회복이나 lazy reconciliation이 값을 덮어쓰지 않는다.
+- 공개방 초대는 expires_at 경과를 취소보다 먼저 판정하므로 기한 뒤 취소 요청도 CANCELED가 아니라 EXPIRED + INVITATION_TIMEOUT으로 확정한다. eligible 조회는 기한이 지난 PENDING을 제외하고, 같은 대상 재발송은 기존 행을 먼저 timeout 만료한 뒤 새 초대를 만든다.
+- 공개방에 직접 참여하면서 마지막 좌석을 채우면 참여한 회원의 초대를 먼저 EXPIRED + ALREADY_JOINED로 정리하고, 남은 다른 PENDING 초대만 EXPIRED + CAPACITY_FULL로 정리한다.
 - 받은 초대 응답은 status가 EXPIRED일 때만 expiryReason을 제공하고 현재 파티·방 상태로 과거 사유를 재계산하지 않는다.
+- 받은 초대 이력의 inviter가 현재 사용자와 양방향 차단 관계이면 프로필 요약을 nullable로 마스킹한다.
 
 ### 6.10 기존 회원 알림 설정 확장
 
@@ -531,7 +544,11 @@ PENDING ── 수락 성공 ──> ACCEPTED + 파티 참여
    └────── 친구 해제·차단 ──> EXPIRED
 ~~~
 
-정원 확인과 파티 참여는 같은 트랜잭션과 잠금 경계에서 처리한다. 정원이 가득 차는 순간 남아 있는 PENDING 초대를 EXPIRED로 전환하며, 초대 목록·badge count·수락 진입 시에도 lazy reconciliation으로 같은 terminal 조건을 적용한다. EXPIRED는 파티 재개방이나 자리 발생으로 복원하지 않는다. 수신자의 다른 활성 파티 참여만 대상 초대의 다른 terminal 조건이 충족되지 않은 동안 PENDING을 유지할 수 있는 재시도 가능 사유다.
+정원 확인과 파티 참여는 같은 트랜잭션과 잠금 경계에서 처리한다. 정원이 가득 차는 순간 남아 있는 PENDING 초대를 EXPIRED로 전환하며, 초대 목록·수락 진입에서는 누락된 terminal 조건을 lazy reconciliation한다. badge count는 선제 전이 결과를 DB에서 직접 집계한다. EXPIRED는 파티 재개방이나 자리 발생으로 복원하지 않는다. 수신자의 다른 활성 파티 참여만 대상 초대의 다른 terminal 조건이 충족되지 않은 동안 PENDING을 유지할 수 있는 재시도 가능 사유다.
+
+관리자 `CLOSE`, `CANCEL`, `END`도 같은 만료 규칙을 적용하고 `REOPEN`은 기존 EXPIRED 초대를 복원하지 않는다. 관리자 멤버 제거는 제거된 참가자가 보낸 해당 파티의 PENDING 초대를 INVITER_LEFT로 만료한다.
+
+같은 회원이 동일 파티에 PENDING 참가 요청과 PENDING 친구 초대를 함께 가진 경우, 초대 수락은 참가 요청을 CANCELED로 만들고 참가 요청 수락은 초대를 EXPIRED + ALREADY_JOINED로 만든다. 두 흐름 중 실제 참가를 먼저 확정한 경로가 승리하며 경쟁 경로는 다시 처리할 수 없는 terminal 상태로 정리한다.
 
 ### 7.4 공개방 초대
 
@@ -543,7 +560,9 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
    └────── 정원 마감·기존 참여 ──> EXPIRED
 ~~~
 
-정원 제한이 있는 공개방이 가득 차는 순간 남아 있는 PENDING 초대를 EXPIRED로 전환한다. 초대 목록·badge count·수락 진입 시에도 lazy reconciliation으로 같은 terminal 조건을 적용하며, 자리 발생이나 최대 인원 증가로 EXPIRED를 복원하지 않는다.
+정원 제한이 있는 공개방이 가득 차는 순간 남아 있는 PENDING 초대를 EXPIRED로 전환한다. 초대 목록·수락 진입에서는 누락된 terminal 조건을 lazy reconciliation하고, badge count는 기한이 남은 PENDING만 DB에서 직접 집계한다. 자리 발생이나 최대 인원 증가로 EXPIRED를 복원하지 않는다.
+
+학과 변경은 기존 학과방에서 발송한 초대뿐 아니라 변경 회원이 받은 모든 학과방 PENDING 초대도 ELIGIBILITY_CHANGED로 만료한다. 관리자 공개방 삭제는 방 잠금 뒤 PENDING 초대를 TARGET_UNAVAILABLE로 먼저 만료하고 방을 제거한다.
 
 ---
 
@@ -569,7 +588,7 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 
 ## 9. API 계약
 
-`POST /v1/friend-codes/preview`, `GET/POST /v1/friends/me/code*`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.3의 관계 Core API, 9.4 시간표 공유와 9.5 Minecraft projection은 런타임 OpenAPI와 Contract·Service 테스트로 고정했다. 9.6 이후의 초대·알림 경로는 구현 설계를 위한 예정 계약이며 현재 운영 API가 아니다.
+`POST /v1/friend-codes/preview`, `GET/POST /v1/friends/me/code*`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.7의 관계 Core·시간표 공유·Minecraft projection·친구 초대 API는 런타임 OpenAPI와 Contract·Service 테스트로 고정했다. 9.8의 알림 확장은 구현 설계를 위한 예정 계약이며 현재 운영 API가 아니다.
 
 ### 9.1 친구 핵심
 
@@ -602,7 +621,7 @@ PENDING ── 수락 성공 ──> ACCEPTED + 공개방 참여
 - `DELETE /v1/friends/{friendPublicId}`, `PATCH /v1/friends/{friendPublicId}/favorite`, 요청 거절·취소, 차단·차단 해제는 성공 시 `204 No Content`다.
 - Core 출시 준비 이후 닉네임 검색과 친구 코드 preview는 다섯 공개 프로필 필드와 `relationshipState`를 반환한다. 기존 `canSendFriendRequest` Boolean은 제거하며, 차단 대상은 검색에서 제외하고 preview는 일반 대상 없음으로 마스킹한다.
 - 차단 목록 항목은 `friendPublicId`, `nickname`, `department`, `photoUrl`, `blockedAt`을 반환한다.
-- 관계 Core 시점의 `inbox-counts`는 `incomingRequestCount`만 실제 요청 수를 계산한다. 택시·공개방 초대 도메인이 아직 없으므로 `partyInvitationCount`, `chatRoomInvitationCount`는 0이고 total은 세 값의 합이다.
+- `inbox-counts`는 유효 PENDING 친구 요청·택시파티 초대·공개방 초대를 각각 계산하고 total은 세 값의 합이다. 친구 요청은 기존 bounded lazy expiry를 사용한다. 파티 초대 count는 선제 terminal 전이가 저장한 PENDING을 직접 세며, 공개방 초대 count는 `expires_at > now` 조건으로 기한이 남은 PENDING만 세고 시간 만료 저장을 최대 100건으로 제한한다. 받은 초대 목록과 mutation은 누락된 terminal 조건의 lazy reconciliation 안전망을 유지한다.
 
 검색 query와 응답:
 
@@ -751,7 +770,8 @@ batch 요청과 응답:
 - 시간 기준 만료 batch처럼 Member pair가 필요 없는 경로는 FriendRequest 행만 잠그고 그 뒤 Member pair 잠금을 추가로 획득하지 않아 잠금 순서를 역전하지 않는다.
 - 잠금 획득 후 차단, 유효 PENDING 요청과 friendship을 다시 조회하고 조건을 재검증한다. 즐겨찾기와 시간표 override는 ACTIVE friendship이 없으면 쓰지 않는다. unique constraint는 마지막 중복 방어선이며 공통 잠금을 대체하지 않는다.
 - 택시파티·공개방 초대의 accept·decline·cancel·expire도 Invitation 행을 PESSIMISTIC_WRITE로 잠그고 PENDING을 재확인한 트랜잭션만 terminal 상태와 참여 부수효과를 확정한다.
-- 초대 생성·수락과 파티·방 상태가 필요한 선제 만료의 잠금 순서는 Party 또는 ChatRoom aggregate, 필요한 ordered Member pair, Invitation 행 순서로 고정한다. decline·cancel·시간 만료처럼 Invitation만 잠그는 경로는 이후 aggregate나 Member pair 잠금을 추가로 얻지 않는다.
+- 초대 수락과 lazy reconciliation의 잠금 전 권한·대상 확인은 Invitation과 Party·ChatRoom aggregate entity를 영속화하지 않는 scalar/projection snapshot으로 수행한다. 최종 상태 전이는 고정 순서로 aggregate와 Invitation 행을 잠근 뒤 다시 읽은 상태만 사용하므로, 동시 decline·cancel·timeout·정원 마감이 먼저 확정된 초대를 수락으로 되돌리거나 정원을 초과하지 않는다.
+- 초대 생성·수락과 파티·방 상태가 필요한 선제 만료의 잠금 순서는 ordered Member pair, Party 또는 ChatRoom aggregate, Invitation 행 순서로 고정한다. 참가 요청 수락도 requester Member를 먼저 잠그고 Party를 잠근다. 관리자 파티 상태 변경·멤버 제거와 공개방 삭제도 aggregate를 먼저 잠근 뒤 관련 Invitation을 정리한다. 회원 탈퇴는 발송·수신 PENDING 초대 대상 ID와 실제 참여 대상 ID를 합쳐 정렬한 뒤 대상 aggregate를 먼저 잠그고 그 대상의 Invitation만 만료한다. decline·cancel·시간 만료처럼 Invitation만 잠그는 경로는 이후 aggregate나 Member pair 잠금을 추가로 얻지 않는다.
 - 친구 관계를 전제로 하는 택시파티·공개방 초대 생성과 수락은 위 고정 순서 안에서 친구·차단 상태를 재검증한다.
 - 친구 코드 발급·재발급과 lazy provisioning은 해당 Member row를 PESSIMISTIC_WRITE로 잠근 뒤 ACTIVE를 재확인한다. 탈퇴가 먼저 확정됐다면 FriendProfile이나 ACTIVE 코드 registry row를 생성하지 않는다.
 - 양방향 동시 요청은 friendship 한 건만 만든다.
@@ -810,16 +830,16 @@ batch 요청과 응답:
 11. Backend #84 시간표 공유 API
 12. Frontend #26 시간표 공유 UX
 
-남은 승인 구현은 다음 2단계다. 시간표 공유는 Backend #84·Frontend #26에서 구현·테스트·문서 정합성 점검과 리뷰 보완을 마쳐 전달을 완료했고, 실기기 QA만 남아 있다.
+시간표 공유는 Backend #84·Frontend #26에서 구현·테스트·문서 정합성 점검과 리뷰 보완을 마쳐 전달을 완료했다. 친구 초대는 Backend #85·Frontend #27에서 리뷰 중이며, 그 뒤 남는 승인 구현은 알림·PENDING 초대 외 탈퇴 정리 한 단계다.
 
-1. 친구 초대
+1. 친구 초대 (Backend #85·Frontend #27 리뷰 중)
    - TaxiParty와 공개 Chat 수신자별 부분 성공 초대
    - FriendHub 초대 탭과 공통 친구 선택 UX
-2. 알림·탈퇴 정리
+2. 알림·나머지 탈퇴 정리 (후속)
    - 친구 요청·수락·거절과 초대 인박스·FCM·SSE·화면 이동
-   - 모든 Friend·공유·초대 파생 데이터의 회원 탈퇴 cleanup
+   - PENDING 초대 외 모든 Friend·공유 파생 데이터의 회원 탈퇴 cleanup
 
-각 단계는 저장소당 최대 1개 PR로 진행한다. 시간표 공유 Backend #84·Frontend #26 이후 Backend와 Frontend에 각각 2개의 후속 PR을 만들며 Admin 친구 관계망 UI는 V1 제외 범위라 PR을 만들지 않는다. 단계 내부에서 서로 다른 도메인·테스트·문서는 작은 Conventional Commit으로 구분하고, 변경량 때문에 PR 분리가 필요하면 먼저 사용자 승인을 받는다.
+각 단계는 저장소당 최대 1개 PR로 진행한다. 친구 초대는 Backend·Frontend 각각 1개 PR, 이후 알림·나머지 탈퇴 정리도 Backend·Frontend 각각 1개 PR로 전달하며 Admin 친구 관계망 UI는 V1 제외 범위라 PR을 만들지 않는다. 단계 내부에서 서로 다른 도메인·테스트·문서는 작은 Conventional Commit으로 구분하고, 변경량 때문에 PR 분리가 필요하면 먼저 사용자 승인을 받는다.
 
 Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 친구 FE가 아직 배포되지 않았으므로 구버전 호환 field를 유지하지 않는다. 이후 단계는 가능한 한 additive API로 Backend를 먼저 배포하고, 모바일 노출은 필요한 API 배포 확인 후 진행한다.
 
@@ -884,13 +904,9 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 
 ---
 
-## 15. 구현 중지선
+## 15. 구현 승인 상태
 
-이 문서 PR은 설계 기준만 고정한다.
-
-- Entity, migration, Controller, Service, DTO, 테스트 코드를 만들지 않는다.
-- 모바일 화면, navigation, API client, 네이티브 QR 의존성을 만들거나 수정하지 않는다.
-- 실제 코드 구현은 사용자의 별도 명시적 승인 후 시작한다.
+초기 기준 문서의 코드 구현 중지선은 사용자의 단계별 승인으로 해제되었다. 현재 승인 범위는 택시파티·공개 채팅방 친구 초대의 Backend·Frontend 런타임, 테스트, OpenAPI, ERD와 관련 문서 동기화까지다. 알림은 다음 단계 승인 범위로 유지한다. 회원 탈퇴 cleanup 중 발송·수신 PENDING 초대 정리는 초대 런타임의 필수 정합성 경계로 현재 범위에 포함하며, 나머지 Phase 14 cleanup은 후속 범위다.
 
 ---
 
@@ -931,7 +947,7 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 - [x] 예정 API가 현재 운영 API와 구분되어 있다.
 - [x] Foundation과 관계 Core의 실제 코드 구현 범위가 현재 런타임 상태로 전환되어 있다.
 
-docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 런타임 도메인으로 표시하고 Foundation·관계 Core와 후속 Phase 14 협력 책임을 구분한다. Foundation·관계 Core와 시간표 공유의 런타임 엔티티·API는 docs/api-specification.md·docs/erd.md에 동기화했으며, 아직 구현하지 않은 친구 기능은 각 런타임 PR에서 실제 구현과 함께 현재형으로 전환한다.
+docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 런타임 도메인으로 표시하고 Foundation·관계 Core와 Phase 14 협력 책임을 구분한다. Foundation·관계 Core, 시간표 공유와 TaxiParty·공개방 초대의 런타임 엔티티·API는 docs/api-specification.md·docs/erd.md에 동기화했으며, Notification과 PENDING 초대 정리를 제외한 회원 탈퇴 cleanup은 해당 런타임 PR에서 실제 구현과 함께 현재형으로 전환한다.
 
 ---
 
@@ -966,7 +982,7 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-18 | nicknameSearchable은 GET·PATCH로 서버 값을 제공하고 요청 목록은 PENDING 전용 20건 cursor 방식 |
 | 2026-08-18 | 친구 코드 재발급은 24시간에 한 번으로 제한하고, 제한 중에는 `429`와 `Retry-After`로 다음 재시도 가능 시점을 전달 |
 | 2026-08-21 | Backend #78·#79·#80과 Frontend #22·#23을 완료 이력으로 고정하고 후속 구현과 구분 |
-| 2026-08-21 | 승인 V1은 Core 출시 준비, 친구 화면 완성, 시간표 공유, 친구 초대, 알림·탈퇴 정리의 5단계·저장소별 단계당 1개 PR로 진행 |
+| 2026-08-21 | 승인 V1은 Core 출시 준비, 친구 화면 완성, 시간표 공유, 친구 초대, 알림·나머지 탈퇴 정리의 5단계·저장소별 단계당 1개 PR로 진행 |
 | 2026-08-21 | FriendProfile·최초 코드는 프로필 완료 ACTIVE 회원에게만 발급하고 backfill·lazy ensure도 같은 eligibility를 사용 |
 | 2026-08-21 | 친구 FE 첫 배포 전에는 실제 사용 이력이 없는 테스트 데이터라는 전제에서 미완료 회원 FriendProfile·소유 ACTIVE 코드와 당시 모든 RETIRED 코드를 일회성 cleanup으로 삭제하고, 이후 RETIRED 코드는 영구 미재사용 유지 |
 | 2026-08-21 | nicknameSearchable 기본값을 true로 변경하고 닉네임 검색은 1글자부터 허용 |
