@@ -5,7 +5,7 @@ import com.skuri.skuri_backend.domain.academic.service.TimetableService;
 import com.skuri.skuri_backend.domain.app.service.AppNoticeService;
 import com.skuri.skuri_backend.domain.board.service.BoardService;
 import com.skuri.skuri_backend.domain.chat.service.ChatService;
-import com.skuri.skuri_backend.domain.friend.service.FriendProfileProvisioningService;
+import com.skuri.skuri_backend.domain.friend.service.FriendWithdrawalCleanupService;
 import com.skuri.skuri_backend.domain.member.dto.response.MemberWithdrawResponse;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.event.MemberLifecycleEvent;
@@ -70,7 +70,7 @@ class MemberLifecycleServiceTest {
     private TimetableService timetableService;
 
     @Mock
-    private FriendProfileProvisioningService friendProfileProvisioningService;
+    private FriendWithdrawalCleanupService friendWithdrawalCleanupService;
 
     @Mock
     private AfterCommitApplicationEventPublisher eventPublisher;
@@ -89,7 +89,7 @@ class MemberLifecycleServiceTest {
         assertTrue(member.isWithdrawn());
         assertTrue(member.getEmail().contains("@deleted.skuri.local"));
         verify(taxiPartyService).validateWithdrawalAllowed("member-1");
-        verify(friendProfileProvisioningService).retireForWithdrawnMember(
+        verify(friendWithdrawalCleanupService).cleanupWithdrawnMember(
                 org.mockito.ArgumentMatchers.eq("member-1"),
                 org.mockito.ArgumentMatchers.any(LocalDateTime.class)
         );
