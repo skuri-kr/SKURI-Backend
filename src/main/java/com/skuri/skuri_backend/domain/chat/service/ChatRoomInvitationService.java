@@ -67,7 +67,7 @@ public class ChatRoomInvitationService {
         List<InvitationCandidate> candidates = friendRelationshipQueryService.getInvitationCandidates(inviterMemberId);
         Set<String> candidateMemberIds = candidates.stream().map(InvitationCandidate::memberId).collect(Collectors.toSet());
         if (candidateMemberIds.isEmpty()) {
-            return eligibleResponse(room, List.of(), 0, 0, 0);
+            return eligibleResponse(room, List.of(), List.of(), List.of(), 0);
         }
         Set<String> memberIds = Set.copyOf(chatRoomMemberRepository
                 .findMemberIdsByChatRoomIdAndCandidateMemberIds(chatRoomId, candidateMemberIds));
@@ -79,22 +79,22 @@ public class ChatRoomInvitationService {
                 )
         );
 
-        int alreadyMemberCount = 0;
-        int alreadyPendingCount = 0;
         int notEligibleCount = 0;
         List<FriendInvitationCandidateResponse> eligible = new java.util.ArrayList<>();
+        List<FriendInvitationCandidateResponse> alreadyMembers = new java.util.ArrayList<>();
+        List<FriendInvitationCandidateResponse> alreadyPending = new java.util.ArrayList<>();
         for (InvitationCandidate candidate : candidates) {
-            if (memberIds.contains(candidate.memberId())) {
-                alreadyMemberCount++;
-            } else if (pendingInviteeIds.contains(candidate.memberId())) {
-                alreadyPendingCount++;
-            } else if (!isDepartmentEligible(room, candidate.response().department())) {
+            if (!isDepartmentEligible(room, candidate.response().department())) {
                 notEligibleCount++;
+            } else if (memberIds.contains(candidate.memberId())) {
+                alreadyMembers.add(candidate.response());
+            } else if (pendingInviteeIds.contains(candidate.memberId())) {
+                alreadyPending.add(candidate.response());
             } else {
                 eligible.add(candidate.response());
             }
         }
-        return eligibleResponse(room, eligible, alreadyMemberCount, alreadyPendingCount, notEligibleCount);
+        return eligibleResponse(room, eligible, alreadyMembers, alreadyPending, notEligibleCount);
     }
 
     public ChatRoomInvitationBatchResponse send(
@@ -214,8 +214,8 @@ public class ChatRoomInvitationService {
     private ChatRoomInvitationEligibleFriendsResponse eligibleResponse(
             ChatRoom room,
             List<FriendInvitationCandidateResponse> eligible,
-            int alreadyMemberCount,
-            int alreadyPendingCount,
+            List<FriendInvitationCandidateResponse> alreadyMembers,
+            List<FriendInvitationCandidateResponse> alreadyPending,
             int notEligibleCount
     ) {
         Integer remainingCapacity = room.getMaxMembers() == null
@@ -226,9 +226,12 @@ public class ChatRoomInvitationService {
                 room.getName(),
                 remainingCapacity,
                 7,
+                room.getType() == ChatRoomType.DEPARTMENT,
                 eligible,
-                alreadyMemberCount,
-                alreadyPendingCount,
+                alreadyMembers,
+                alreadyPending,
+                alreadyMembers.size(),
+                alreadyPending.size(),
                 notEligibleCount
         );
     }

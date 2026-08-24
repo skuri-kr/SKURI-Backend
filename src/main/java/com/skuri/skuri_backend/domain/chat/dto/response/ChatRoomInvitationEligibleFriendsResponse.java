@@ -15,8 +15,14 @@ public record ChatRoomInvitationEligibleFriendsResponse(
         Integer remainingCapacity,
         @Schema(description = "초대 만료까지의 일수", example = "7")
         int expiresInDays,
+        @Schema(description = "같은 학과 친구만 초대할 수 있는 학과 채팅방 여부", example = "false")
+        boolean sameDepartmentOnly,
         @Schema(description = "초대 가능 친구 목록")
         List<FriendInvitationCandidateResponse> friends,
+        @Schema(description = "이미 채팅방에 참가한 친구 목록")
+        List<FriendInvitationCandidateResponse> alreadyMemberFriends,
+        @Schema(description = "이미 대기 중인 초대가 있는 친구 목록")
+        List<FriendInvitationCandidateResponse> alreadyPendingFriends,
         @Schema(description = "이미 채팅방에 참가한 친구 수", example = "1")
         int alreadyMemberCount,
         @Schema(description = "이미 대기 중인 초대가 있는 친구 수", example = "0")
