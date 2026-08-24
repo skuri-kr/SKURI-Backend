@@ -7412,7 +7412,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 ## 14. Friend API
 
-> Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), 친구 Minecraft projection, 시간표 공유와 TaxiParty·공개방 초대는 현재 운영 API다. 알림 확장·회원 탈퇴 cleanup은 아직 구현되지 않았다.
+> Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), 친구 Minecraft projection, 시간표 공유와 TaxiParty·공개방 초대는 현재 운영 API다. 알림 확장과 PENDING 초대 정리를 제외한 회원 탈퇴 cleanup은 아직 구현되지 않았다.
 
 모든 Friend 런타임 API(Foundation·관계 Core)는 인증된 프로필 완료 ACTIVE 회원만 호출할 수 있다. 완료 기준은 비어 있지 않은 닉네임, 학번, 학과이며 프로필 사진은 선택이다. 프로필 미완료 회원은 현재 예약어 닉네임을 변경하지 않은 채 학번·학과만 채워 완료 상태로 전환할 수 없다. 이미 완료된 기존 예약어 닉네임 회원은 다른 완료 조건을 만족하면 Friend 기능을 사용할 수 있다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`, 프로필 미완료 회원은 `409 MEMBER_PROFILE_INCOMPLETE`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
 
@@ -7733,7 +7733,7 @@ outcome은 `SENT | ALREADY_PENDING | ALREADY_MEMBER | NOT_ELIGIBLE`다. 결과�
 | POST | `/v1/chat-room-invitations/{invitationId}/decline` | 수신자가 PENDING 초대 거절 |
 | DELETE | `/v1/chat-room-invitations/{invitationId}` | 발송자가 PENDING 초대 취소 |
 
-batch 형식과 outcome 계약은 택시파티 초대와 같다. `UNIVERSITY`, `DEPARTMENT`, `GAME`, 공개 `CUSTOM`만 허용하고 `PARTY`·비공개·1:1 방은 지원하지 않는다. 초대는 생성 후 7일에 만료되며 10분 주기 최대 100건 batch와 목록·mutation의 lazy reconciliation을 사용한다. count는 `expiresAt > now`인 PENDING만 DB에서 직접 집계하고 한 호출에서 최대 100건의 시간 만료만 terminal 저장한다. eligible 조회는 expiresAt이 지난 PENDING을 제외하고, 같은 대상 재발송은 기존 행을 EXPIRED + INVITATION_TIMEOUT으로 먼저 확정한 뒤 새 초대를 생성한다. 기한 뒤 취소도 CANCELED가 아니라 EXPIRED + INVITATION_TIMEOUT으로 확정한다. 방 삭제·정원 마감·초대자 이탈·기존 참여·친구 해제·차단·학과 자격 변경은 안전한 expiryReason으로 EXPIRED 처리한다. 직접 참여가 마지막 좌석을 채우면 참여자의 초대는 먼저 ALREADY_JOINED, 나머지 PENDING은 CAPACITY_FULL로 만료한다. 회원 탈퇴의 전체 방 제거에서는 발송 초대 대상 방을 먼저 잠근 뒤 해당 초대를 MEMBER_WITHDRAWN으로 만료한다. 학과 변경의 기존 학과방 제거에서는 해당 방의 발송 초대를 INVITER_LEFT, 변경 회원이 받은 학과방 PENDING 초대를 ELIGIBILITY_CHANGED로 즉시 만료한다. 관리자 공개방 삭제는 방 잠금 뒤 해당 방의 PENDING 초대를 TARGET_UNAVAILABLE로 정리한다.
+batch 형식과 outcome 계약은 택시파티 초대와 같다. `UNIVERSITY`, `DEPARTMENT`, `GAME`, 공개 `CUSTOM`만 허용하고 `PARTY`·비공개·1:1 방은 지원하지 않는다. 초대는 생성 후 7일에 만료되며 10분 주기 최대 100건 batch와 목록·mutation의 lazy reconciliation을 사용한다. count는 `expiresAt > now`인 PENDING만 DB에서 직접 집계하고 한 호출에서 최대 100건의 시간 만료만 terminal 저장한다. eligible 조회는 expiresAt이 지난 PENDING을 제외하고, 같은 대상 재발송은 기존 행을 EXPIRED + INVITATION_TIMEOUT으로 먼저 확정한 뒤 새 초대를 생성한다. 기한 뒤 취소도 CANCELED가 아니라 EXPIRED + INVITATION_TIMEOUT으로 확정한다. 방 삭제·정원 마감·초대자 이탈·기존 참여·친구 해제·차단·학과 자격 변경은 안전한 expiryReason으로 EXPIRED 처리한다. 직접 참여가 마지막 좌석을 채우면 참여자의 초대는 먼저 ALREADY_JOINED, 나머지 PENDING은 CAPACITY_FULL로 만료한다. 회원 탈퇴의 전체 방 제거에서는 발송·수신 PENDING 초대 대상 방을 먼저 잠근 뒤 해당 초대를 MEMBER_WITHDRAWN으로 만료한다. 학과 변경의 기존 학과방 제거에서는 해당 방의 발송 초대를 INVITER_LEFT, 변경 회원이 받은 학과방 PENDING 초대를 ELIGIBILITY_CHANGED로 즉시 만료한다. 관리자 공개방 삭제는 방 잠금 뒤 해당 방의 PENDING 초대를 TARGET_UNAVAILABLE로 정리한다.
 
 받은 초대 목록은 현재 조치 가능한 `PENDING`과 사유 안내가 필요한 `EXPIRED`만 반환한다. `ACCEPTED`, `DECLINED`, `CANCELED` 이력은 V1 목록에서 제외한다. inviter와 대상 aggregate가 삭제·탈퇴 등으로 안전하게 표시될 수 없거나 inviter가 현재 사용자와 양방향 차단 관계이면 해당 요약은 nullable이다. 학과방 초대 대상은 현재 학과가 다르고 그 방에 참여 중이지 않으면 방 ID·이름·인원 수를 노출하지 않고 `target: null`로 마스킹한다.
 
