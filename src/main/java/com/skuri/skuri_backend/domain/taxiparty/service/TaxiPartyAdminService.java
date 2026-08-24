@@ -154,7 +154,7 @@ public class TaxiPartyAdminService {
             }
         }
 
-        if (action != AdminPartyStatusAction.REOPEN) {
+        if (action == AdminPartyStatusAction.CANCEL || action == AdminPartyStatusAction.END) {
             partyInvitationLifecycleService.expirePendingForParty(
                     party.getId(),
                     PartyInvitationExpiryReason.TARGET_UNAVAILABLE

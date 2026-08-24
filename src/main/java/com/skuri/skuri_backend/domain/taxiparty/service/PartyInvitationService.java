@@ -92,7 +92,7 @@ public class PartyInvitationService {
             List<String> friendPublicIds
     ) {
         pairLockService.requireActiveProfileCompleteMember(inviterMemberId);
-        requireOpenPartyMember(partyId, inviterMemberId);
+        requireInvitablePartyMember(partyId, inviterMemberId);
         List<String> normalized = new java.util.ArrayList<>(new LinkedHashSet<>(friendPublicIds));
         List<PartyInvitationSendResultResponse> results = normalized.stream()
                 .map(friendPublicId -> sendItemService.send(inviterMemberId, partyId, friendPublicId))
@@ -168,15 +168,15 @@ public class PartyInvitationService {
         );
     }
 
-    public void cancel(String inviterMemberId, String invitationId) {
-        if (!transitionService.cancel(inviterMemberId, invitationId)) {
+    public void cancel(String actorMemberId, String invitationId) {
+        if (!transitionService.cancel(actorMemberId, invitationId)) {
             throw new BusinessException(ErrorCode.PARTY_INVITATION_STATE_NOT_ALLOWED);
         }
     }
 
-    private Party requireOpenPartyMember(String partyId, String inviterMemberId) {
+    private Party requireInvitablePartyMember(String partyId, String inviterMemberId) {
         Party party = partyRepository.findDetailById(partyId).orElseThrow(PartyNotFoundException::new);
-        if (party.getStatus() != PartyStatus.OPEN) {
+        if (party.getStatus() != PartyStatus.OPEN && party.getStatus() != PartyStatus.CLOSED) {
             throw new BusinessException(ErrorCode.PARTY_CLOSED);
         }
         if (!party.isMember(inviterMemberId)) {
@@ -190,8 +190,7 @@ public class PartyInvitationService {
         if (!party.isMember(inviterMemberId)) {
             throw new BusinessException(ErrorCode.NOT_PARTY_MEMBER);
         }
-        boolean full = party.getCurrentMembers() >= party.getMaxMembers();
-        if (party.getStatus() != PartyStatus.OPEN && !(party.getStatus() == PartyStatus.CLOSED && full)) {
+        if (party.getStatus() != PartyStatus.OPEN && party.getStatus() != PartyStatus.CLOSED) {
             throw new BusinessException(ErrorCode.PARTY_CLOSED);
         }
         return party;
@@ -205,7 +204,8 @@ public class PartyInvitationService {
             int notEligibleCount
     ) {
         int remainingCapacity = Math.max(0, party.getMaxMembers() - party.getCurrentMembers());
-        boolean canInvite = party.getStatus() == PartyStatus.OPEN && remainingCapacity > 0;
+        boolean canInvite = (party.getStatus() == PartyStatus.OPEN || party.getStatus() == PartyStatus.CLOSED)
+                && remainingCapacity > 0;
         return new PartyInvitationEligibleFriendsResponse(
                 party.getId(),
                 party.getDeparture().getName() + " → " + party.getDestination().getName(),

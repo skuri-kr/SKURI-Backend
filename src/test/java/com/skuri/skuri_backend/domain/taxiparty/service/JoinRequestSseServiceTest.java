@@ -12,6 +12,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -22,8 +24,10 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -90,7 +94,8 @@ class JoinRequestSseServiceTest {
         JoinRequestSseService service = new JoinRequestSseService(joinRequestSseSnapshotService);
         Party party = sampleParty("party-1", "leader-1");
         JoinRequest request = sampleJoinRequest("request-1", party, "requester-1");
-        when(joinRequestSseSnapshotService.toSseItem(request)).thenReturn(sampleResponse(request));
+        when(joinRequestSseSnapshotService.toSseItem("request-1"))
+                .thenReturn(sampleResponse(request, "김길동"));
 
         CountingEmitter partyMatchedEmitter = new CountingEmitter();
         CountingEmitter partyOtherEmitter = new CountingEmitter();
@@ -115,6 +120,8 @@ class JoinRequestSseServiceTest {
         assertEquals(1, myMatchedEmitter.sendCount());
         assertEquals(0, myFilteredOutEmitter.sendCount());
         assertEquals(0, myOtherMemberEmitter.sendCount());
+        assertEquals("김길동", partyMatchedEmitter.latestJoinRequest().invitationInviterName());
+        verify(joinRequestSseSnapshotService).toSseItem("request-1");
     }
 
     @Test
@@ -125,7 +132,8 @@ class JoinRequestSseServiceTest {
         JoinRequest request = sampleJoinRequest("request-1", party, "requester-1");
         request.accept();
 
-        when(joinRequestSseSnapshotService.toSseItem(request)).thenReturn(sampleResponse(request));
+        when(joinRequestSseSnapshotService.toSseItem("request-1"))
+                .thenReturn(sampleResponse(request, null));
 
         CountingEmitter partyEmitter = new CountingEmitter();
         CountingEmitter myPendingEmitter = new CountingEmitter();
@@ -145,6 +153,27 @@ class JoinRequestSseServiceTest {
         assertEquals(1, myPendingEmitter.sendCount());
         assertEquals(1, myAcceptedEmitter.sendCount());
         assertEquals(0, myDeclinedEmitter.sendCount());
+        assertNull(partyEmitter.latestJoinRequest().invitationInviterName());
+    }
+
+    @Test
+    void publishJoinRequestCreated_커밋후최신스냅샷을구성한다() {
+        JoinRequestSseService service = new JoinRequestSseService(joinRequestSseSnapshotService);
+        JoinRequest request = sampleJoinRequest("request-1", sampleParty("party-1", "leader-1"), "requester-1");
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            service.publishJoinRequestCreated(request);
+
+            verify(joinRequestSseSnapshotService, never()).toSseItem("request-1");
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+            verify(joinRequestSseSnapshotService).toSseItem("request-1");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
     }
 
     @Test
@@ -224,13 +253,14 @@ class JoinRequestSseServiceTest {
         return request;
     }
 
-    private JoinRequestListItemResponse sampleResponse(JoinRequest request) {
+    private JoinRequestListItemResponse sampleResponse(JoinRequest request, String invitationInviterName) {
         return new JoinRequestListItemResponse(
                 request.getId(),
                 request.getParty().getId(),
                 request.getRequesterId(),
                 "요청자",
                 "https://example.com/profile.jpg",
+                invitationInviterName,
                 request.getStatus(),
                 request.getExpiryReason(),
                 request.getCreatedAt()
@@ -239,14 +269,25 @@ class JoinRequestSseServiceTest {
 
     private static final class CountingEmitter extends SseEmitter {
         private int sendCount;
+        private JoinRequestListItemResponse latestJoinRequest;
 
         @Override
         public synchronized void send(SseEventBuilder builder) {
             sendCount++;
+            builder.build().stream()
+                    .map(data -> data.getData())
+                    .filter(JoinRequestListItemResponse.class::isInstance)
+                    .map(JoinRequestListItemResponse.class::cast)
+                    .findFirst()
+                    .ifPresent(payload -> latestJoinRequest = payload);
         }
 
         private int sendCount() {
             return sendCount;
+        }
+
+        private JoinRequestListItemResponse latestJoinRequest() {
+            return latestJoinRequest;
         }
     }
 }

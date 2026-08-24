@@ -111,22 +111,33 @@ public class ChatRoomInvitationTransitionService {
     }
 
     @Transactional
-    public boolean cancel(String inviterMemberId, String invitationId) {
+    public boolean cancel(String actorMemberId, String invitationId) {
         ChatRoomInvitation invitation = invitationRepository.findByIdForUpdate(invitationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_INVITATION_NOT_FOUND));
-        if (!invitation.getInviterId().equals(inviterMemberId)) {
+        if (invitation.getInviterId().equals(actorMemberId)) {
+            if (!invitation.isPending()) {
+                return false;
+            }
+            LocalDateTime now = LocalDateTime.now();
+            if (invitation.isTimedOutAt(now)) {
+                invitation.expire(ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT, now);
+                return false;
+            }
+            invitation.cancel(now);
+            return true;
+        }
+        if (invitation.getInviteeId().equals(actorMemberId)) {
+            LocalDateTime now = LocalDateTime.now();
+            if (invitation.isPending() && invitation.isTimedOutAt(now)) {
+                invitation.expire(ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT, now);
+            }
+            if (invitation.isExpired()) {
+                invitation.dismiss();
+                return true;
+            }
             throw new BusinessException(ErrorCode.CHAT_ROOM_INVITATION_INVITER_REQUIRED);
         }
-        if (!invitation.isPending()) {
-            return false;
-        }
-        LocalDateTime now = LocalDateTime.now();
-        if (invitation.isTimedOutAt(now)) {
-            invitation.expire(ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT, now);
-            return false;
-        }
-        invitation.cancel(now);
-        return true;
+        throw new BusinessException(ErrorCode.CHAT_ROOM_INVITATION_INVITER_REQUIRED);
     }
 
     @Transactional

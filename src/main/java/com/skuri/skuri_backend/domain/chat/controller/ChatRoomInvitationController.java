@@ -145,11 +145,11 @@ public class ChatRoomInvitationController {
     }
 
     @DeleteMapping("/chat-room-invitations/{invitationId}")
-    @Operation(summary = "공개 채팅방 초대 취소")
+    @Operation(summary = "공개 채팅방 초대 취소 또는 만료 초대 목록 삭제")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "취소 성공"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "발송자 취소 또는 만료 초대 수신자 목록 삭제 성공"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "발송자가 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "CHAT_ROOM_INVITATION_INVITER_REQUIRED", value = OpenApiInvitationExamples.ERROR_CHAT_INVITATION_INVITER_REQUIRED))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "발송자 또는 만료 초대 수신자가 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "CHAT_ROOM_INVITATION_INVITER_REQUIRED", value = OpenApiInvitationExamples.ERROR_CHAT_INVITATION_INVITER_REQUIRED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "초대 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiInvitationExamples.ERROR_CHAT_INVITATION_NOT_FOUND))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "초대 처리 불가", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiInvitationExamples.ERROR_CHAT_INVITATION_STATE)))
     })

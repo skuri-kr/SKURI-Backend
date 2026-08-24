@@ -48,7 +48,7 @@ public final class OpenApiInvitationExamples {
             {"success":false,"message":"택시파티 초대 수신자만 처리할 수 있습니다.","errorCode":"PARTY_INVITATION_RECIPIENT_REQUIRED","timestamp":"2026-08-23T12:00:00"}
             """;
     public static final String ERROR_PARTY_INVITATION_INVITER_REQUIRED = """
-            {"success":false,"message":"택시파티 초대 발송자만 취소할 수 있습니다.","errorCode":"PARTY_INVITATION_INVITER_REQUIRED","timestamp":"2026-08-23T12:00:00"}
+            {"success":false,"message":"택시파티 초대 발송자 또는 만료된 초대 수신자만 처리할 수 있습니다.","errorCode":"PARTY_INVITATION_INVITER_REQUIRED","timestamp":"2026-08-23T12:00:00"}
             """;
     public static final String ERROR_CHAT_INVITATION_INVALID_ROOM = """
             {"success":false,"message":"공개 PARTY 이외의 채팅방만 친구를 초대할 수 있습니다.","errorCode":"INVALID_REQUEST","timestamp":"2026-08-23T12:00:00"}
@@ -60,7 +60,7 @@ public final class OpenApiInvitationExamples {
             {"success":false,"message":"채팅방 초대 수신자만 처리할 수 있습니다.","errorCode":"CHAT_ROOM_INVITATION_RECIPIENT_REQUIRED","timestamp":"2026-08-23T12:00:00"}
             """;
     public static final String ERROR_CHAT_INVITATION_INVITER_REQUIRED = """
-            {"success":false,"message":"채팅방 초대 발송자만 취소할 수 있습니다.","errorCode":"CHAT_ROOM_INVITATION_INVITER_REQUIRED","timestamp":"2026-08-23T12:00:00"}
+            {"success":false,"message":"채팅방 초대 발송자 또는 만료된 초대 수신자만 처리할 수 있습니다.","errorCode":"CHAT_ROOM_INVITATION_INVITER_REQUIRED","timestamp":"2026-08-23T12:00:00"}
             """;
     public static final String ERROR_CHAT_INVITATION_STATE = """
             {"success":false,"message":"현재 상태에서는 채팅방 초대를 처리할 수 없습니다.","errorCode":"CHAT_ROOM_INVITATION_STATE_NOT_ALLOWED","timestamp":"2026-08-23T12:00:00"}

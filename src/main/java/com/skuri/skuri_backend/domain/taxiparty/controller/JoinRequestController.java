@@ -45,7 +45,7 @@ public class JoinRequestController {
     @PatchMapping("/join-requests/{id}/accept")
     @Operation(
             summary = "동승 요청 수락",
-            description = "리더가 동승 요청을 수락합니다. 성공 시 파티 채팅에 서버 생성 SYSTEM 메시지가 추가되며, 정원 도달로 자동 CLOSED 되면 합류 안내 뒤에 모집 마감 안내가 같은 순서로 저장/브로드캐스트됩니다."
+            description = "리더가 동승 요청을 수락합니다. 성공 시 파티 채팅에 서버 생성 SYSTEM 메시지가 추가됩니다. 정원에 도달해도 모집 상태는 자동으로 CLOSED로 바뀌지 않으며, 남은 PENDING 동승 요청과 친구 초대만 CAPACITY_FULL로 만료됩니다."
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(

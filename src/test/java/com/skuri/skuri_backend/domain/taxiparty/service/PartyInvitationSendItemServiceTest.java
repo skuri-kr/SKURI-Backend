@@ -122,6 +122,37 @@ class PartyInvitationSendItemServiceTest {
         assertThat(result.outcome()).isEqualTo(PartyInvitationOutcome.NOT_ELIGIBLE);
     }
 
+    @Test
+    void 수동모집마감중인파티의참가자도_정원여유가있으면친구를초대할수있다() {
+        String friendPublicId = "friend-public-1";
+        FriendMemberPair pair = FriendMemberPair.of("inviter-1", "invitee-1");
+        Party party = party();
+        party.close();
+
+        when(friendProfileRepository.findMemberIdByPublicId(friendPublicId))
+                .thenReturn(Optional.of("invitee-1"));
+        when(pairLockService.lockActivePair("inviter-1", "invitee-1")).thenReturn(pair);
+        when(partyRepository.findDetailByIdForUpdate("party-1")).thenReturn(Optional.of(party));
+        when(friendshipRepository.findByMemberPairForUpdate(pair.lowMemberId(), pair.highMemberId()))
+                .thenReturn(Optional.of(Friendship.create(pair.lowMemberId(), pair.highMemberId())));
+        when(partyRepository.existsActivePartyByMemberId(
+                eq("invitee-1"),
+                eq(EnumSet.of(PartyStatus.OPEN, PartyStatus.CLOSED, PartyStatus.ARRIVED)),
+                isNull()
+        )).thenReturn(false);
+        when(partyInvitationRepository.findByActiveTargetKeyForUpdate("party-1:invitee-1"))
+                .thenReturn(Optional.empty());
+        when(partyInvitationRepository.saveAndFlush(any(PartyInvitation.class))).thenAnswer(invocation -> {
+            PartyInvitation created = invocation.getArgument(0);
+            ReflectionTestUtils.setField(created, "id", "invite-new");
+            return created;
+        });
+
+        PartyInvitationSendResultResponse result = service.send("inviter-1", "party-1", friendPublicId);
+
+        assertThat(result.outcome()).isEqualTo(PartyInvitationOutcome.SENT);
+    }
+
     private Party party() {
         Party party = Party.create(
                 "inviter-1",

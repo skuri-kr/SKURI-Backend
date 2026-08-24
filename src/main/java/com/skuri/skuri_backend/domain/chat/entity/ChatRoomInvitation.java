@@ -92,6 +92,10 @@ public class ChatRoomInvitation extends BaseTimeEntity {
         return status == ChatRoomInvitationStatus.PENDING;
     }
 
+    public boolean isExpired() {
+        return status == ChatRoomInvitationStatus.EXPIRED;
+    }
+
     public boolean isTimedOutAt(LocalDateTime now) {
         return isPending() && !expiresAt.isAfter(now);
     }
@@ -110,6 +114,13 @@ public class ChatRoomInvitation extends BaseTimeEntity {
 
     public void expire(ChatRoomInvitationExpiryReason reason, LocalDateTime now) {
         transitionTo(ChatRoomInvitationStatus.EXPIRED, reason, now);
+    }
+
+    public void dismiss() {
+        if (!isExpired()) {
+            return;
+        }
+        this.status = ChatRoomInvitationStatus.DISMISSED;
     }
 
     private void transitionTo(

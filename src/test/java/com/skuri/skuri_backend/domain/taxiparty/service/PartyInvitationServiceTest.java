@@ -83,6 +83,38 @@ class PartyInvitationServiceTest {
         assertThat(response.notEligibleCount()).isEqualTo(1);
     }
 
+    @Test
+    void 수동모집마감중이고정원여유가있으면_참가자에게초대가능상태를반환한다() {
+        Party party = Party.create(
+                "leader-1",
+                Location.of("성결대학교", 37.38, 126.93),
+                Location.of("안양역", 37.40, 126.92),
+                LocalDateTime.now().plusHours(1),
+                4,
+                List.of(),
+                null
+        );
+        ReflectionTestUtils.setField(party, "id", "party-1");
+        party.close();
+
+        when(partyRepository.findDetailById("party-1")).thenReturn(Optional.of(party));
+        when(friendRelationshipQueryService.getInvitationCandidates("leader-1"))
+                .thenReturn(List.of(candidate("friend-1", "public-friend", "초대친구")));
+        when(partyRepository.findActivePartyMemberIds(anySet(), eq(Set.of(
+                PartyStatus.OPEN,
+                PartyStatus.CLOSED,
+                PartyStatus.ARRIVED
+        )))).thenReturn(List.of());
+        when(partyInvitationRepository.findPendingInviteeIds(eq("party-1"), anySet()))
+                .thenReturn(List.of());
+
+        PartyInvitationEligibleFriendsResponse response = service.getEligibleFriends("leader-1", "party-1");
+
+        assertThat(response.canInvite()).isTrue();
+        assertThat(response.remainingCapacity()).isEqualTo(3);
+        assertThat(response.unavailableReason()).isNull();
+    }
+
     private FriendRelationshipQueryService.InvitationCandidate candidate(
             String memberId,
             String publicId,

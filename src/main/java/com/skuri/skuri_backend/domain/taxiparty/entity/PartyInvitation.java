@@ -28,7 +28,8 @@ import java.time.LocalDateTime;
         indexes = {
                 @Index(name = "idx_party_invitations_invitee_status_created", columnList = "invitee_id,status,created_at"),
                 @Index(name = "idx_party_invitations_party_status", columnList = "party_id,status,id"),
-                @Index(name = "idx_party_invitations_inviter_status", columnList = "inviter_id,status,id")
+                @Index(name = "idx_party_invitations_inviter_status", columnList = "inviter_id,status,id"),
+                @Index(name = "idx_party_invitations_status_join_request", columnList = "status,accepted_join_request_id")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -89,6 +90,10 @@ public class PartyInvitation extends BaseTimeEntity {
         return status == PartyInvitationStatus.PENDING;
     }
 
+    public boolean isExpired() {
+        return status == PartyInvitationStatus.EXPIRED;
+    }
+
     public void accept(
             PartyInvitationAcceptanceResult result,
             String joinRequestId,
@@ -112,6 +117,13 @@ public class PartyInvitation extends BaseTimeEntity {
 
     public void expire(PartyInvitationExpiryReason reason, LocalDateTime now) {
         transitionTo(PartyInvitationStatus.EXPIRED, reason, now);
+    }
+
+    public void dismiss() {
+        if (!isExpired()) {
+            return;
+        }
+        this.status = PartyInvitationStatus.DISMISSED;
     }
 
     private void transitionTo(

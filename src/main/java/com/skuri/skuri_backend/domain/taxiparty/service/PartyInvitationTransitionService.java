@@ -41,6 +41,7 @@ public class PartyInvitationTransitionService {
     private final MemberRepository memberRepository;
     private final FriendMemberPairLockService pairLockService;
     private final TaxiPartyService taxiPartyService;
+    private final JoinRequestSseService joinRequestSseService;
 
     @Transactional
     public AcceptAttempt accept(String recipientMemberId, String invitationId) {
@@ -114,17 +115,20 @@ public class PartyInvitationTransitionService {
             );
             return AcceptAttempt.joined(invitation.getPartyId());
         }
-        String joinRequestId = taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
+        TaxiPartyService.InvitedMemberJoinRequest joinRequest = taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
                 party,
                 invitation.getInviteeId(),
                 invitation.getInviterId()
         );
         invitation.accept(
                 PartyInvitationAcceptanceResult.LEADER_APPROVAL_PENDING,
-                joinRequestId,
+                joinRequest.joinRequest().getId(),
                 LocalDateTime.now()
         );
-        return AcceptAttempt.leaderApprovalPending(invitation.getPartyId(), joinRequestId);
+        if (!joinRequest.created()) {
+            joinRequestSseService.publishJoinRequestUpdated(joinRequest.joinRequest(), joinRequest.joinRequest().getStatus());
+        }
+        return AcceptAttempt.leaderApprovalPending(invitation.getPartyId(), joinRequest.joinRequest().getId());
     }
 
     @Transactional
@@ -140,17 +144,24 @@ public class PartyInvitationTransitionService {
     }
 
     @Transactional
-    public boolean cancel(String inviterMemberId, String invitationId) {
+    public boolean cancel(String actorMemberId, String invitationId) {
         PartyInvitation invitation = partyInvitationRepository.findByIdForUpdate(invitationId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PARTY_INVITATION_NOT_FOUND));
-        if (!invitation.getInviterId().equals(inviterMemberId)) {
+        if (invitation.getInviterId().equals(actorMemberId)) {
+            if (!invitation.isPending()) {
+                return false;
+            }
+            invitation.cancel(LocalDateTime.now());
+            return true;
+        }
+        if (invitation.getInviteeId().equals(actorMemberId)) {
+            if (invitation.isExpired()) {
+                invitation.dismiss();
+                return true;
+            }
             throw new BusinessException(ErrorCode.PARTY_INVITATION_INVITER_REQUIRED);
         }
-        if (!invitation.isPending()) {
-            return false;
-        }
-        invitation.cancel(LocalDateTime.now());
-        return true;
+        throw new BusinessException(ErrorCode.PARTY_INVITATION_INVITER_REQUIRED);
     }
 
     @Transactional
@@ -198,7 +209,7 @@ public class PartyInvitationTransitionService {
             PartyInvitation invitation,
             FriendMemberPair pair
     ) {
-        if (party.getStatus() != PartyStatus.OPEN) {
+        if (party.getStatus() != PartyStatus.OPEN && party.getStatus() != PartyStatus.CLOSED) {
             return PartyInvitationExpiryReason.TARGET_UNAVAILABLE;
         }
         if (party.getCurrentMembers() >= party.getMaxMembers()) {

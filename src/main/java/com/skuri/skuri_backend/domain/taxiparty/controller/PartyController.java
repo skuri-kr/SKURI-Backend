@@ -381,10 +381,6 @@ public class PartyController {
                                             value = OpenApiTaxiPartyExamples.ERROR_INVALID_PARTY_STATE_TRANSITION_REOPEN_ONLY
                                     ),
                                     @ExampleObject(
-                                            name = "party_full",
-                                            value = OpenApiTaxiPartyExamples.ERROR_PARTY_FULL
-                                    ),
-                                    @ExampleObject(
                                             name = "party_concurrent_modification",
                                             value = OpenApiTaxiPartyExamples.ERROR_PARTY_CONCURRENT_MODIFICATION
                                     )

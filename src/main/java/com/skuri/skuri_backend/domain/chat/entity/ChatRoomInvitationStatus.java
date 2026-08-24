@@ -5,5 +5,6 @@ public enum ChatRoomInvitationStatus {
     ACCEPTED,
     DECLINED,
     CANCELED,
-    EXPIRED
+    EXPIRED,
+    DISMISSED
 }

@@ -1,5 +1,7 @@
 package com.skuri.skuri_backend.domain.chat.service;
 
+import com.skuri.skuri_backend.common.exception.BusinessException;
+import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitation;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationExpiryReason;
@@ -26,6 +28,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -166,6 +169,43 @@ class ChatRoomInvitationTransitionServiceTest {
         assertThat(canceled).isFalse();
         assertThat(invitation.getStatus()).isEqualTo(ChatRoomInvitationStatus.EXPIRED);
         assertThat(invitation.getExpiryReason()).isEqualTo(ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT);
+    }
+
+    @Test
+    void 수신자는_만료된초대를목록에서지울수있다() {
+        ChatRoomInvitation invitation = invitation(LocalDateTime.now());
+        invitation.expire(ChatRoomInvitationExpiryReason.TARGET_UNAVAILABLE, LocalDateTime.now());
+        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(invitation));
+
+        boolean removed = service.cancel("invitee-1", "invite-1");
+
+        assertThat(removed).isTrue();
+        assertThat(invitation.getStatus()).isEqualTo(ChatRoomInvitationStatus.DISMISSED);
+    }
+
+    @Test
+    void 수신자는_재조정되지않은시간만료초대도_목록에서지울수있다() {
+        ChatRoomInvitation invitation = invitation(LocalDateTime.now().minusDays(8));
+        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(invitation));
+
+        boolean removed = service.cancel("invitee-1", "invite-1");
+
+        assertThat(removed).isTrue();
+        assertThat(invitation.getStatus()).isEqualTo(ChatRoomInvitationStatus.DISMISSED);
+        assertThat(invitation.getExpiryReason()).isEqualTo(ChatRoomInvitationExpiryReason.INVITATION_TIMEOUT);
+    }
+
+    @Test
+    void 수신자는_만료전초대를취소할수없다() {
+        ChatRoomInvitation invitation = invitation(LocalDateTime.now());
+        when(invitationRepository.findByIdForUpdate("invite-1")).thenReturn(Optional.of(invitation));
+
+        assertThatThrownBy(() -> service.cancel("invitee-1", "invite-1"))
+                .isInstanceOfSatisfying(BusinessException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.CHAT_ROOM_INVITATION_INVITER_REQUIRED));
+
+        assertThat(invitation.getStatus()).isEqualTo(ChatRoomInvitationStatus.PENDING);
     }
 
     private void stubAcceptBoundary(

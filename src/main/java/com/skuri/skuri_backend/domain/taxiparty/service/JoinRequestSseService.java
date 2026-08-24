@@ -1,6 +1,5 @@
 package com.skuri.skuri_backend.domain.taxiparty.service;
 
-import com.skuri.skuri_backend.domain.taxiparty.dto.response.JoinRequestListItemResponse;
 import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequest;
 import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestStatus;
 import lombok.RequiredArgsConstructor;
@@ -89,18 +88,22 @@ public class JoinRequestSseService {
     }
 
     public void publishJoinRequestCreated(JoinRequest joinRequest) {
-        JoinRequestListItemResponse payload = joinRequestSseSnapshotService.toSseItem(joinRequest);
+        JoinRequestEvent event = JoinRequestEvent.from(joinRequest, null);
         publishAfterCommit(() -> {
+            var payload = joinRequestSseSnapshotService.toSseItem(event.joinRequestId());
+            if (payload == null) {
+                return;
+            }
             int leaderRecipients = broadcastToPartyLeaders(
-                    joinRequest.getParty().getId(),
-                    joinRequest.getLeaderId(),
+                    event.partyId(),
+                    event.leaderId(),
                     "JOIN_REQUEST_CREATED",
                     payload
             );
             int requesterRecipients = broadcastToMyJoinRequests(
-                    joinRequest.getRequesterId(),
+                    event.requesterId(),
                     null,
-                    joinRequest.getStatus(),
+                    event.currentStatus(),
                     "MY_JOIN_REQUEST_CREATED",
                     payload
             );
@@ -110,18 +113,22 @@ public class JoinRequestSseService {
     }
 
     public void publishJoinRequestUpdated(JoinRequest joinRequest, JoinRequestStatus previousStatus) {
-        JoinRequestListItemResponse payload = joinRequestSseSnapshotService.toSseItem(joinRequest);
+        JoinRequestEvent event = JoinRequestEvent.from(joinRequest, previousStatus);
         publishAfterCommit(() -> {
+            var payload = joinRequestSseSnapshotService.toSseItem(event.joinRequestId());
+            if (payload == null) {
+                return;
+            }
             int leaderRecipients = broadcastToPartyLeaders(
-                    joinRequest.getParty().getId(),
-                    joinRequest.getLeaderId(),
+                    event.partyId(),
+                    event.leaderId(),
                     "JOIN_REQUEST_UPDATED",
                     payload
             );
             int requesterRecipients = broadcastToMyJoinRequests(
-                    joinRequest.getRequesterId(),
-                    previousStatus,
-                    joinRequest.getStatus(),
+                    event.requesterId(),
+                    event.previousStatus(),
+                    event.currentStatus(),
                     "MY_JOIN_REQUEST_UPDATED",
                     payload
             );
@@ -536,5 +543,25 @@ public class JoinRequestSseService {
             JoinRequestStatus statusFilter,
             SseEmitter emitter
     ) {
+    }
+
+    private record JoinRequestEvent(
+            String joinRequestId,
+            String partyId,
+            String leaderId,
+            String requesterId,
+            JoinRequestStatus previousStatus,
+            JoinRequestStatus currentStatus
+    ) {
+        private static JoinRequestEvent from(JoinRequest joinRequest, JoinRequestStatus previousStatus) {
+            return new JoinRequestEvent(
+                    joinRequest.getId(),
+                    joinRequest.getParty().getId(),
+                    joinRequest.getLeaderId(),
+                    joinRequest.getRequesterId(),
+                    previousStatus,
+                    joinRequest.getStatus()
+            );
+        }
     }
 }

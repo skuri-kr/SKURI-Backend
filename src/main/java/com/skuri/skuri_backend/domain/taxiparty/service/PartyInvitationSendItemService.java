@@ -57,7 +57,7 @@ public class PartyInvitationSendItemService {
         }
         Party party = partyRepository.findDetailByIdForUpdate(partyId).orElse(null);
         if (party == null
-                || party.getStatus() != PartyStatus.OPEN
+                || (party.getStatus() != PartyStatus.OPEN && party.getStatus() != PartyStatus.CLOSED)
                 || !party.isMember(inviterMemberId)
                 || party.getCurrentMembers() >= party.getMaxMembers()) {
             return notEligible(friendPublicId);
