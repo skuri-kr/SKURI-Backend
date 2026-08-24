@@ -12,6 +12,7 @@ import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationExpiryReason;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus;
+import com.skuri.skuri_backend.domain.taxiparty.repository.JoinRequestRepository;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyInvitationRepository;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,6 +43,7 @@ class PartyInvitationTransitionServiceTest {
     @Mock private MemberRepository memberRepository;
     @Mock private FriendMemberPairLockService pairLockService;
     @Mock private TaxiPartyService taxiPartyService;
+    @Mock private JoinRequestRepository joinRequestRepository;
 
     private PartyInvitationTransitionService service;
 
@@ -54,7 +56,8 @@ class PartyInvitationTransitionServiceTest {
                 memberBlockRepository,
                 memberRepository,
                 pairLockService,
-                taxiPartyService
+                taxiPartyService,
+                joinRequestRepository
         );
     }
 
@@ -68,7 +71,7 @@ class PartyInvitationTransitionServiceTest {
 
         PartyInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
 
-        assertThat(result.outcome()).isEqualTo(PartyInvitationTransitionService.AcceptOutcome.ACCEPTED);
+        assertThat(result.outcome()).isEqualTo(PartyInvitationTransitionService.AcceptOutcome.JOINED);
         assertThat(invitation.getStatus()).isEqualTo(PartyInvitationStatus.ACCEPTED);
         assertThat(invitation.getActiveTargetKey()).isNull();
         verify(taxiPartyService).acceptInvitedMemberWithLockedParty(party, "invitee-1", "inviter-1");
@@ -77,6 +80,41 @@ class PartyInvitationTransitionServiceTest {
         lockOrder.verify(partyRepository).findDetailByIdForUpdate("party-1");
         lockOrder.verify(invitationRepository).findByIdForUpdate("invite-1");
         verify(partyRepository, never()).findDetailById("party-1");
+    }
+
+    @Test
+    void 일반참가자가보낸초대는_친구수락후리더승인을기다린다() {
+        Party party = Party.create(
+                "leader-1",
+                Location.of("성결대학교", 37.38, 126.93),
+                Location.of("안양역", 37.40, 126.92),
+                LocalDateTime.now().plusHours(1),
+                4,
+                List.of(),
+                null
+        );
+        ReflectionTestUtils.setField(party, "id", "party-1");
+        party.addMember("inviter-1");
+        PartyInvitation invitation = invitation("invite-1");
+        stubAcceptBoundary(party, invitation, invitation);
+        when(partyRepository.existsActivePartyByMemberId(
+                "invitee-1",
+                PartyInvitationTransitionServiceTestHelper.ACTIVE_STATUSES,
+                "party-1"
+        )).thenReturn(false);
+        when(taxiPartyService.createInvitedMemberJoinRequestWithLockedParty(
+                party,
+                "invitee-1",
+                "inviter-1"
+        )).thenReturn("request-1");
+
+        PartyInvitationTransitionService.AcceptAttempt result = service.accept("invitee-1", "invite-1");
+
+        assertThat(result.outcome())
+                .isEqualTo(PartyInvitationTransitionService.AcceptOutcome.LEADER_APPROVAL_PENDING);
+        assertThat(result.joinRequestId()).isEqualTo("request-1");
+        assertThat(invitation.getStatus()).isEqualTo(PartyInvitationStatus.ACCEPTED);
+        verify(taxiPartyService, never()).acceptInvitedMemberWithLockedParty(party, "invitee-1", "inviter-1");
     }
 
     @Test

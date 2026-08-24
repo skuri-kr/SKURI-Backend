@@ -260,7 +260,7 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
     void 친구초대_OpenAPI는_endpoint별_정확한403과409예시를제공한다() throws Exception {
         JsonNode partyPaths = apiDocs("/v3/api-docs/taxiparty").path("paths");
         assertEquals(
-                Set.of("PARTY_CLOSED", "PARTY_FULL", "MEMBER_PROFILE_INCOMPLETE"),
+                Set.of("PARTY_CLOSED", "MEMBER_PROFILE_INCOMPLETE"),
                 exampleNames(partyPaths, "/v1/parties/{partyId}/invitations/eligible-friends", "get", "409")
         );
         assertEquals(

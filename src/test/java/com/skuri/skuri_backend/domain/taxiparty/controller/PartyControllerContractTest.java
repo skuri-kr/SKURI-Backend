@@ -145,7 +145,7 @@ class PartyControllerContractTest {
     void createJoinRequest_response에_partyId미노출() throws Exception {
         mockValidToken();
         when(taxiPartyService.createJoinRequest("firebase-uid", "party-1"))
-                .thenReturn(new JoinRequestResponse("request-1", JoinRequestStatus.PENDING));
+                .thenReturn(new JoinRequestResponse("request-1", JoinRequestStatus.PENDING, null));
 
         mockMvc.perform(
                         post("/v1/parties/party-1/join-requests")
