@@ -904,7 +904,7 @@ Taxi history 계약 메모:
 | leader_id | VARCHAR(36) | FK, NOT NULL | 파티장 ID |
 | requester_id | VARCHAR(36) | FK, NOT NULL | 요청자 ID |
 | status | ENUM | NOT NULL | PENDING, ACCEPTED, DECLINED, CANCELED, EXPIRED |
-| expiry_reason | VARCHAR(40) | NULL | EXPIRED 사유. 현재 CAPACITY_FULL |
+| expiry_reason | VARCHAR(30) | NULL | EXPIRED 사유. 현재 CAPACITY_FULL |
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
 

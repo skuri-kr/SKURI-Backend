@@ -191,7 +191,7 @@ Hooks:
     - settlement (Embedded)
   - JoinRequest
     - id, partyId, leaderId, requesterId
-    - status (PENDING → ACCEPTED | DECLINED | CANCELED)
+    - status (PENDING → ACCEPTED | DECLINED | CANCELED | EXPIRED)
   - Settlement (Embedded)
     - status (PENDING, COMPLETED)
     - taxiFare

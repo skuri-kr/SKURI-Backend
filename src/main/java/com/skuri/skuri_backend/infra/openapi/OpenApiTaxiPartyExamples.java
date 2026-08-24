@@ -594,6 +594,7 @@ public final class OpenApiTaxiPartyExamples {
                   "requesterName": "박민수",
                   "requesterPhotoUrl": null,
                   "status": "DECLINED",
+                  "expiryReason": null,
                   "createdAt": "2026-03-04T19:20:00"
                 }
               ]
