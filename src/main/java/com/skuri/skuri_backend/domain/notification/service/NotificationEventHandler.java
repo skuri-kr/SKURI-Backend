@@ -24,11 +24,6 @@ import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.NotificationSetting;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
-import com.skuri.skuri_backend.domain.friend.entity.FriendProfile;
-import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
-import com.skuri.skuri_backend.domain.friend.entity.FriendRequestStatus;
-import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
-import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
 import com.skuri.skuri_backend.domain.notice.entity.Notice;
 import com.skuri.skuri_backend.domain.notice.entity.NoticeComment;
 import com.skuri.skuri_backend.domain.notice.repository.NoticeCommentRepository;
@@ -75,12 +70,11 @@ public class NotificationEventHandler {
     private final NoticeCommentRepository noticeCommentRepository;
     private final AppNoticeRepository appNoticeRepository;
     private final AcademicScheduleRepository academicScheduleRepository;
-    private final FriendRequestRepository friendRequestRepository;
-    private final FriendProfileRepository friendProfileRepository;
     private final PartyInvitationRepository partyInvitationRepository;
     private final MemberRepository memberRepository;
     private final NotificationService notificationService;
     private final PushNotificationService pushNotificationService;
+    private final FriendNotificationDeliveryService friendNotificationDeliveryService;
 
     public void handle(NotificationDomainEvent event) {
         switch (event) {
@@ -517,72 +511,15 @@ public class NotificationEventHandler {
     }
 
     private void handleFriendRequestCreated(NotificationDomainEvent.FriendRequestCreated event) {
-        FriendRequest request = friendRequestRepository.findById(event.requestId()).orElse(null);
-        if (request == null || request.getStatus() != FriendRequestStatus.PENDING) {
-            return;
-        }
-
-        Member requester = findActiveMember(request.getRequesterId());
-        Member recipient = findActiveMember(request.getRecipientId());
-        if (requester == null || !isFriendAndInvitationNotificationAllowed(recipient)) {
-            return;
-        }
-
-        dispatch(NotificationDispatchRequest.of(
-                NotificationType.FRIEND_REQUEST,
-                List.of(recipient.getId()),
-                "친구 요청이 도착했어요",
-                displayMemberName(requester) + "님이 친구 요청을 보냈어요.",
-                NotificationData.ofFriendRequest(request.getId()),
-                true,
-                true
-        ));
+        friendNotificationDeliveryService.deliverFriendRequestCreated(event.requestId());
     }
 
     private void handleFriendRequestAccepted(NotificationDomainEvent.FriendRequestAccepted event) {
-        FriendRequest request = friendRequestRepository.findById(event.requestId()).orElse(null);
-        if (request == null || request.getStatus() != FriendRequestStatus.ACCEPTED) {
-            return;
-        }
-
-        Member requester = findActiveMember(request.getRequesterId());
-        Member accepter = findActiveMember(request.getRecipientId());
-        FriendProfile accepterProfile = friendProfileRepository.findByMemberId(request.getRecipientId()).orElse(null);
-        if (accepter == null || accepterProfile == null || !isFriendAndInvitationNotificationAllowed(requester)) {
-            return;
-        }
-
-        dispatch(NotificationDispatchRequest.of(
-                NotificationType.FRIEND_ACCEPTED,
-                List.of(requester.getId()),
-                "친구 요청이 수락되었어요",
-                displayMemberName(accepter) + "님과 친구가 되었어요.",
-                NotificationData.ofFriendAccepted(accepterProfile.getPublicId()),
-                true,
-                true
-        ));
+        friendNotificationDeliveryService.deliverFriendRequestAccepted(event.requestId());
     }
 
     private void handleFriendRequestDeclined(NotificationDomainEvent.FriendRequestDeclined event) {
-        FriendRequest request = friendRequestRepository.findById(event.requestId()).orElse(null);
-        if (request == null || request.getStatus() != FriendRequestStatus.DECLINED) {
-            return;
-        }
-
-        Member requester = findActiveMember(request.getRequesterId());
-        if (!isFriendAndInvitationNotificationAllowed(requester)) {
-            return;
-        }
-
-        dispatch(NotificationDispatchRequest.of(
-                NotificationType.FRIEND_DECLINED,
-                List.of(requester.getId()),
-                "친구 요청이 거절되었어요",
-                "친구 요청 상태를 확인해주세요.",
-                NotificationData.ofFriendRequest(request.getId()),
-                true,
-                true
-        ));
+        friendNotificationDeliveryService.deliverFriendRequestDeclined(event.requestId());
     }
 
     private void handlePartyInvitationCreated(NotificationDomainEvent.PartyInvitationCreated event) {

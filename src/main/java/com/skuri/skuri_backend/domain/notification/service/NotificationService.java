@@ -116,6 +116,19 @@ public class NotificationService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createInboxNotifications(NotificationDispatchRequest request) {
+        persistInboxNotifications(request);
+    }
+
+    /**
+     * 친구 관계처럼 별도 write lock을 이미 획득한 도메인 후처리에서 사용한다.
+     * 인박스 저장과 SSE 발행 시점을 그 lock transaction의 commit에 함께 묶는다.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void createInboxNotificationsInCurrentTransaction(NotificationDispatchRequest request) {
+        persistInboxNotifications(request);
+    }
+
+    private void persistInboxNotifications(NotificationDispatchRequest request) {
         if (!request.inboxEnabled() || request.recipientIds().isEmpty()) {
             return;
         }
