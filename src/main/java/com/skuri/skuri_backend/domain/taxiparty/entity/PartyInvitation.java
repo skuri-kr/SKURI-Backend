@@ -59,6 +59,13 @@ public class PartyInvitation extends BaseTimeEntity {
     @Column(name = "responded_at")
     private LocalDateTime respondedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "acceptance_result", length = 32)
+    private PartyInvitationAcceptanceResult acceptanceResult;
+
+    @Column(name = "accepted_join_request_id", length = 36)
+    private String acceptedJoinRequestId;
+
     @Column(name = "active_target_key", unique = true, length = 73)
     private String activeTargetKey;
 
@@ -82,8 +89,17 @@ public class PartyInvitation extends BaseTimeEntity {
         return status == PartyInvitationStatus.PENDING;
     }
 
-    public void accept(LocalDateTime now) {
+    public void accept(
+            PartyInvitationAcceptanceResult result,
+            String joinRequestId,
+            LocalDateTime now
+    ) {
+        if (!isPending()) {
+            return;
+        }
         transitionTo(PartyInvitationStatus.ACCEPTED, null, now);
+        this.acceptanceResult = result;
+        this.acceptedJoinRequestId = joinRequestId;
     }
 
     public void decline(LocalDateTime now) {

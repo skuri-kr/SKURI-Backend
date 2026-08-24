@@ -16,12 +16,6 @@ public interface JoinRequestRepository extends JpaRepository<JoinRequest, String
 
     boolean existsByParty_IdAndRequesterIdAndStatus(String partyId, String requesterId, JoinRequestStatus status);
 
-    Optional<JoinRequest> findFirstByParty_IdAndRequesterIdAndStatusOrderByCreatedAtDesc(
-            String partyId,
-            String requesterId,
-            JoinRequestStatus status
-    );
-
     @EntityGraph(attributePaths = "party")
     Optional<JoinRequest> findDetailById(String id);
 

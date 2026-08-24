@@ -1,6 +1,7 @@
 package com.skuri.skuri_backend.domain.taxiparty.repository;
 
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
+import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationAcceptanceResult;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,7 +29,9 @@ public interface PartyInvitationRepository extends JpaRepository<PartyInvitation
             select invitation.partyId as partyId,
                    invitation.inviterId as inviterId,
                    invitation.inviteeId as inviteeId,
-                   invitation.status as status
+                   invitation.status as status,
+                   invitation.acceptanceResult as acceptanceResult,
+                   invitation.acceptedJoinRequestId as acceptedJoinRequestId
             from PartyInvitation invitation
             where invitation.id = :invitationId
             """)
@@ -119,6 +122,10 @@ public interface PartyInvitationRepository extends JpaRepository<PartyInvitation
         String getInviteeId();
 
         PartyInvitationStatus getStatus();
+
+        PartyInvitationAcceptanceResult getAcceptanceResult();
+
+        String getAcceptedJoinRequestId();
 
         default boolean isPending() {
             return getStatus() == PartyInvitationStatus.PENDING;
