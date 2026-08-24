@@ -811,7 +811,7 @@ SSE 운영 제약:
 #### 8-2-3. 친구·초대 알림 사용자 옵션
 
 - `friendAndInvitationNotifications`: 친구 요청·수락·거절, 택시파티·공개방 초대 알림의 단일 토글
-- 기본값은 `true`다. 기존 null 값은 true로 해석하고 기동 시 null인 행만 조건부 bulk update로 보정한다.
+- 기본값은 `true`다. 기존 null 값은 true로 해석하고, 알림 컬럼 중 하나라도 null인 기존 회원은 기동 시 조건부 bulk update로 전체 기본값을 보정한다. 이미 명시적으로 저장한 값은 유지한다.
 - 유효 수신 조건은 `allNotifications && friendAndInvitationNotifications`다. false일 때 인박스·알림 SSE·FCM만 생략하며 FriendHub의 원본 요청·초대와 badge는 유지한다.
 - payload는 요청/거절에 `requestId`, 수락에 `friendPublicId`, 초대에 `invitationId`, `invitationType`을 담는다.
 
@@ -1236,6 +1236,7 @@ Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 > - 2026-08-22: Phase 14 시간표 공유 구현 반영 — Backend·Frontend 각각 한 PR의 구현·테스트·문서 정합성 점검을 반영하고, 남은 2단계 PR 계획으로 전환
 > - 2026-08-24: Phase 14 친구 초대 PR 생성 — Backend #85·Frontend #27의 런타임·테스트·문서 동기화와 후속 알림·나머지 탈퇴 정리 경계를 기록
 > - 2026-08-24: Phase 14 친구 초대 보완 — 파티장·참가자 수락 경로 분리, 정원 도달 JoinRequest 만료, 상태별 초대 목록과 파티원 관리 범위를 동기화
+> - 2026-08-25: Phase 14 알림·탈퇴 경합 보완 — FriendRequest 알림을 ordered pair lock·최신 상태 재검증과 같은 트랜잭션의 inbox 저장으로 묶고, 탈퇴 cleanup 뒤 stale inbox가 남지 않는 경합 회귀 테스트를 추가
 > - 2026-08-21: Phase 14 전달 이력·출시 준비 계획 갱신 — Backend #78·#79·#80과 Frontend #22·#23 완료 범위, 프로필 완료 eligibility와 저장소별 5단계 후속 PR 계획을 반영
 > - 2026-04-06: Admin Chat read API 구현 반영 — 공개 채팅방 관리자 목록/상세/메시지 조회와 관리자 파티 메시지 조회를 Phase 3/Phase 2 운영 API 및 완료 기준에 추가
 > - 2026-04-01: Phase 13 구현 반영 완료 상태로 갱신 — 마인크래프트 public/internal API, public SSE, bridge outbox, IMAGE placeholder, notification policy, 테스트/문서 완료 기준을 체크 상태로 동기화

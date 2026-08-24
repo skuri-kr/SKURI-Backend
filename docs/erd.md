@@ -49,6 +49,7 @@ erDiagram
         boolean comment_notifications "DEFAULT true"
         boolean bookmarked_post_comment_notifications "DEFAULT true"
         boolean system_notifications "DEFAULT true"
+        boolean friend_and_invitation_notifications "DEFAULT true"
         boolean academic_schedule_notifications "DEFAULT true"
         boolean academic_schedule_day_before_enabled "DEFAULT true"
         boolean academic_schedule_all_events_enabled "DEFAULT false"
@@ -820,7 +821,7 @@ erDiagram
 
 > Phase 8부터 학사 일정 알림용 `academic_schedule_notifications`, `academic_schedule_day_before_enabled`, `academic_schedule_all_events_enabled` 컬럼을 사용한다.
 
-> Friend 알림은 `friend_and_invitation_notifications`로 제어한다. 기존 null 값은 런타임에서 `true`로 해석하고, 기동 시 null인 행만 조건부 bulk update로 보정한다.
+> Friend 알림은 `friend_and_invitation_notifications`로 제어한다. 기존 null 값은 런타임에서 `true`로 해석한다. 기존 회원은 알림 컬럼 중 하나라도 null이면 기동 시 조건부 bulk update로 전체 기본값을 채우고, 이미 명시적으로 저장한 값은 유지한다.
 
 > Phase 10부터 회원 탈퇴는 hard delete 대신 `status`, `withdrawn_at` 기반 soft delete tombstone으로 관리한다.
 

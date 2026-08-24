@@ -284,6 +284,7 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 - FRIEND_DECLINED payload는 requestId를 포함하되 V1 terminal 이력을 카드로 재구성하지 않는다.
 - PARTY_INVITATION과 CHAT_ROOM_INVITATION payload는 invitationId와 invitationType을 포함한다.
 - FRIEND_REQUEST와 FRIEND_DECLINED는 친구 허브 요청 탭, FRIEND_ACCEPTED는 수락한 친구 상세, 초대 알림은 친구 허브 초대 탭의 해당 invitationId 카드로 이동한다.
+- 친구 요청·수락·거절 알림은 원 이벤트 커밋 뒤 독립 전달 트랜잭션에서 요청자·수신자의 ordered pair lock을 획득하고, 잠금 중 최신 FriendRequest·ACTIVE 프로필 완료 회원·수락 대상 공개 프로필·알림 설정을 다시 확인한 뒤 인박스를 같은 트랜잭션에 저장한다. 탈퇴 cleanup은 같은 회원 잠금 뒤 진행하므로 hard delete된 요청을 참조하는 인박스가 다시 남지 않는다. FCM은 커밋 뒤 한 번 더 최신 상태를 확인해 유효하지 않으면 전송하지 않는다.
 - 회원 탈퇴로 FriendRequest를 hard delete할 때, 해당 requestId를 참조하는 상대방의 `FRIEND_REQUEST`·`FRIEND_DECLINED`와 탈퇴 회원의 `friendPublicId`를 참조하는 `FRIEND_ACCEPTED` 인앱 알림도 같은 트랜잭션에서 삭제한다. 실제 미읽음 행이 제거된 상대방에게만 커밋 후 unread-count SSE를 발행한다.
 
 ---
@@ -1029,3 +1030,4 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-24 | 초대 시트는 초대 가능·초대 중·참여 중을 함께 표시하고, 파티원 목록은 참가자 전체에게 제공하되 강퇴는 파티장에게만 허용 |
 | 2026-08-24 | 여러 일반 참가자 초대가 동일 PENDING 동승 요청을 재사용하면 earliest accepted invitation의 초대자를 표시하고, CLOSED 수락은 현재 참가 중인 원본 초대자가 하나 이상일 때만 허용한다. 채팅 초대 DELETE는 아직 저장 전인 시간 만료도 EXPIRED 후 DISMISSED로 처리한다. |
 | 2026-08-25 | 회원 탈퇴로 hard delete되는 친구 요청을 참조하는 상대방의 `FRIEND_REQUEST`·`FRIEND_DECLINED` 인앱 알림도 같은 탈퇴 트랜잭션에서 정리하고, 미읽음 행이 실제로 제거된 상대방에게만 커밋 후 unread-count SSE를 발행한다. |
+| 2026-08-25 | 친구 요청·수락·거절 알림은 ordered pair lock과 최신 상태 재검증 뒤 같은 트랜잭션에서 인박스를 저장하고, 탈퇴 cleanup과 경합해 삭제된 FriendRequest를 참조하는 알림이 다시 남지 않도록 한다. |
