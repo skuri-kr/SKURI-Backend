@@ -7473,7 +7473,7 @@ data: {"messageId":"dfd5b4b1-54ea-4fa1-92d9-b61a931d0d56","chatRoomId":"public:g
 
 ## 14. Friend API
 
-> Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), 친구 Minecraft projection, 시간표 공유, TaxiParty·공개방 초대, 친구·초대 알림 전달과 PENDING 초대 이외 Friend derived-data 회원 탈퇴 cleanup은 현재 운영 API다. 모바일 알림 이동과 실기기 통합 QA는 Frontend #30 병합 뒤 진행한다.
+> Foundation과 관계 Core(요청·friendship·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), 친구 Minecraft projection, 시간표 공유, TaxiParty·공개방 초대, 친구·초대 알림 전달과 PENDING 초대 이외 Friend derived-data 회원 탈퇴 cleanup은 현재 운영 API다. Frontend #30은 모바일 알림 이동 구현·자동 검증·리뷰 대응을 마쳤으며, 병합·배포 뒤 실기기 통합 QA를 진행한다.
 
 모든 Friend 런타임 API(Foundation·관계 Core)는 인증된 프로필 완료 ACTIVE 회원만 호출할 수 있다. 완료 기준은 비어 있지 않은 닉네임, 학번, 학과이며 프로필 사진은 선택이다. 프로필 미완료 회원은 현재 예약어 닉네임을 변경하지 않은 채 학번·학과만 채워 완료 상태로 전환할 수 없다. 이미 완료된 기존 예약어 닉네임 회원은 다른 완료 조건을 만족하면 Friend 기능을 사용할 수 있다. 가입한 ACTIVE 회원을 찾을 수 없는 인증 UID는 `404 MEMBER_NOT_FOUND`, 프로필 미완료 회원은 `409 MEMBER_PROFILE_INCOMPLETE`를 반환한다. 외부에 `members.id`, Firebase UID, 이메일, 실명, 학번을 반환하지 않는다.
 

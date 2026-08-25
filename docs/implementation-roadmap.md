@@ -1,6 +1,6 @@
 # SKURI 백엔드 구현 로드맵
 
-> 최종 수정일: 2026-08-24
+> 최종 수정일: 2026-08-25
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [API 명세](./api-specification.md) | [기술 전략](./tech-strategy.md) | [역할 정의](./role-definition.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md) | [친구 기능 기준 명세](./features/friends.md)
 > 보조 참고: 채팅 Firestore → MySQL 이관 참고는 백엔드 레포 `docs/chat-firestore-to-mysql-migration-reference.md`, 마인크래프트 상세 설계/이력은 백엔드 레포 `docs/minecraft-spring-migration-plan.md`
 
@@ -14,7 +14,7 @@
 | Java | 21 |
 | 빌드 도구 | Gradle |
 | 현재 의존성 | JPA, Web MVC, Validation, Security, Firebase Admin, Springdoc OpenAPI(Swagger UI/Scalar), Thumbnailator, TwelveMonkeys WebP, Lombok, MySQL Connector |
-| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Backend #88 알림·Friend derived-data 탈퇴 정리 완료, Frontend #30 알림 연결 리뷰 중, 최종 통합 QA 예정 |
+| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Backend #88·Frontend #30 구현·자동 검증·리뷰 대응 완료, 실제 기기 최종 통합 QA 예정 |
 
 ---
 
@@ -1056,7 +1056,7 @@ SSE 운영 제약:
 
 ### Phase 14: 친구·시간표 공유·친구 초대
 
-> 상태: Backend #78~#88과 Frontend #22~#29 전달 완료. Frontend #30은 Backend #88의 친구·초대 알림 계약을 연결하는 최종 단계 PR로 리뷰 중이며, 병합 뒤 통합 QA를 남겼다.
+> 상태: Backend #78~#88과 Frontend #22~#30은 승인 V1의 구현·자동 검증·리뷰 대응을 전달 완료했다. Frontend #30 병합·배포 뒤 실제 기기 통합 QA를 남겼다.
 > 상세 기준: docs/features/friends.md
 > 후속 구현 시작 조건: 해당 기능 기준 문서 검토 후 사용자의 별도 코드 구현 승인
 
@@ -1128,7 +1128,7 @@ SSE 운영 제약:
    - 초대 가능·초대 중·참여 중 목록, 학과방 안내, 파티원 목록·리더 강퇴 UI
 3. [~] 알림·나머지 탈퇴 정리
    - Backend: #88에서 친구 요청·수락·거절·초대 인박스·FCM·SSE 이벤트, Notification 설정과 Friend derived-data 탈퇴 cleanup의 구현·자동 검증·문서 동기화를 완료했다. 요청은 Member pair → FriendRequest(수락은 Friendship·양방향 차단), 초대는 Member pair → Party/ChatRoom → Invitation의 최신 잠금 상태에서 인앱을 저장하며 FCM은 새 `REQUIRES_NEW` 재검증에서 같은 잠금을 `PushNotificationService.send` 반환까지 유지해 전송한다.
-   - Frontend: #30에서 NotificationScreen/FCM/SSE cold·warm 이동, 설정 노출과 badge 동기화를 연결해 리뷰 중이다. 병합 뒤 두 PR 범위를 통합 QA한다.
+   - Frontend: #30에서 NotificationScreen/FCM/SSE cold·warm 이동, 설정 노출과 badge 동기화의 구현·자동 검증·리뷰 대응을 마쳤다. 병합·배포 뒤 두 PR 범위를 통합 QA한다.
 
 각 단계에서 OpenAPI, ERD, 도메인 문서와 Contract·Service 테스트를 해당 런타임 PR에 함께 동기화한다. 변경량 때문에 같은 저장소 PR을 분리해야 하면 먼저 사용자 승인을 받는다.
 
@@ -1240,6 +1240,7 @@ Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 > - 2026-08-25: Phase 14 알림·탈퇴 경합 보완 — FriendRequest 알림을 ordered pair lock·최신 상태 재검증과 같은 트랜잭션의 inbox 저장으로 묶고, 탈퇴 cleanup 뒤 stale inbox가 남지 않는 경합 회귀 테스트를 추가
 > - 2026-08-25: Phase 14 초대 알림·FCM 경합 보완 — Party/Chat 초대 알림도 초대 mutation과 같은 잠금 순서로 최신 상태를 재검증하고, 친구·초대 FCM은 after-commit의 기존 영속성 컨텍스트가 아닌 새 `REQUIRES_NEW` 트랜잭션에서 재검증하도록 기록
 > - 2026-08-25: Phase 14 친구 수락·FCM 최종 경합 보완 — FRIEND_ACCEPTED는 friendship·양방향 차단을 Member pair → FriendRequest → Friendship 잠금 아래 재검증하고, 친구 FCM은 같은 잠금을 실제 전송 반환까지 유지하도록 보완
+> - 2026-08-25: Phase 14 모바일 알림 통합 전달 상태 동기화 — Backend #88·Frontend #30의 구현·자동 검증·리뷰 대응 완료와 실제 기기 통합 QA 잔여 gate를 구분
 > - 2026-08-21: Phase 14 전달 이력·출시 준비 계획 갱신 — Backend #78·#79·#80과 Frontend #22·#23 완료 범위, 프로필 완료 eligibility와 저장소별 5단계 후속 PR 계획을 반영
 > - 2026-04-06: Admin Chat read API 구현 반영 — 공개 채팅방 관리자 목록/상세/메시지 조회와 관리자 파티 메시지 조회를 Phase 3/Phase 2 운영 API 및 완료 기준에 추가
 > - 2026-04-01: Phase 13 구현 반영 완료 상태로 갱신 — 마인크래프트 public/internal API, public SSE, bridge outbox, IMAGE placeholder, notification policy, 테스트/문서 완료 기준을 체크 상태로 동기화
