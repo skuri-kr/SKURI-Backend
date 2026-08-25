@@ -1,8 +1,8 @@
 # SKURI 친구 기능 기준 명세
 
-> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유·친구 초대와 초대·정원·파티원 UX 보완 전달 완료. 친구·초대 알림과 PENDING 초대 이외 회원 탈퇴 cleanup의 Backend 구현은 이번 최종 단계에 포함하며, 이후 Frontend 연결과 통합 QA를 진행한다.
+> 문서 상태: Foundation·관계 Core, Core 출시 준비, 친구 화면 완성, 시간표 공유·친구 초대와 초대·정원·파티원 UX 보완, 친구·초대 알림과 PENDING 초대 이외 Friend derived-data 회원 탈퇴 cleanup의 Backend 구현을 전달 완료했다. Frontend #30의 알림 연결은 리뷰 중이며, 병합 뒤 최종 통합 QA를 진행한다.
 > 기준일: 2026-08-25
-> 다음 구현 단위: Backend 알림·탈퇴 cleanup 계약을 소비하는 Frontend 알림 설정·인박스/FCM/SSE 이동을 구현하고, 최종 통합 QA를 진행한다.
+> 다음 구현 단위: Frontend #30의 알림 설정·인박스/FCM/SSE 이동 리뷰를 마무리하고, 병합 뒤 최종 통합 QA를 진행한다.
 > 모바일 구현 계획: SKURI-Frontend의 docs/plans/friend-feature-implementation.md
 
 ---
@@ -13,7 +13,7 @@
 
 - 친구 관계와 차단, 초대, 시간표 공개 범위의 최종 판단자는 백엔드다.
 - 모바일은 이 문서의 계약을 소비하며 클라이언트 상태만으로 권한을 판단하지 않는다.
-- `GET /v1/friends/me/code`, `POST /v1/friends/me/code/regenerate`, `POST /v1/friend-codes/preview`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.8의 관계 Core·시간표 공유·Minecraft projection·친구 초대와 알림 설정 확장은 현재 Backend PR의 런타임 계약이다. 배포 전에는 운영 API로 해석하지 않으며, 모바일 소비와 통합 QA는 다음 Frontend PR에서 완료한다.
+- `GET /v1/friends/me/code`, `POST /v1/friends/me/code/regenerate`, `POST /v1/friend-codes/preview`, `GET/PATCH /v1/friends/me/privacy`, 9.1~9.8의 관계 Core·시간표 공유·Minecraft projection·친구 초대와 알림 설정 확장은 Backend #88까지의 런타임 계약이다. Frontend #30이 이를 소비해 알림 이동을 연결하고 있으며, 최종 통합 QA는 두 PR 병합 뒤 완료한다.
 - 실제 구현 시 런타임 OpenAPI와 docs/api-specification.md를 같은 PR에서 동기화한다.
 - 구현 중 정책 변경이 필요하면 코드를 먼저 바꾸지 않고 이 문서의 결정 기록을 갱신한 뒤 승인을 받는다.
 
@@ -42,6 +42,7 @@
 | Backend | [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85) | 택시파티·공개방 친구 초대와 받은 초대 mutation·만료 정합성 |
 | Backend | [#86](https://github.com/skuri-kr/SKURI-Backend/pull/86) | 파티장·참가자 초대 수락 전이와 택시파티 정원 경계 보완 |
 | Backend | [#87](https://github.com/skuri-kr/SKURI-Backend/pull/87) | 택시파티 정원과 친구 초대 상태 정정 |
+| Backend | [#88](https://github.com/skuri-kr/SKURI-Backend/pull/88) | 친구·초대 인박스·SSE·FCM 전달과 Friend derived-data 탈퇴 정리, 최신 상태·경합 보완 |
 | Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 모바일 친구 기능 정보 구조·화면·상태·검증 계획 문서화 |
 | Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings와 관계 Core 연동 |
 | Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX, 회원가입·프로필 닉네임 정책과 관계 Core 수동 QA 보완 |
@@ -347,7 +348,7 @@ Friend 도메인은 다른 도메인의 내부 엔티티를 직접 수정하지 
 
 ## 6. 데이터 모델
 
-`friend_profiles`, `friend_code_registry`, `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`, 시간표 공유의 `timetable_sharing_settings`, `timetable_share_overrides`, 초대의 `party_invitations`, `chat_room_invitations`와 Member의 `friend_and_invitation_notifications`는 런타임 모델이다. 알림 설정 확장의 실제 컬럼명과 기본값·backfill은 현재 Backend PR에서 `docs/erd.md`와 함께 고정한다.
+`friend_profiles`, `friend_code_registry`, `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`, 시간표 공유의 `timetable_sharing_settings`, `timetable_share_overrides`, 초대의 `party_invitations`, `chat_room_invitations`와 Member의 `friend_and_invitation_notifications`는 런타임 모델이다. 알림 설정 확장의 실제 컬럼명과 기본값·backfill은 Backend #88에서 `docs/erd.md`와 함께 고정했다.
 
 ACTIVE 닉네임 중복은 서비스 조회만으로 판단하지 않고 동시 저장도 막는 DB unique claim을 사용한다. `members.nickname_key`는 새로 가입하거나 닉네임을 변경해 정책을 통과한 ACTIVE 회원의 정규화 키이며 nullable unique다. 운영 MySQL `utf8mb4_unicode_ci` 비교로 대소문자·악센트 차이는 같은 claim으로 취급한다. 기존 중복 닉네임은 임의 변경하지 않고 grandfathering을 위해 claim을 강제로 채우지 않는다. 기존 닉네임과 동일한 값을 유지한 프로필 수정은 허용하고, 새 값으로 변경할 때는 claim이 없는 기존 ACTIVE 닉네임까지 조회해 중복을 거부한다. 탈퇴 시 claim을 해제해 닉네임 재사용을 허용한다. 실제 컬럼·인덱스는 Core 출시 준비 PR에서 `docs/erd.md`와 동기화한다.
 
@@ -852,8 +853,9 @@ batch 요청과 응답:
 14. Frontend #27 친구 초대 UX
 15. Backend #86·#87 초대 수락·정원·상태 보완
 16. Frontend #28·#29 초대 sheet·정원·파티원 UX 보완
+17. Backend #88 알림·Friend derived-data 탈퇴 정리
 
-시간표 공유는 Backend #84·Frontend #26에서, 친구 초대는 Backend #85·Frontend #27에서, 초대·정원·파티원 UX 보완은 Backend #86·#87·Frontend #28·#29에서 구현·테스트·문서 정합성 점검과 리뷰 보완을 마쳐 전달을 완료했다. 남은 승인 구현은 친구·초대 알림과 PENDING 초대 외 탈퇴 정리의 Backend PR, 이어지는 Frontend PR과 통합 QA다.
+시간표 공유는 Backend #84·Frontend #26에서, 친구 초대는 Backend #85·Frontend #27에서, 초대·정원·파티원 UX 보완은 Backend #86·#87·Frontend #28·#29에서, 친구·초대 알림과 Friend derived-data 탈퇴 정리는 Backend #88에서 구현·테스트·문서 정합성 점검과 리뷰 보완을 마쳐 전달을 완료했다. 현재 Frontend #30의 알림 연결을 리뷰 중이며, 병합 뒤 통합 QA가 남았다.
 
 1. 친구 초대 (Backend #85·Frontend #27 전달 완료)
    - TaxiParty와 공개 Chat 수신자별 부분 성공 초대
@@ -863,8 +865,8 @@ batch 요청과 응답:
    - 가득 찬 파티의 초대·동승 요청 종료, 모집 상태 자동 전이 제거와 수동 재개 허용
    - 초대 가능·초대 중·참여 중 목록과 파티원 목록·리더 강퇴 UI
 3. 알림·나머지 탈퇴 정리 (진행 중)
-   - 현재 Backend PR: 친구 요청·수락·거절과 초대 인박스·FCM·SSE, 알림 설정과 PENDING 초대 외 Friend·공유 파생 데이터의 회원 탈퇴 cleanup
-   - 다음 Frontend PR: 알림 설정·NotificationScreen·FCM/SSE cold·warm 화면 이동과 통합 QA
+   - Backend #88: 친구 요청·수락·거절과 초대 인박스·FCM·SSE, 알림 설정과 PENDING 초대 외 Friend·공유 파생 데이터의 회원 탈퇴 cleanup 전달 완료
+   - Frontend #30: 알림 설정·NotificationScreen·FCM/SSE cold·warm 화면 이동 리뷰 중, 병합 뒤 통합 QA
 
 각 단계는 저장소당 최대 1개 PR로 진행한다. 친구 초대는 Backend·Frontend 각각 1개 PR, 이후 알림·나머지 탈퇴 정리도 Backend·Frontend 각각 1개 PR로 전달하며 Admin 친구 관계망 UI는 V1 제외 범위라 PR을 만들지 않는다. 단계 내부에서 서로 다른 도메인·테스트·문서는 작은 Conventional Commit으로 구분하고, 변경량 때문에 PR 분리가 필요하면 먼저 사용자 승인을 받는다.
 
@@ -933,7 +935,7 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 
 ## 15. 구현 승인 상태
 
-초기 기준 문서의 코드 구현 중지선은 사용자의 단계별 승인으로 해제되었다. 현재 승인 범위는 친구·초대 알림과 PENDING 초대 외 Friend·공유 파생 데이터 탈퇴 cleanup의 Backend 런타임·테스트·OpenAPI·ERD·문서 동기화까지다. 다음 Frontend PR은 이 계약의 알림 설정·인박스/FCM/SSE 이동을 연결하며, 두 PR 범위의 통합 QA로 Phase 14 구현을 마무리한다.
+초기 기준 문서의 코드 구현 중지선은 사용자의 단계별 승인으로 해제되었다. Backend #88은 친구·초대 알림과 PENDING 초대 외 Friend·공유 파생 데이터 탈퇴 cleanup의 런타임·테스트·OpenAPI·ERD·문서 동기화를 완료했다. Frontend #30은 이 계약의 알림 설정·인박스/FCM/SSE 이동을 연결해 리뷰 중이며, 병합 뒤 두 PR 범위의 통합 QA로 Phase 14 구현을 마무리한다.
 
 ---
 
@@ -974,7 +976,7 @@ Core 출시 준비의 `canSendFriendRequest` → `relationshipState` 교체는 �
 - [x] 예정 API가 현재 운영 API와 구분되어 있다.
 - [x] Foundation과 관계 Core의 실제 코드 구현 범위가 현재 런타임 상태로 전환되어 있다.
 
-docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 런타임 도메인으로 표시하고 Foundation·관계 Core와 Phase 14 협력 책임을 구분한다. Foundation·관계 Core, 시간표 공유, TaxiParty·공개방 초대와 현재 Backend PR의 Notification·PENDING 초대 외 회원 탈퇴 cleanup 엔티티·API·정책은 docs/api-specification.md·docs/erd.md에 동기화한다. 모바일 소비와 통합 QA 완료 시 두 문서의 구현 상태를 최종 완료로 전환한다.
+docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting 런타임 도메인으로 표시하고 Foundation·관계 Core와 Phase 14 협력 책임을 구분한다. Foundation·관계 Core, 시간표 공유, TaxiParty·공개방 초대와 Backend #88의 Notification·PENDING 초대 외 회원 탈퇴 cleanup 엔티티·API·정책은 docs/api-specification.md·docs/erd.md에 동기화했다. Frontend #30 병합과 모바일 통합 QA 완료 시 두 문서의 구현 상태를 최종 완료로 전환한다.
 
 ---
 
