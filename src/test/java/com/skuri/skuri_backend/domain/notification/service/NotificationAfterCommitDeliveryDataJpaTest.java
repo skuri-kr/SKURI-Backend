@@ -39,6 +39,8 @@ import static org.mockito.Mockito.verify;
         NotificationEventHandler.class,
         NotificationService.class,
         FriendMemberPairLockService.class,
+        FriendNotificationDispatchResolver.class,
+        FriendNotificationPushRecheckService.class,
         FriendNotificationDeliveryService.class,
         NotificationAfterCommitDeliveryDataJpaTest.TransactionalEventPublisher.class
 })

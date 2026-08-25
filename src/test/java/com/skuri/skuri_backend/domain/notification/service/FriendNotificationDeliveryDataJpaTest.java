@@ -46,6 +46,8 @@ import static org.mockito.Mockito.when;
         JpaAuditingConfig.class,
         FriendMemberPairLockService.class,
         NotificationService.class,
+        FriendNotificationDispatchResolver.class,
+        FriendNotificationPushRecheckService.class,
         FriendNotificationDeliveryService.class,
         FriendWithdrawalCleanupService.class,
         FriendNotificationDeliveryDataJpaTest.WithdrawalCommand.class
