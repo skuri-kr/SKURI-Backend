@@ -1127,7 +1127,7 @@ SSE 운영 제약:
    - 가득 찬 파티의 동승 요청·초대 차단과 PENDING 요청 만료
    - 초대 가능·초대 중·참여 중 목록, 학과방 안내, 파티원 목록·리더 강퇴 UI
 3. [~] 알림·나머지 탈퇴 정리
-   - Backend: 친구 요청·수락·거절·초대 인박스·FCM·SSE 이벤트, Notification 설정과 Friend derived-data 탈퇴 cleanup을 #88에서 구현·자동 검증·문서 동기화한다. 요청은 Member pair → FriendRequest, 초대는 Member pair → Party/ChatRoom → Invitation의 최신 잠금 상태에서 인박스를 저장하며 FCM은 새 `REQUIRES_NEW` 재검증 뒤 전송한다.
+   - Backend: 친구 요청·수락·거절·초대 인박스·FCM·SSE 이벤트, Notification 설정과 Friend derived-data 탈퇴 cleanup을 #88에서 구현·자동 검증·문서 동기화한다. 요청은 Member pair → FriendRequest(수락은 Friendship·양방향 차단), 초대는 Member pair → Party/ChatRoom → Invitation의 최신 잠금 상태에서 인앱을 저장하며 FCM은 새 `REQUIRES_NEW` 재검증에서 같은 잠금을 `PushNotificationService.send` 반환까지 유지해 전송한다.
    - Frontend: NotificationScreen/FCM/SSE cold·warm 이동, 설정 노출과 badge 동기화를 다음 최종 PR에서 구현한 뒤 두 PR 범위를 통합 QA한다.
 
 각 단계에서 OpenAPI, ERD, 도메인 문서와 Contract·Service 테스트를 해당 런타임 PR에 함께 동기화한다. 변경량 때문에 같은 저장소 PR을 분리해야 하면 먼저 사용자 승인을 받는다.
@@ -1239,6 +1239,7 @@ Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 > - 2026-08-24: Phase 14 친구 초대 보완 — 파티장·참가자 수락 경로 분리, 정원 도달 JoinRequest 만료, 상태별 초대 목록과 파티원 관리 범위를 동기화
 > - 2026-08-25: Phase 14 알림·탈퇴 경합 보완 — FriendRequest 알림을 ordered pair lock·최신 상태 재검증과 같은 트랜잭션의 inbox 저장으로 묶고, 탈퇴 cleanup 뒤 stale inbox가 남지 않는 경합 회귀 테스트를 추가
 > - 2026-08-25: Phase 14 초대 알림·FCM 경합 보완 — Party/Chat 초대 알림도 초대 mutation과 같은 잠금 순서로 최신 상태를 재검증하고, 친구·초대 FCM은 after-commit의 기존 영속성 컨텍스트가 아닌 새 `REQUIRES_NEW` 트랜잭션에서 재검증하도록 기록
+> - 2026-08-25: Phase 14 친구 수락·FCM 최종 경합 보완 — FRIEND_ACCEPTED는 friendship·양방향 차단을 Member pair → FriendRequest → Friendship 잠금 아래 재검증하고, 친구 FCM은 같은 잠금을 실제 전송 반환까지 유지하도록 보완
 > - 2026-08-21: Phase 14 전달 이력·출시 준비 계획 갱신 — Backend #78·#79·#80과 Frontend #22·#23 완료 범위, 프로필 완료 eligibility와 저장소별 5단계 후속 PR 계획을 반영
 > - 2026-04-06: Admin Chat read API 구현 반영 — 공개 채팅방 관리자 목록/상세/메시지 조회와 관리자 파티 메시지 조회를 Phase 3/Phase 2 운영 API 및 완료 기준에 추가
 > - 2026-04-01: Phase 13 구현 반영 완료 상태로 갱신 — 마인크래프트 public/internal API, public SSE, bridge outbox, IMAGE placeholder, notification policy, 테스트/문서 완료 기준을 체크 상태로 동기화
