@@ -14,7 +14,7 @@
 | Java | 21 |
 | 빌드 도구 | Gradle |
 | 현재 의존성 | JPA, Web MVC, Validation, Security, Firebase Admin, Springdoc OpenAPI(Swagger UI/Scalar), Thumbnailator, TwelveMonkeys WebP, Lombok, MySQL Connector |
-| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation·관계 Core·출시 준비·친구 화면 완성·시간표 공유·친구 초대 완료, 친구·초대 알림과 Friend derived-data 탈퇴 정리 Backend 최종 PR 진행 중, 앱 알림 연결·통합 QA 예정 |
+| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Backend #88 알림·Friend derived-data 탈퇴 정리 완료, Frontend #30 알림 연결 리뷰 중, 최종 통합 QA 예정 |
 
 ---
 
@@ -1056,7 +1056,7 @@ SSE 운영 제약:
 
 ### Phase 14: 친구·시간표 공유·친구 초대
 
-> 상태: Backend #78~#87와 Frontend #22~#29 전달 완료. Backend #88은 친구·초대 알림과 PENDING 초대 외 Friend 파생 데이터 탈퇴 정리의 최종 단계 PR이며, 다음 Frontend PR과 통합 QA를 남겼다.
+> 상태: Backend #78~#88과 Frontend #22~#29 전달 완료. Frontend #30은 Backend #88의 친구·초대 알림 계약을 연결하는 최종 단계 PR로 리뷰 중이며, 병합 뒤 통합 QA를 남겼다.
 > 상세 기준: docs/features/friends.md
 > 후속 구현 시작 조건: 해당 기능 기준 문서 검토 후 사용자의 별도 코드 구현 승인
 
@@ -1102,7 +1102,7 @@ SSE 운영 제약:
 | Backend | [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85) | 택시파티·공개방 친구 초대와 받은 초대 mutation·만료 정합성 |
 | Backend | [#86](https://github.com/skuri-kr/SKURI-Backend/pull/86) | 파티장·참가자 초대 수락 전이와 택시파티 정원 경계 보완 |
 | Backend | [#87](https://github.com/skuri-kr/SKURI-Backend/pull/87) | 택시파티 정원과 친구 초대 상태 정정 |
-| Backend | [#88](https://github.com/skuri-kr/SKURI-Backend/pull/88) | 친구·초대 인박스·SSE·FCM 전달과 Friend derived-data 탈퇴 정리, 최신 상태·경합 보완 (리뷰 진행 중) |
+| Backend | [#88](https://github.com/skuri-kr/SKURI-Backend/pull/88) | 친구·초대 인박스·SSE·FCM 전달과 Friend derived-data 탈퇴 정리, 최신 상태·경합 보완 |
 | Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 모바일 친구 기능 구현 계획 |
 | Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings와 관계 Core 연동 |
 | Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX와 수동 QA 보완 |
@@ -1114,7 +1114,7 @@ SSE 운영 제약:
 
 #### 14-4. 시간표 공유 후 구현 단위
 
-한 단계에서는 저장소당 최대 1개 PR만 만들고 런타임·테스트·문서는 같은 PR의 목적별 커밋으로 나눈다. 현재 친구 초대를 Backend·Frontend 각각 1개 PR로 구현하고, 이후 알림·나머지 탈퇴 정리도 저장소별 1개 PR로 진행한다. Admin 친구 관계망 UI는 V1에서 제외한다.
+한 단계에서는 저장소당 최대 1개 PR만 만들고 런타임·테스트·문서는 같은 PR의 목적별 커밋으로 나눈다. 친구 초대와 알림·나머지 탈퇴 정리는 저장소별 PR로 구현했으며, Admin 친구 관계망 UI는 V1에서 제외한다.
 
 1. [x] 시간표 공유 (전달 완료)
    - 시간표 공유 설정·친구별 예외·친구 시간표 조회
@@ -1127,8 +1127,8 @@ SSE 운영 제약:
    - 가득 찬 파티의 동승 요청·초대 차단과 PENDING 요청 만료
    - 초대 가능·초대 중·참여 중 목록, 학과방 안내, 파티원 목록·리더 강퇴 UI
 3. [~] 알림·나머지 탈퇴 정리
-   - Backend: 친구 요청·수락·거절·초대 인박스·FCM·SSE 이벤트, Notification 설정과 Friend derived-data 탈퇴 cleanup을 #88에서 구현·자동 검증·문서 동기화한다. 요청은 Member pair → FriendRequest(수락은 Friendship·양방향 차단), 초대는 Member pair → Party/ChatRoom → Invitation의 최신 잠금 상태에서 인앱을 저장하며 FCM은 새 `REQUIRES_NEW` 재검증에서 같은 잠금을 `PushNotificationService.send` 반환까지 유지해 전송한다.
-   - Frontend: NotificationScreen/FCM/SSE cold·warm 이동, 설정 노출과 badge 동기화를 다음 최종 PR에서 구현한 뒤 두 PR 범위를 통합 QA한다.
+   - Backend: #88에서 친구 요청·수락·거절·초대 인박스·FCM·SSE 이벤트, Notification 설정과 Friend derived-data 탈퇴 cleanup의 구현·자동 검증·문서 동기화를 완료했다. 요청은 Member pair → FriendRequest(수락은 Friendship·양방향 차단), 초대는 Member pair → Party/ChatRoom → Invitation의 최신 잠금 상태에서 인앱을 저장하며 FCM은 새 `REQUIRES_NEW` 재검증에서 같은 잠금을 `PushNotificationService.send` 반환까지 유지해 전송한다.
+   - Frontend: #30에서 NotificationScreen/FCM/SSE cold·warm 이동, 설정 노출과 badge 동기화를 연결해 리뷰 중이다. 병합 뒤 두 PR 범위를 통합 QA한다.
 
 각 단계에서 OpenAPI, ERD, 도메인 문서와 Contract·Service 테스트를 해당 런타임 PR에 함께 동기화한다. 변경량 때문에 같은 저장소 PR을 분리해야 하면 먼저 사용자 승인을 받는다.
 

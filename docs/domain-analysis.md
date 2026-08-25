@@ -54,7 +54,7 @@
 
 ### 2.1 승인된 목표 도메인 (9개 + 인프라)
 
-> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정), 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), Minecraft 안전 projection, 시간표 공유와 TaxiParty·Chat 초대 협력을 완료했다. 친구·초대 알림과 PENDING 초대 외 Friend 파생 데이터 탈퇴 정리의 Backend 구현은 현재 최종 단계 PR에 포함하며, 모바일 연결은 다음 PR에서 완료한다.
+> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정), 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), Minecraft 안전 projection, 시간표 공유와 TaxiParty·Chat 초대 협력, 친구·초대 알림과 PENDING 초대 외 Friend 파생 데이터 탈퇴 정리를 Backend #88에서 완료했다. 모바일 알림 연결은 Frontend #30에서 리뷰 중이며, 병합 뒤 통합 QA를 진행한다.
 
 | # | 도메인 | 유형 | 핵심 책임 | 주요 엔티티 |
 |---|--------|------|----------|------------|
@@ -816,7 +816,7 @@ Hooks:
 
 ### 3.9 Friend (친구, Phase 14 관계 Core 구현)
 
-> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대와 초대·정원·파티원 UX 보완을 완료했다. 친구·초대 알림과 PENDING 초대 외 Friend 파생 데이터 탈퇴 정리는 현재 Backend PR에서, 모바일 연결과 통합 QA는 다음 Frontend PR에서 진행한다.
+> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대와 초대·정원·파티원 UX 보완, 친구·초대 알림과 PENDING 초대 외 Friend 파생 데이터 탈퇴 정리를 Backend #88에서 완료했다. 모바일 알림 연결은 Frontend #30에서 리뷰 중이며, 병합 뒤 통합 QA를 진행한다.
 > 상세 기준: `docs/features/friends.md`
 
 ```
