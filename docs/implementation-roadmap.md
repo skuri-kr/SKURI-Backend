@@ -1056,7 +1056,7 @@ SSE 운영 제약:
 
 ### Phase 14: 친구·시간표 공유·친구 초대
 
-> 상태: Backend #78~#87와 Frontend #22~#29 전달 완료. 친구·초대 알림과 PENDING 초대 외 Friend 파생 데이터 탈퇴 정리의 Backend 구현은 현재 최종 단계 PR에 포함하며, 다음 Frontend PR과 통합 QA를 남겼다.
+> 상태: Backend #78~#87와 Frontend #22~#29 전달 완료. Backend #88은 친구·초대 알림과 PENDING 초대 외 Friend 파생 데이터 탈퇴 정리의 최종 단계 PR이며, 다음 Frontend PR과 통합 QA를 남겼다.
 > 상세 기준: docs/features/friends.md
 > 후속 구현 시작 조건: 해당 기능 기준 문서 검토 후 사용자의 별도 코드 구현 승인
 
@@ -1102,6 +1102,7 @@ SSE 운영 제약:
 | Backend | [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85) | 택시파티·공개방 친구 초대와 받은 초대 mutation·만료 정합성 |
 | Backend | [#86](https://github.com/skuri-kr/SKURI-Backend/pull/86) | 파티장·참가자 초대 수락 전이와 택시파티 정원 경계 보완 |
 | Backend | [#87](https://github.com/skuri-kr/SKURI-Backend/pull/87) | 택시파티 정원과 친구 초대 상태 정정 |
+| Backend | [#88](https://github.com/skuri-kr/SKURI-Backend/pull/88) | 친구·초대 인박스·SSE·FCM 전달과 Friend derived-data 탈퇴 정리, 최신 상태·경합 보완 (리뷰 진행 중) |
 | Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 모바일 친구 기능 구현 계획 |
 | Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings와 관계 Core 연동 |
 | Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX와 수동 QA 보완 |
@@ -1126,7 +1127,7 @@ SSE 운영 제약:
    - 가득 찬 파티의 동승 요청·초대 차단과 PENDING 요청 만료
    - 초대 가능·초대 중·참여 중 목록, 학과방 안내, 파티원 목록·리더 강퇴 UI
 3. [~] 알림·나머지 탈퇴 정리
-   - Backend: 친구 요청·수락·거절·초대 인박스·FCM·SSE 이벤트, Notification 설정과 Friend derived-data 탈퇴 cleanup을 현재 PR에서 구현·자동 검증·문서 동기화한다.
+   - Backend: 친구 요청·수락·거절·초대 인박스·FCM·SSE 이벤트, Notification 설정과 Friend derived-data 탈퇴 cleanup을 #88에서 구현·자동 검증·문서 동기화한다. 요청은 Member pair → FriendRequest, 초대는 Member pair → Party/ChatRoom → Invitation의 최신 잠금 상태에서 인박스를 저장하며 FCM은 새 `REQUIRES_NEW` 재검증 뒤 전송한다.
    - Frontend: NotificationScreen/FCM/SSE cold·warm 이동, 설정 노출과 badge 동기화를 다음 최종 PR에서 구현한 뒤 두 PR 범위를 통합 QA한다.
 
 각 단계에서 OpenAPI, ERD, 도메인 문서와 Contract·Service 테스트를 해당 런타임 PR에 함께 동기화한다. 변경량 때문에 같은 저장소 PR을 분리해야 하면 먼저 사용자 승인을 받는다.
@@ -1237,6 +1238,7 @@ Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 > - 2026-08-24: Phase 14 친구 초대 PR 생성 — Backend #85·Frontend #27의 런타임·테스트·문서 동기화와 후속 알림·나머지 탈퇴 정리 경계를 기록
 > - 2026-08-24: Phase 14 친구 초대 보완 — 파티장·참가자 수락 경로 분리, 정원 도달 JoinRequest 만료, 상태별 초대 목록과 파티원 관리 범위를 동기화
 > - 2026-08-25: Phase 14 알림·탈퇴 경합 보완 — FriendRequest 알림을 ordered pair lock·최신 상태 재검증과 같은 트랜잭션의 inbox 저장으로 묶고, 탈퇴 cleanup 뒤 stale inbox가 남지 않는 경합 회귀 테스트를 추가
+> - 2026-08-25: Phase 14 초대 알림·FCM 경합 보완 — Party/Chat 초대 알림도 초대 mutation과 같은 잠금 순서로 최신 상태를 재검증하고, 친구·초대 FCM은 after-commit의 기존 영속성 컨텍스트가 아닌 새 `REQUIRES_NEW` 트랜잭션에서 재검증하도록 기록
 > - 2026-08-21: Phase 14 전달 이력·출시 준비 계획 갱신 — Backend #78·#79·#80과 Frontend #22·#23 완료 범위, 프로필 완료 eligibility와 저장소별 5단계 후속 PR 계획을 반영
 > - 2026-04-06: Admin Chat read API 구현 반영 — 공개 채팅방 관리자 목록/상세/메시지 조회와 관리자 파티 메시지 조회를 Phase 3/Phase 2 운영 API 및 완료 기준에 추가
 > - 2026-04-01: Phase 13 구현 반영 완료 상태로 갱신 — 마인크래프트 public/internal API, public SSE, bridge outbox, IMAGE placeholder, notification policy, 테스트/문서 완료 기준을 체크 상태로 동기화

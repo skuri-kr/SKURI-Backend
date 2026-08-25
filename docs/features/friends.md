@@ -284,7 +284,7 @@ INCOMING_PENDING에서 기존 요청 생성 API를 호출하면 역방향 PENDIN
 - FRIEND_DECLINED payload는 requestId를 포함하되 V1 terminal 이력을 카드로 재구성하지 않는다.
 - PARTY_INVITATION과 CHAT_ROOM_INVITATION payload는 invitationId와 invitationType을 포함한다.
 - FRIEND_REQUEST와 FRIEND_DECLINED는 친구 허브 요청 탭, FRIEND_ACCEPTED는 수락한 친구 상세, 초대 알림은 친구 허브 초대 탭의 해당 invitationId 카드로 이동한다.
-- 친구 요청·수락·거절 알림은 원 이벤트 커밋 뒤 독립 전달 트랜잭션에서 요청자·수신자의 ordered pair lock을 획득하고, 잠금 중 최신 FriendRequest·ACTIVE 프로필 완료 회원·수락 대상 공개 프로필·알림 설정을 다시 확인한 뒤 인박스를 같은 트랜잭션에 저장한다. 탈퇴 cleanup은 같은 회원 잠금 뒤 진행하므로 hard delete된 요청을 참조하는 인박스가 다시 남지 않는다. FCM은 커밋 뒤 한 번 더 최신 상태를 확인해 유효하지 않으면 전송하지 않는다.
+- 친구 요청·수락·거절 알림은 원 이벤트 커밋 뒤 독립 전달 트랜잭션에서 요청자·수신자의 ordered pair lock을 획득하고, 잠금 중 최신 FriendRequest·ACTIVE 프로필 완료 회원·수락 대상 공개 프로필·알림 설정을 다시 확인한 뒤 인박스 row를 같은 트랜잭션에 저장한다. 택시파티·공개방 초대 알림은 같은 순서의 회원 쌍 잠금 뒤 Party 또는 ChatRoom aggregate와 Invitation 행을 차례로 잠그고, 최신 PENDING·관계/차단·대상 자격·정원·알림 설정을 다시 확인한 뒤 인박스를 저장한다. 관계 종료·차단·탈퇴 cleanup은 같은 회원 잠금과 각 초대 terminal 전이로 진행하므로 유효하지 않은 요청·초대를 참조하는 인앱 알림을 새로 만들지 않는다. FCM은 인앱 저장 커밋 후 별도 `REQUIRES_NEW` 트랜잭션의 새 영속성 컨텍스트에서 같은 상태를 다시 확인해 유효할 때만 best-effort로 전송한다.
 - 회원 탈퇴로 FriendRequest를 hard delete할 때, 해당 requestId를 참조하는 상대방의 `FRIEND_REQUEST`·`FRIEND_DECLINED`와 탈퇴 회원의 `friendPublicId`를 참조하는 `FRIEND_ACCEPTED` 인앱 알림도 같은 트랜잭션에서 삭제한다. 실제 미읽음 행이 제거된 상대방에게만 커밋 후 unread-count SSE를 발행한다.
 
 ---
@@ -791,6 +791,7 @@ batch 요청과 응답:
 - 초대 수락과 lazy reconciliation의 잠금 전 권한·대상 확인은 Invitation과 Party·ChatRoom aggregate entity를 영속화하지 않는 scalar/projection snapshot으로 수행한다. 최종 상태 전이는 고정 순서로 aggregate와 Invitation 행을 잠근 뒤 다시 읽은 상태만 사용하므로, 동시 decline·cancel·timeout·정원 마감이 먼저 확정된 초대를 수락으로 되돌리거나 정원을 초과하지 않는다.
 - 초대 생성·수락과 파티·방 상태가 필요한 선제 만료의 잠금 순서는 ordered Member pair, Party 또는 ChatRoom aggregate, Invitation 행 순서로 고정한다. 참가 요청 수락도 requester Member를 먼저 잠그고 Party를 잠근다. 관리자 파티 상태 변경·멤버 제거와 공개방 삭제도 aggregate를 먼저 잠근 뒤 관련 Invitation을 정리한다. 회원 탈퇴는 발송·수신 PENDING 초대 대상 ID와 실제 참여 대상 ID를 합쳐 정렬한 뒤 대상 aggregate를 먼저 잠그고 그 대상의 Invitation만 만료한다. decline·cancel·시간 만료처럼 Invitation만 잠그는 경로는 이후 aggregate나 Member pair 잠금을 추가로 얻지 않는다.
 - 친구 관계를 전제로 하는 택시파티·공개방 초대 생성과 수락은 위 고정 순서 안에서 친구·차단 상태를 재검증한다.
+- 친구 요청과 택시파티·공개방 초대의 after-commit 알림 전달도 각 mutation과 같은 잠금 순서를 사용한다. 요청은 ordered Member pair → FriendRequest, 초대는 ordered Member pair → Party 또는 ChatRoom → Invitation을 잠근 최신 상태에서만 인앱을 저장한다. FCM은 해당 인앱 저장 커밋 후 새 `REQUIRES_NEW` 트랜잭션에서 같은 상태를 다시 읽어 유효할 때만 전송한다.
 - 친구 코드 발급·재발급과 lazy provisioning은 해당 Member row를 PESSIMISTIC_WRITE로 잠근 뒤 ACTIVE를 재확인한다. 탈퇴가 먼저 확정됐다면 FriendProfile이나 ACTIVE 코드 registry row를 생성하지 않는다.
 - 양방향 동시 요청은 friendship 한 건만 만든다.
 - 같은 요청·초대의 accept 재호출은 이미 성공한 동일 수신자라면 멱등 응답을 우선한다. 택시 초대는 최초 수락 결과(`JOINED` 또는 `LEADER_APPROVAL_PENDING`)와 후자의 `joinRequestId`를 초대 행에 확정 저장해, 이후 동승 요청 처리·파티 상태 변화와 무관하게 동일 응답을 반환한다.
@@ -1031,3 +1032,4 @@ docs/domain-analysis.md와 docs/role-definition.md에는 Friend를 Supporting �
 | 2026-08-24 | 여러 일반 참가자 초대가 동일 PENDING 동승 요청을 재사용하면 earliest accepted invitation의 초대자를 표시하고, CLOSED 수락은 현재 참가 중인 원본 초대자가 하나 이상일 때만 허용한다. 채팅 초대 DELETE는 아직 저장 전인 시간 만료도 EXPIRED 후 DISMISSED로 처리한다. |
 | 2026-08-25 | 회원 탈퇴로 hard delete되는 친구 요청을 참조하는 상대방의 `FRIEND_REQUEST`·`FRIEND_DECLINED` 인앱 알림도 같은 탈퇴 트랜잭션에서 정리하고, 미읽음 행이 실제로 제거된 상대방에게만 커밋 후 unread-count SSE를 발행한다. |
 | 2026-08-25 | 친구 요청·수락·거절 알림은 ordered pair lock과 최신 상태 재검증 뒤 같은 트랜잭션에서 인박스를 저장하고, 탈퇴 cleanup과 경합해 삭제된 FriendRequest를 참조하는 알림이 다시 남지 않도록 한다. |
+| 2026-08-25 | 친구 요청 FCM은 기존 after-commit 영속성 컨텍스트를 재사용하지 않고 새 `REQUIRES_NEW` 트랜잭션에서 재검증한다. 택시파티·공개방 초대 알림도 초대 mutation과 같은 Member pair → Party/ChatRoom → Invitation 잠금 순서에서 최신 상태를 검증한 뒤 인앱·FCM을 전달한다. |

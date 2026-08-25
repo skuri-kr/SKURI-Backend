@@ -914,7 +914,7 @@ Member ◄── Friend ──► Notification
 | Academic → Friend | 정책 확인, 런타임 구현 | friendship·차단을 확인한 뒤 Academic이 시간표 공개 projection과 관계 종료 시 공유 예외 정리를 결정 |
 | TaxiParty, Chat → Friend | 정책 확인, 런타임 구현 | 초대 생성·수락 시 friendship·차단을 재검증하되 초대 상태는 각 도메인이 소유한다. 잠금 순서는 ordered Member pair 또는 requester Member → Party/ChatRoom aggregate → Invitation으로 통일한다. 관리자 상태 변경·멤버 제거·방 삭제도 aggregate를 먼저 잠근 뒤 Invitation을 정리한다. |
 | Minecraft → Friend | 정책 확인, 런타임 구현 | friendship·차단 확인 후 Minecraft가 SELF·FRIEND 안전 계정 projection을 생성 |
-| Friend, TaxiParty, Chat → Notification | after-commit 이벤트, 런타임 구현 | 친구 요청·수락·거절과 친구 기반 초대를 인박스·SSE·FCM으로 전달한다. 유효 수신 조건은 `allNotifications && friendAndInvitationNotifications`이며, 최초 택시 초대에는 `partyNotifications`를 적용하지 않는다. |
+| Friend, TaxiParty, Chat → Notification | after-commit 이벤트, 런타임 구현 | 친구 요청·수락·거절과 친구 기반 초대를 인앱·SSE·FCM으로 전달한다. 요청은 Member pair → FriendRequest, 초대는 Member pair → Party/ChatRoom → Invitation의 최신 잠금 상태에서 인앱을 저장하고, FCM은 새 `REQUIRES_NEW` 재검증 뒤 전송한다. 유효 수신 조건은 `allNotifications && friendAndInvitationNotifications`이며, 최초 택시 초대에는 `partyNotifications`를 적용하지 않는다. |
 
 ### 4.3 도메인 이벤트
 
@@ -991,6 +991,7 @@ UserNotification 엔티티:
   - Spring Notification 인프라는 현행 RN + Firebase Cloud Functions 운영 정책을 기본으로 이관한다.
   - 저장 모델은 Firestore가 아니라 MySQL `user_notifications`, `fcm_tokens`를 사용한다.
   - 상태 변경 성공 이후 `after-commit`으로 이벤트를 발행한다.
+  - 친구 요청·초대 이벤트는 전달 시점에도 각 도메인 mutation과 같은 잠금 순서로 최신 유효 상태를 재검증한다. FCM은 인앱 저장 커밋 뒤 새 `REQUIRES_NEW` 트랜잭션에서 다시 읽어 전송한다.
   - 인앱 저장 실패/푸시 실패는 핵심 비즈니스 트랜잭션을 롤백시키지 않는다.
   - 회원 탈퇴 시 `user_notifications`, `fcm_tokens`는 전량 삭제하고 회원 개인 SSE 연결도 종료한다.
   - Phase 8 런타임은 `allNotifications`를 마스터 토글로 정규화해 적용한다. 단, `AppNoticePriority.HIGH`와 파티 채팅 알림은 문서화된 예외 정책을 따른다.
