@@ -55,7 +55,12 @@ public enum PushPresentationProfile {
                     APP_NOTICE,
                     ACADEMIC_SCHEDULE -> NOTICE;
             case POST_LIKED,
-                    COMMENT_CREATED -> DEFAULT;
+                    COMMENT_CREATED,
+                    FRIEND_REQUEST,
+                    FRIEND_ACCEPTED,
+                    FRIEND_DECLINED,
+                    PARTY_INVITATION,
+                    CHAT_ROOM_INVITATION -> DEFAULT;
         };
     }
 }

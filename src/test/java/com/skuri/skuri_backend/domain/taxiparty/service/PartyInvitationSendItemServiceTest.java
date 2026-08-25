@@ -1,5 +1,6 @@
 package com.skuri.skuri_backend.domain.taxiparty.service;
 
+import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.domain.friend.entity.Friendship;
 import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendshipRepository;
@@ -14,6 +15,7 @@ import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyInvitationRepository;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyRepository;
+import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +33,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -43,6 +46,7 @@ class PartyInvitationSendItemServiceTest {
     @Mock private FriendshipRepository friendshipRepository;
     @Mock private MemberBlockRepository memberBlockRepository;
     @Mock private FriendMemberPairLockService pairLockService;
+    @Mock private AfterCommitApplicationEventPublisher eventPublisher;
 
     private PartyInvitationSendItemService service;
 
@@ -54,7 +58,8 @@ class PartyInvitationSendItemServiceTest {
                 friendProfileRepository,
                 friendshipRepository,
                 memberBlockRepository,
-                pairLockService
+                pairLockService,
+                eventPublisher
         );
     }
 
@@ -90,6 +95,7 @@ class PartyInvitationSendItemServiceTest {
         lockOrder.verify(pairLockService).lockActivePair("inviter-1", "invitee-1");
         lockOrder.verify(partyRepository).findDetailByIdForUpdate("party-1");
         lockOrder.verify(partyInvitationRepository).findByActiveTargetKeyForUpdate("party-1:invitee-1");
+        verify(eventPublisher).publish(new NotificationDomainEvent.PartyInvitationCreated("invite-new"));
     }
 
     @Test

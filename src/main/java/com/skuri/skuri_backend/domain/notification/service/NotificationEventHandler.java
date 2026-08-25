@@ -66,6 +66,8 @@ public class NotificationEventHandler {
     private final MemberRepository memberRepository;
     private final NotificationService notificationService;
     private final PushNotificationService pushNotificationService;
+    private final FriendNotificationDeliveryService friendNotificationDeliveryService;
+    private final InvitationNotificationDeliveryService invitationNotificationDeliveryService;
 
     public void handle(NotificationDomainEvent event) {
         switch (event) {
@@ -82,6 +84,11 @@ public class NotificationEventHandler {
             case NotificationDomainEvent.NoticeCreated created -> handleNoticeCreated(created);
             case NotificationDomainEvent.AppNoticeCreated created -> handleAppNoticeCreated(created);
             case NotificationDomainEvent.AcademicScheduleReminder reminder -> handleAcademicScheduleReminder(reminder);
+            case NotificationDomainEvent.FriendRequestCreated created -> handleFriendRequestCreated(created);
+            case NotificationDomainEvent.FriendRequestAccepted accepted -> handleFriendRequestAccepted(accepted);
+            case NotificationDomainEvent.FriendRequestDeclined declined -> handleFriendRequestDeclined(declined);
+            case NotificationDomainEvent.PartyInvitationCreated created -> handlePartyInvitationCreated(created);
+            case NotificationDomainEvent.ChatRoomInvitationCreated created -> handleChatRoomInvitationCreated(created);
         }
     }
 
@@ -496,6 +503,26 @@ public class NotificationEventHandler {
         ));
     }
 
+    private void handleFriendRequestCreated(NotificationDomainEvent.FriendRequestCreated event) {
+        friendNotificationDeliveryService.deliverFriendRequestCreated(event.requestId());
+    }
+
+    private void handleFriendRequestAccepted(NotificationDomainEvent.FriendRequestAccepted event) {
+        friendNotificationDeliveryService.deliverFriendRequestAccepted(event.requestId());
+    }
+
+    private void handleFriendRequestDeclined(NotificationDomainEvent.FriendRequestDeclined event) {
+        friendNotificationDeliveryService.deliverFriendRequestDeclined(event.requestId());
+    }
+
+    private void handlePartyInvitationCreated(NotificationDomainEvent.PartyInvitationCreated event) {
+        invitationNotificationDeliveryService.deliverPartyInvitationCreated(event.invitationId());
+    }
+
+    private void handleChatRoomInvitationCreated(NotificationDomainEvent.ChatRoomInvitationCreated event) {
+        invitationNotificationDeliveryService.deliverChatRoomInvitationCreated(event.invitationId());
+    }
+
     private void dispatch(NotificationDispatchRequest request) {
         if (request.recipientIds().isEmpty()) {
             return;
@@ -515,6 +542,13 @@ public class NotificationEventHandler {
 
     private Member findMember(String memberId) {
         return memberRepository.findById(memberId).orElse(null);
+    }
+
+    private Member findActiveMember(String memberId) {
+        if (memberId == null || memberId.isBlank()) {
+            return null;
+        }
+        return memberRepository.findActiveById(memberId).orElse(null);
     }
 
     private List<String> findPartyRecipients(Collection<String> memberIds) {

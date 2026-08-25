@@ -210,6 +210,32 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
     }
 
     @Test
+    void 알림스키마는_친구요청식별자와친구초대타입을명시한다() throws Exception {
+        JsonNode schemas = apiDocs().path("components").path("schemas");
+        String requestIdDescription = schemas.path("NotificationData")
+                .path("properties")
+                .path("requestId")
+                .path("description")
+                .asText();
+
+        assertTrue(requestIdDescription.contains("친구 요청"));
+        Set<String> notificationTypes = new LinkedHashSet<>();
+        schemas.path("NotificationResponse")
+                .path("properties")
+                .path("type")
+                .path("enum")
+                .forEach(type -> notificationTypes.add(type.asText()));
+        assertTrue(notificationTypes.containsAll(Set.of(
+                "PARTY_REOPENED",
+                "FRIEND_REQUEST",
+                "FRIEND_ACCEPTED",
+                "FRIEND_DECLINED",
+                "PARTY_INVITATION",
+                "CHAT_ROOM_INVITATION"
+        )));
+    }
+
+    @Test
     void 시간표공유_공통응답필드는_설명과nullable선언을제공한다() throws Exception {
         JsonNode schemas = apiDocs("/v3/api-docs/academic").path("components").path("schemas");
 

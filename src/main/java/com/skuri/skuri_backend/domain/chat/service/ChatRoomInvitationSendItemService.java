@@ -1,6 +1,7 @@
 package com.skuri.skuri_backend.domain.chat.service;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
+import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomInvitationOutcome;
 import com.skuri.skuri_backend.domain.chat.dto.response.ChatRoomInvitationSendResultResponse;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
@@ -18,6 +19,7 @@ import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService
 import com.skuri.skuri_backend.domain.member.constant.DepartmentAliasNormalizer;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -38,6 +40,7 @@ public class ChatRoomInvitationSendItemService {
     private final MemberBlockRepository memberBlockRepository;
     private final MemberRepository memberRepository;
     private final FriendMemberPairLockService pairLockService;
+    private final AfterCommitApplicationEventPublisher eventPublisher;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ChatRoomInvitationSendResultResponse send(
@@ -92,6 +95,7 @@ public class ChatRoomInvitationSendItemService {
         ChatRoomInvitation created = invitationRepository.saveAndFlush(
                 ChatRoomInvitation.create(chatRoomId, inviterMemberId, inviteeMemberId, now)
         );
+        eventPublisher.publish(new NotificationDomainEvent.ChatRoomInvitationCreated(created.getId()));
         return new ChatRoomInvitationSendResultResponse(
                 friendPublicId,
                 ChatRoomInvitationOutcome.SENT,

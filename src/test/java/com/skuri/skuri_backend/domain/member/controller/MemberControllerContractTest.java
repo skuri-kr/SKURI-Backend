@@ -134,7 +134,8 @@ class MemberControllerContractTest {
                                 .header(AUTHORIZATION, "Bearer valid-token")
                 )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.lastLogin").exists());
+                .andExpect(jsonPath("$.data.lastLogin").exists())
+                .andExpect(jsonPath("$.data.notificationSetting.friendAndInvitationNotifications").value(true));
     }
 
     @Test
@@ -312,7 +313,10 @@ class MemberControllerContractTest {
     @Test
     void patchMembersMeNotificationSettings_기본성공() throws Exception {
         mockValidToken();
-        when(memberService.updateMyNotificationSettings(eq("firebase-uid"), any()))
+        when(memberService.updateMyNotificationSettings(
+                eq("firebase-uid"),
+                argThat(request -> Boolean.FALSE.equals(request.friendAndInvitationNotifications()))
+        ))
                 .thenReturn(memberMeResponse());
 
         mockMvc.perform(
@@ -325,6 +329,7 @@ class MemberControllerContractTest {
                                           "commentNotifications": false,
                                           "bookmarkedPostCommentNotifications": true,
                                           "noticeNotifications": false,
+                                          "friendAndInvitationNotifications": false,
                                           "noticeNotificationsDetail": {
                                             "news": true,
                                             "academy": false
@@ -332,7 +337,8 @@ class MemberControllerContractTest {
                                         }
                                         """)
                 )
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.notificationSetting.friendAndInvitationNotifications").value(true));
     }
 
     @Test
@@ -510,6 +516,7 @@ class MemberControllerContractTest {
                 false,
                 new MemberBankAccountResponse("카카오뱅크", "3333-01-1234567", "홍길동", false),
                 new MemberNotificationSettingResponse(
+                        true,
                         true,
                         true,
                         true,

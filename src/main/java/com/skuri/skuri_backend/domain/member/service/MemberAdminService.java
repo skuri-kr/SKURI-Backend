@@ -339,6 +339,7 @@ public class MemberAdminService {
                 notificationSetting.isCommentNotifications(),
                 notificationSetting.isBookmarkedPostCommentNotifications(),
                 notificationSetting.isSystemNotifications(),
+                notificationSetting.isFriendAndInvitationNotifications(),
                 notificationSetting.isAcademicScheduleNotifications(),
                 notificationSetting.isAcademicScheduleDayBeforeEnabled(),
                 notificationSetting.isAcademicScheduleAllEventsEnabled(),

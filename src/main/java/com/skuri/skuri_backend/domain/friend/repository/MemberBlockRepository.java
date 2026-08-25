@@ -19,6 +19,8 @@ public interface MemberBlockRepository extends JpaRepository<MemberBlock, Member
 
     void deleteByBlockerIdAndBlockedId(String blockerId, String blockedId);
 
+    long deleteByBlockerIdOrBlockedId(String blockerId, String blockedId);
+
     @Query("""
             select case
                        when block.blockerId = :ownerMemberId then block.blockedId

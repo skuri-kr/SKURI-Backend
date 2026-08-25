@@ -89,6 +89,10 @@ class NotificationEventHandlerTest {
     private NotificationService notificationService;
     @Mock
     private PushNotificationService pushNotificationService;
+    @Mock
+    private FriendNotificationDeliveryService friendNotificationDeliveryService;
+    @Mock
+    private InvitationNotificationDeliveryService invitationNotificationDeliveryService;
 
     @InjectMocks
     private NotificationEventHandler notificationEventHandler;
@@ -119,6 +123,41 @@ class NotificationEventHandlerTest {
         assertEquals(List.of("member-1"), captor.getValue().recipientIds().stream().toList());
         assertEquals("정문 → 역 택시 파티 등장", captor.getValue().title());
         assertFalse(captor.getValue().inboxEnabled());
+    }
+
+    @Test
+    void handleFriendRequestCreated_전용전달서비스에위임한다() {
+        notificationEventHandler.handle(new NotificationDomainEvent.FriendRequestCreated("friend-request-1"));
+
+        verify(friendNotificationDeliveryService).deliverFriendRequestCreated("friend-request-1");
+    }
+
+    @Test
+    void handleFriendRequestAccepted_전용전달서비스에위임한다() {
+        notificationEventHandler.handle(new NotificationDomainEvent.FriendRequestAccepted("friend-request-1"));
+
+        verify(friendNotificationDeliveryService).deliverFriendRequestAccepted("friend-request-1");
+    }
+
+    @Test
+    void handleFriendRequestDeclined_전용전달서비스에위임한다() {
+        notificationEventHandler.handle(new NotificationDomainEvent.FriendRequestDeclined("friend-request-1"));
+
+        verify(friendNotificationDeliveryService).deliverFriendRequestDeclined("friend-request-1");
+    }
+
+    @Test
+    void handlePartyInvitationCreated_잠금전용전달서비스에위임한다() {
+        notificationEventHandler.handle(new NotificationDomainEvent.PartyInvitationCreated("party-invitation-1"));
+
+        verify(invitationNotificationDeliveryService).deliverPartyInvitationCreated("party-invitation-1");
+    }
+
+    @Test
+    void handleChatRoomInvitationCreated_잠금전용전달서비스에위임한다() {
+        notificationEventHandler.handle(new NotificationDomainEvent.ChatRoomInvitationCreated("chat-invitation-1"));
+
+        verify(invitationNotificationDeliveryService).deliverChatRoomInvitationCreated("chat-invitation-1");
     }
 
     @Test
@@ -188,7 +227,7 @@ class NotificationEventHandlerTest {
         ReflectionTestUtils.setField(created, "id", "comment-new");
 
         Member postAuthor = Member.create("target-1", "target-1@sungkyul.ac.kr", "작성자", LocalDateTime.now());
-        postAuthor.updateNotificationSetting(false, null, null, null, true, null, null, null, null, null, null);
+        postAuthor.updateNotificationSetting(false, null, null, null, true, null, null, null, null, null, null, null);
 
         when(commentRepository.findActiveById("comment-new")).thenReturn(Optional.of(created));
         when(memberRepository.findById("target-1")).thenReturn(Optional.of(postAuthor));

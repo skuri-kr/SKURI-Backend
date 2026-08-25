@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -41,12 +42,14 @@ public class FriendProfileProvisioningService {
     }
 
     @Transactional
-    public void retireForWithdrawnMember(String memberId, LocalDateTime withdrawnAt) {
-        friendProfileRepository.findByMemberIdForUpdate(memberId).ifPresent(profile -> {
+    public Optional<String> retireForWithdrawnMember(String memberId, LocalDateTime withdrawnAt) {
+        return friendProfileRepository.findByMemberIdForUpdate(memberId).map(profile -> {
+            String publicId = profile.getPublicId();
             FriendCodeRegistry activeCode = friendCodeRegistryRepository.findByIdForUpdate(profile.getActiveFriendCodeId())
                     .orElseThrow(() -> new BusinessException(ErrorCode.CONFLICT, "활성 친구 코드를 찾을 수 없습니다."));
             activeCode.retire(withdrawnAt);
             friendProfileRepository.delete(profile);
+            return publicId;
         });
     }
 }

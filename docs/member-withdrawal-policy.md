@@ -1,6 +1,6 @@
 # Member 탈퇴 정책
 
-> 최종 수정일: 2026-08-18
+> 최종 수정일: 2026-08-25
 > 관련 문서: [API 명세](./api-specification.md) | [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [구현 로드맵](./implementation-roadmap.md) | [친구 기능 기준 명세](./features/friends.md)
 
 ---
@@ -85,7 +85,7 @@ ALTER TABLE members
 | Support | 문의/신고 이력은 보존, inquiry의 구조화 개인정보만 마스킹 |
 | Notification | `user_notifications`, `fcm_tokens` 전량 삭제, SSE 연결 종료 |
 | Academic | `user_timetables` 전량 삭제 |
-| Friend (Foundation·관계 Core 구현 + 탈퇴 협력 후속) | 공개 프로필 삭제, 활성 친구 코드 영구 폐기, 요청·관계·설정·차단 정리, 처리 중 초대 만료 |
+| Friend | 공개 프로필 삭제, 활성 친구 코드 영구 폐기, 요청·관계·설정·차단·시간표 공유 정리, 처리 중 초대 만료 |
 
 ### 3.1 TaxiParty
 
@@ -127,15 +127,16 @@ ALTER TABLE members
 - `user_notifications`, `fcm_tokens`는 hard delete 한다.
 - 회원 탈퇴 완료 후 notification SSE, party SSE, join-request SSE 연결을 종료한다.
 
-### 3.6 Friend (Foundation·관계 Core 구현 + 탈퇴 협력 후속)
+### 3.6 Friend
 
-> `FriendProfile` 삭제와 활성 `FriendCodeRegistry`의 `RETIRED` 전이·소유자 해제는 런타임에 구현되어 있다. 친구 요청·관계·즐겨찾기·차단 엔티티와 일반 관계 Core API는 런타임에 구현되어 있지만, 회원 탈퇴 시 이들을 일괄 정리하는 orchestration과 시간표 공유·초대 정리는 후속 구현 계획이다.
+> Friend derived-data cleanup은 Member 탈퇴 트랜잭션 안에서 실행한다. PENDING 초대 terminal 전이는 각 TaxiParty·Chat aggregate가 계속 소유한다.
 
 - 탈퇴 트랜잭션은 해당 Member row를 잠그고 `WITHDRAWN` 상태를 먼저 확정한 뒤 Friend cleanup을 수행한다.
 - `FriendProfile`과 `publicId`, `nicknameSearchable`은 삭제한다.
 - 현재 활성 친구 코드는 단일 `FriendCodeRegistry`에서 `RETIRED`로 바꾸고 소유 회원 연결을 제거한다. `normalizedCode` tombstone은 영구 보존하며 재발급·탈퇴로 폐기된 코드는 다른 회원에게 다시 할당하지 않는다. ACTIVE 코드의 `ownerMemberId`는 non-null unique이고 RETIRED row만 null을 허용한다.
-- 받은·보낸 친구 요청, friendship, 양방향 즐겨찾기, 차단·피차단 관계, 시간표 공개 기본값과 친구별 override를 정리한다. (후속 구현)
-- TaxiParty와 Chat이 소유한 발송·수신 `PENDING` 초대는 각각 `EXPIRED + MEMBER_WITHDRAWN`으로 전이하고 `respondedAt`을 기록한다. 이미 terminal인 초대와 한 번 기록된 `expiryReason`은 변경하지 않는다. (후속 구현)
+- 받은·보낸 친구 요청, friendship, 양방향 즐겨찾기, 차단·피차단 관계, 시간표 공개 기본값과 친구별 override를 정리한다.
+- hard delete되는 친구 요청 ID를 payload로 참조하는 상대방의 `FRIEND_REQUEST`·`FRIEND_DECLINED`와, 삭제되는 FriendProfile의 `friendPublicId`를 참조하는 `FRIEND_ACCEPTED` 인앱 알림도 같은 탈퇴 트랜잭션에서 삭제한다. 실제 미읽음 알림이 제거된 상대방에게만 커밋 후 unread-count SSE를 발행한다.
+- TaxiParty와 Chat이 소유한 발송·수신 `PENDING` 초대는 각각 `EXPIRED + MEMBER_WITHDRAWN`으로 전이하고 `respondedAt`을 기록한다. 이미 terminal인 초대와 한 번 기록된 `expiryReason`은 변경하지 않는다.
 - Support의 inquiry/report record는 기존 보존 정책을 유지한다.
 - 탈퇴와 경쟁해 대기하던 Friend mutation·초대 처리·lazy provisioning은 같은 Member 잠금 획득 후 요청자와 대상의 `ACTIVE`·프로필 완료 상태를 다시 확인하고, 하나라도 조건을 만족하지 않으면 새 Friend row나 파생 데이터를 생성·복원하지 않는다.
 - 검증에는 탈퇴와 요청·차단·즐겨찾기·공유 설정·초대·lazy provisioning의 경쟁, 폐기 코드 미재사용, 초대 만료 사유 불변성을 포함한다.
@@ -166,4 +167,4 @@ ALTER TABLE members
 - Support 자유서술 본문의 고급 PII 탐지/마스킹
 - 유예 기간/탈퇴 취소 워크플로우
 - Chat 과거 메시지 전면 익명화 정책
-- Phase 14 Friend·공유 파생 데이터의 나머지 탈퇴 cleanup 구현 및 회귀 테스트 (택시파티·공개방 PENDING 초대의 발송·수신 정리는 구현됨)
+- Friend·초대·탈퇴 경쟁 회귀 테스트 확대

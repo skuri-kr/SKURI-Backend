@@ -8,6 +8,7 @@ import com.skuri.skuri_backend.domain.friend.dto.response.FriendCodePreviewRespo
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendCodeResponse;
 import com.skuri.skuri_backend.domain.friend.dto.response.FriendRelationshipState;
 import com.skuri.skuri_backend.common.config.JpaAuditingConfig;
+import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.domain.friend.entity.FriendCodeStatus;
 import com.skuri.skuri_backend.domain.friend.exception.FriendCodeNotFoundException;
 import com.skuri.skuri_backend.domain.friend.exception.FriendCodeRegenerationCooldownException;
@@ -24,13 +25,17 @@ import com.skuri.skuri_backend.domain.chat.service.ChatRoomInvitationInboxServic
 import com.skuri.skuri_backend.domain.chat.service.ChatRoomInvitationLifecycleService;
 import com.skuri.skuri_backend.domain.taxiparty.service.PartyInvitationInboxService;
 import com.skuri.skuri_backend.domain.taxiparty.service.PartyInvitationLifecycleService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +46,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@TestPropertySource(properties = {
+        "spring.jpa.hibernate.ddl-auto=create-drop",
+        "spring.datasource.url=jdbc:h2:mem:friend-foundation;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE",
+        "spring.datasource.driver-class-name=org.h2.Driver",
+        "spring.datasource.username=sa",
+        "spring.datasource.password="
+})
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Import({
         JpaAuditingConfig.class,
@@ -76,6 +89,9 @@ class FriendFoundationDataJpaTest {
     @MockitoBean
     private ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
 
+    @MockitoBean
+    private AfterCommitApplicationEventPublisher afterCommitApplicationEventPublisher;
+
     @Autowired
     private MemberRepository memberRepository;
 
@@ -108,6 +124,9 @@ class FriendFoundationDataJpaTest {
 
     @Autowired
     private FriendRelationshipService friendRelationshipService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @AfterEach
     void tearDown() {
@@ -170,6 +189,84 @@ class FriendFoundationDataJpaTest {
                 .isEmpty();
         assertThat(memberRepository.countProfileCompleteActiveMembers()).isEqualTo(1);
         assertThat(friendProfileRepository.countForProfileCompleteActiveMembers()).isEqualTo(1);
+    }
+
+    @Test
+    @Transactional
+    void 알림기본값보정은null인행만일괄갱신한다() {
+        Member member = saveMember("member-notification", "notification@sungkyul.ac.kr", "알림회원");
+        member.updateNotificationSetting(
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                null,
+                null,
+                null,
+                null,
+                java.util.Map.of("news", false)
+        );
+        ReflectionTestUtils.setField(member.getNotificationSetting(), "friendAndInvitationNotifications", null);
+        memberRepository.saveAndFlush(member);
+
+        assertThat(memberRepository.backfillNotificationSettingDefaults()).isEqualTo(1);
+
+        Member reloaded = memberRepository.findById("member-notification").orElseThrow();
+        assertThat(reloaded.getNotificationSetting().isAllNotifications()).isFalse();
+        assertThat(reloaded.getNotificationSetting().isPartyNotifications()).isFalse();
+        assertThat(reloaded.getNotificationSetting().isFriendAndInvitationNotifications()).isTrue();
+        assertThat(reloaded.getNotificationSetting().getNoticeNotificationsDetail()).containsEntry("news", false);
+        assertThat(memberRepository.backfillNotificationSettingDefaults()).isZero();
+    }
+
+    @Test
+    @Transactional
+    void 알림설정이전부null인기존회원은모든기본값으로일괄보정한다() {
+        Member member = saveMember("member-notification-all-null", "notification-all-null@sungkyul.ac.kr", "알림전체회원");
+        entityManager.createNativeQuery("""
+                update members
+                set all_notifications = null,
+                    party_notifications = null,
+                    notice_notifications = null,
+                    board_like_notifications = null,
+                    comment_notifications = null,
+                    bookmarked_post_comment_notifications = null,
+                    system_notifications = null,
+                    friend_and_invitation_notifications = null,
+                    academic_schedule_notifications = null,
+                    academic_schedule_day_before_enabled = null,
+                    academic_schedule_all_events_enabled = null,
+                    notice_notifications_detail = null
+                where id = :memberId
+                """)
+                .setParameter("memberId", member.getId())
+                .executeUpdate();
+        entityManager.clear();
+
+        assertThat(memberRepository.backfillNotificationSettingDefaults()).isEqualTo(1);
+
+        Member reloaded = memberRepository.findById(member.getId()).orElseThrow();
+        assertThat(reloaded.getNotificationSetting()).isNotNull();
+        assertThat(reloaded.getNotificationSetting().isAllNotifications()).isTrue();
+        assertThat(reloaded.getNotificationSetting().isPartyNotifications()).isTrue();
+        assertThat(reloaded.getNotificationSetting().isNoticeNotifications()).isTrue();
+        assertThat(reloaded.getNotificationSetting().isBoardLikeNotifications()).isTrue();
+        assertThat(reloaded.getNotificationSetting().isCommentNotifications()).isTrue();
+        assertThat(reloaded.getNotificationSetting().isBookmarkedPostCommentNotifications()).isTrue();
+        assertThat(reloaded.getNotificationSetting().isSystemNotifications()).isTrue();
+        assertThat(reloaded.getNotificationSetting().isFriendAndInvitationNotifications()).isTrue();
+        assertThat(reloaded.getNotificationSetting().isAcademicScheduleNotifications()).isTrue();
+        assertThat(reloaded.getNotificationSetting().isAcademicScheduleDayBeforeEnabled()).isTrue();
+        assertThat(reloaded.getNotificationSetting().isAcademicScheduleAllEventsEnabled()).isFalse();
+        assertThat(reloaded.getNotificationSetting().getNoticeNotificationsDetail())
+                .containsExactlyInAnyOrderEntriesOf(java.util.Map.of(
+                        "news", true,
+                        "academy", true,
+                        "scholarship", true
+                ));
     }
 
     @Test
@@ -265,8 +362,10 @@ class FriendFoundationDataJpaTest {
     void 탈퇴정리는_프로필을_삭제하고_활성코드는_폐기한다() {
         saveMember("member-1", "one@sungkyul.ac.kr", "회원1");
         String originalCode = friendCodeService.getMyCode("member-1").friendCode();
+        String friendPublicId = friendProfileRepository.findById("member-1").orElseThrow().getPublicId();
 
-        provisioningService.retireForWithdrawnMember("member-1", LocalDateTime.now());
+        assertThat(provisioningService.retireForWithdrawnMember("member-1", LocalDateTime.now()))
+                .contains(friendPublicId);
 
         assertThat(friendProfileRepository.findById("member-1")).isEmpty();
         assertThat(friendCodeRegistryRepository.findAll())
@@ -279,9 +378,9 @@ class FriendFoundationDataJpaTest {
         )).isPresent();
     }
 
-    private void saveMember(String id, String email, String realname) {
+    private Member saveMember(String id, String email, String realname) {
         Member member = Member.create(id, email, realname, LocalDateTime.now());
         member.updateProfile("닉네임-" + id, "20260001", "컴퓨터공학과", null);
-        memberRepository.saveAndFlush(member);
+        return memberRepository.saveAndFlush(member);
     }
 }

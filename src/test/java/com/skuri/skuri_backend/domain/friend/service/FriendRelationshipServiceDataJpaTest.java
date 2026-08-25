@@ -2,6 +2,7 @@ package com.skuri.skuri_backend.domain.friend.service;
 
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
+import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.common.config.JpaAuditingConfig;
 import com.skuri.skuri_backend.domain.academic.entity.TimetableShareOverride;
 import com.skuri.skuri_backend.domain.academic.entity.TimetableShareScope;
@@ -22,6 +23,7 @@ import com.skuri.skuri_backend.domain.friend.repository.MemberBlockRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
 import com.skuri.skuri_backend.domain.minecraft.entity.MinecraftAccount;
 import com.skuri.skuri_backend.domain.minecraft.entity.MinecraftAccountRole;
 import com.skuri.skuri_backend.domain.minecraft.entity.MinecraftEdition;
@@ -89,6 +91,9 @@ class FriendRelationshipServiceDataJpaTest {
 
     @MockitoBean
     private ChatRoomInvitationLifecycleService chatRoomInvitationLifecycleService;
+
+    @MockitoBean
+    private AfterCommitApplicationEventPublisher eventPublisher;
 
     @Autowired
     private MemberRepository memberRepository;
@@ -160,6 +165,7 @@ class FriendRelationshipServiceDataJpaTest {
                 .extracting(request -> request.getStatus())
                 .isEqualTo(FriendRequestStatus.PENDING);
         assertThat(friendshipRepository.count()).isZero();
+        verify(eventPublisher).publish(new NotificationDomainEvent.FriendRequestCreated(result.requestId()));
     }
 
     @Test
@@ -178,6 +184,7 @@ class FriendRelationshipServiceDataJpaTest {
         assertThat(reverse.friend().friendPublicId()).isEqualTo(pair.firstPublicId());
         assertThat(friendRequestRepository.findById(first.requestId()).orElseThrow().getStatus())
                 .isEqualTo(FriendRequestStatus.ACCEPTED);
+        verify(eventPublisher).publish(new NotificationDomainEvent.FriendRequestAccepted(first.requestId()));
         assertThat(friendshipRepository.count()).isEqualTo(1);
     }
 

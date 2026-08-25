@@ -1,6 +1,6 @@
 # Spring 백엔드 도메인 분석
 
-> 최종 수정일: 2026-08-18
+> 최종 수정일: 2026-08-24
 > 분석 기준: 레거시 Firestore/Cloud Functions 구조 + 현재 RN repository/transport 구조 + 현재 Spring 구현
 
 본 문서는 SKURI Taxi의 레거시 Firebase 구조와 현재 Spring Boot + MySQL 구현을 함께 대조해 정리한 **도메인 분석 결과**입니다.
@@ -54,7 +54,7 @@
 
 ### 2.1 승인된 목표 도메인 (9개 + 인프라)
 
-> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정), 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), Minecraft 안전 projection과 시간표 공유 전달을 완료했다. TaxiParty·Chat 초대 협력은 런타임 구현 단계이며 알림은 후속 구현 계획이다.
+> Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정), 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), Minecraft 안전 projection, 시간표 공유와 TaxiParty·Chat 초대 협력을 완료했다. 친구·초대 알림과 PENDING 초대 외 Friend 파생 데이터 탈퇴 정리의 Backend 구현은 현재 최종 단계 PR에 포함하며, 모바일 연결은 다음 PR에서 완료한다.
 
 | # | 도메인 | 유형 | 핵심 책임 | 주요 엔티티 |
 |---|--------|------|----------|------------|
@@ -104,7 +104,7 @@ Hooks:
   - NotificationSetting
     - allNotifications, partyNotifications, noticeNotifications
     - boardLikeNotifications, commentNotifications, bookmarkedPostCommentNotifications
-    - systemNotifications
+    - systemNotifications, friendAndInvitationNotifications
     - academicScheduleNotifications, academicScheduleDayBeforeEnabled, academicScheduleAllEventsEnabled
     - noticeNotificationsDetail (카테고리별 상세 설정)
   - LinkedAccount
@@ -816,7 +816,7 @@ Hooks:
 
 ### 3.9 Friend (친구, Phase 14 관계 Core 구현)
 
-> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대 전달 완료. 초대·정원·파티원 UX 보완 진행 중이며 알림은 후속 구현 예정
+> 상태: Foundation과 친구 요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 요청 cursor 조회, Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대와 초대·정원·파티원 UX 보완을 완료했다. 친구·초대 알림과 PENDING 초대 외 Friend 파생 데이터 탈퇴 정리는 현재 Backend PR에서, 모바일 연결과 통합 QA는 다음 Frontend PR에서 진행한다.
 > 상세 기준: `docs/features/friends.md`
 
 ```
@@ -890,7 +890,7 @@ Hooks:
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-위 다이어그램은 현재 런타임 구조다. Friend 관계 Core, Minecraft 안전 projection, Academic 시간표 공유와 TaxiParty·공개방 초대 협력은 런타임에 존재하며, Notification 협력은 후속 Phase 14 범위다. 각 도메인은 상대 도메인의 내부 엔티티를 직접 수정하지 않는다.
+위 다이어그램은 현재 런타임 구조다. Friend 관계 Core, Minecraft 안전 projection, Academic 시간표 공유, TaxiParty·공개방 초대와 친구·초대 Notification 협력은 런타임에 존재한다. 각 도메인은 상대 도메인의 내부 엔티티를 직접 수정하지 않는다.
 
 ```text
 Member ◄── Friend ──► Notification
@@ -914,7 +914,7 @@ Member ◄── Friend ──► Notification
 | Academic → Friend | 정책 확인, 런타임 구현 | friendship·차단을 확인한 뒤 Academic이 시간표 공개 projection과 관계 종료 시 공유 예외 정리를 결정 |
 | TaxiParty, Chat → Friend | 정책 확인, 런타임 구현 | 초대 생성·수락 시 friendship·차단을 재검증하되 초대 상태는 각 도메인이 소유한다. 잠금 순서는 ordered Member pair 또는 requester Member → Party/ChatRoom aggregate → Invitation으로 통일한다. 관리자 상태 변경·멤버 제거·방 삭제도 aggregate를 먼저 잠근 뒤 Invitation을 정리한다. |
 | Minecraft → Friend | 정책 확인, 런타임 구현 | friendship·차단 확인 후 Minecraft가 SELF·FRIEND 안전 계정 projection을 생성 |
-| Friend, TaxiParty, Chat → Notification | 이벤트, Phase 14 계획 | 친구 요청·수락과 친구 기반 초대를 인박스·SSE·FCM으로 전달 |
+| Friend, TaxiParty, Chat → Notification | after-commit 이벤트, 런타임 구현 | 친구 요청·수락·거절과 친구 기반 초대를 인앱·SSE·FCM으로 전달한다. 요청은 Member pair → FriendRequest(수락은 Friendship·양방향 차단까지), 초대는 Member pair → Party/ChatRoom → Invitation의 최신 잠금 상태에서 인앱을 저장한다. FCM은 새 `REQUIRES_NEW` 재검증에서 같은 잠금을 `PushNotificationService.send` 반환까지 유지한 뒤 전송한다. 유효 수신 조건은 `allNotifications && friendAndInvitationNotifications`이며, 최초 택시 초대에는 `partyNotifications`를 적용하지 않는다. |
 
 ### 4.3 도메인 이벤트
 
@@ -932,9 +932,9 @@ Member ◄── Friend ──► Notification
 | Board | CommentCreatedEvent | Notification |
 | Notice | NoticeCreatedEvent | Notification |
 | Notice | AppNoticeCreatedEvent | Notification |
-| Friend | FriendRequestCreatedEvent, FriendAcceptedEvent (계획) | Notification |
-| TaxiParty | PartyInvitationCreatedEvent (계획) | Notification |
-| Chat | ChatRoomInvitationCreatedEvent (계획) | Notification |
+| Friend | FriendRequestCreated, FriendRequestAccepted, FriendRequestDeclined | Notification |
+| TaxiParty | PartyInvitationCreated | Notification |
+| Chat | ChatRoomInvitationCreated | Notification |
 
 ---
 
@@ -985,11 +985,13 @@ UserNotification 엔티티:
   - PARTY_ENDED, MEMBER_KICKED, SETTLEMENT_COMPLETED
   - CHAT_MESSAGE, POST_LIKED, COMMENT_CREATED
   - NOTICE, APP_NOTICE, ACADEMIC_SCHEDULE
+  - FRIEND_REQUEST, FRIEND_ACCEPTED, FRIEND_DECLINED, PARTY_INVITATION, CHAT_ROOM_INVITATION
 
 정책 원칙:
   - Spring Notification 인프라는 현행 RN + Firebase Cloud Functions 운영 정책을 기본으로 이관한다.
   - 저장 모델은 Firestore가 아니라 MySQL `user_notifications`, `fcm_tokens`를 사용한다.
   - 상태 변경 성공 이후 `after-commit`으로 이벤트를 발행한다.
+  - 친구 요청·초대 이벤트는 전달 시점에도 각 도메인 mutation과 같은 잠금 순서로 최신 유효 상태를 재검증한다. FCM은 인앱 저장 커밋 뒤 새 `REQUIRES_NEW` 트랜잭션에서 같은 잠금을 `PushNotificationService.send` 반환까지 유지해 최종 판단과 전송을 직렬화한다. 외부 FCM은 DB와 원자적이지 않은 best-effort다.
   - 인앱 저장 실패/푸시 실패는 핵심 비즈니스 트랜잭션을 롤백시키지 않는다.
   - 회원 탈퇴 시 `user_notifications`, `fcm_tokens`는 전량 삭제하고 회원 개인 SSE 연결도 종료한다.
   - Phase 8 런타임은 `allNotifications`를 마스터 토글로 정규화해 적용한다. 단, `AppNoticePriority.HIGH`와 파티 채팅 알림은 문서화된 예외 정책을 따른다.
@@ -1228,6 +1230,7 @@ public class NotificationSetting {
     private boolean commentNotifications = true;
     private boolean bookmarkedPostCommentNotifications = true;
     private boolean systemNotifications = true;
+    private Boolean friendAndInvitationNotifications = true;
     private boolean academicScheduleNotifications = true;
     private boolean academicScheduleDayBeforeEnabled = true;
     private boolean academicScheduleAllEventsEnabled = false;
@@ -1724,7 +1727,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
 | 6 | **Board** | 중간 | 비교적 단순한 CRUD | 중 |
 | 7 | **Academic** | 낮음 | 읽기 위주, 낮은 복잡도 | 하 |
 | 8 | **Support** | 낮음 | 관리 기능, 마지막 | 하 |
-| 9 | **Friend** | 관계 Core·Minecraft·시간표 협력 완료, TaxiParty·Chat 초대 구현 중, 알림 예정 | 시간표·택시파티·공개방·Minecraft를 잇는 소셜 관계 기반 | 상 |
+| 9 | **Friend** | 관계 Core·Minecraft·시간표·TaxiParty·Chat 협력 완료, 알림·탈퇴 정리 Backend 구현 중 | 시간표·택시파티·공개방·Minecraft를 잇는 소셜 관계 기반 | 상 |
 
 ### 8.2 마이그레이션 체크리스트
 
@@ -1763,7 +1766,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
   - [x] Academic·Minecraft 협력 API의 OpenAPI·ERD·Contract·Service 테스트 동기화
   - [x] TaxiParty·Chat 초대 협력 구현
   - [x] TaxiParty·Chat 초대 API의 OpenAPI·ERD·Contract·Service 테스트 동기화
-  - [ ] Notification과 남은 회원 탈퇴 cleanup 협력 구현·문서 동기화
+  - [x] Notification과 회원 탈퇴 Friend derived-data cleanup 협력 구현·문서 동기화
 
 ---
 

@@ -37,6 +37,9 @@ public class NotificationSetting {
     @Column(name = "system_notifications")
     private boolean systemNotifications;
 
+    @Column(name = "friend_and_invitation_notifications")
+    private Boolean friendAndInvitationNotifications;
+
     @Column(name = "academic_schedule_notifications")
     private Boolean academicScheduleNotifications;
 
@@ -58,6 +61,7 @@ public class NotificationSetting {
             boolean commentNotifications,
             boolean bookmarkedPostCommentNotifications,
             boolean systemNotifications,
+            Boolean friendAndInvitationNotifications,
             Boolean academicScheduleNotifications,
             Boolean academicScheduleDayBeforeEnabled,
             Boolean academicScheduleAllEventsEnabled,
@@ -70,6 +74,7 @@ public class NotificationSetting {
         this.commentNotifications = commentNotifications;
         this.bookmarkedPostCommentNotifications = bookmarkedPostCommentNotifications;
         this.systemNotifications = systemNotifications;
+        this.friendAndInvitationNotifications = friendAndInvitationNotifications;
         this.academicScheduleNotifications = academicScheduleNotifications;
         this.academicScheduleDayBeforeEnabled = academicScheduleDayBeforeEnabled;
         this.academicScheduleAllEventsEnabled = academicScheduleAllEventsEnabled;
@@ -85,6 +90,7 @@ public class NotificationSetting {
         defaults.put("scholarship", Boolean.TRUE);
 
         return new NotificationSetting(
+                true,
                 true,
                 true,
                 true,
@@ -111,12 +117,17 @@ public class NotificationSetting {
                 false,
                 false,
                 false,
+                false,
                 Map.of()
         );
     }
 
     public boolean isAcademicScheduleNotifications() {
         return academicScheduleNotifications == null || academicScheduleNotifications;
+    }
+
+    public boolean isFriendAndInvitationNotifications() {
+        return friendAndInvitationNotifications == null || friendAndInvitationNotifications;
     }
 
     public boolean isAcademicScheduleDayBeforeEnabled() {
@@ -135,6 +146,7 @@ public class NotificationSetting {
             Boolean commentNotifications,
             Boolean bookmarkedPostCommentNotifications,
             Boolean systemNotifications,
+            Boolean friendAndInvitationNotifications,
             Boolean academicScheduleNotifications,
             Boolean academicScheduleDayBeforeEnabled,
             Boolean academicScheduleAllEventsEnabled,
@@ -161,6 +173,9 @@ public class NotificationSetting {
         if (systemNotifications != null) {
             this.systemNotifications = systemNotifications;
         }
+        if (friendAndInvitationNotifications != null) {
+            this.friendAndInvitationNotifications = friendAndInvitationNotifications;
+        }
         if (academicScheduleNotifications != null) {
             this.academicScheduleNotifications = academicScheduleNotifications;
         }
@@ -178,13 +193,14 @@ public class NotificationSetting {
         }
     }
 
-    public boolean hasUnsetAcademicScheduleDefaults() {
+    public boolean hasUnsetDefaults() {
         return academicScheduleNotifications == null
                 || academicScheduleDayBeforeEnabled == null
-                || academicScheduleAllEventsEnabled == null;
+                || academicScheduleAllEventsEnabled == null
+                || friendAndInvitationNotifications == null;
     }
 
-    public void backfillAcademicScheduleDefaults() {
+    public void backfillDefaults() {
         if (academicScheduleNotifications == null) {
             academicScheduleNotifications = Boolean.TRUE;
         }
@@ -193,6 +209,9 @@ public class NotificationSetting {
         }
         if (academicScheduleAllEventsEnabled == null) {
             academicScheduleAllEventsEnabled = Boolean.FALSE;
+        }
+        if (friendAndInvitationNotifications == null) {
+            friendAndInvitationNotifications = Boolean.TRUE;
         }
     }
 }

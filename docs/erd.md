@@ -1,6 +1,6 @@
 # Spring 백엔드 ERD (Entity Relationship Diagram)
 
-> 최종 수정일: 2026-08-22
+> 최종 수정일: 2026-08-25
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -49,6 +49,7 @@ erDiagram
         boolean comment_notifications "DEFAULT true"
         boolean bookmarked_post_comment_notifications "DEFAULT true"
         boolean system_notifications "DEFAULT true"
+        boolean friend_and_invitation_notifications "DEFAULT true"
         boolean academic_schedule_notifications "DEFAULT true"
         boolean academic_schedule_day_before_enabled "DEFAULT true"
         boolean academic_schedule_all_events_enabled "DEFAULT false"
@@ -658,7 +659,7 @@ erDiagram
     user_notifications {
         varchar(36) id PK "UUID"
         varchar(36) user_id FK "NOT NULL"
-        enum type "PARTY_CREATED,PARTY_JOIN_REQUEST,PARTY_JOIN_ACCEPTED,PARTY_JOIN_DECLINED,PARTY_CLOSED,PARTY_ARRIVED,PARTY_ENDED,MEMBER_KICKED,SETTLEMENT_COMPLETED,CHAT_MESSAGE,POST_LIKED,COMMENT_CREATED,NOTICE,APP_NOTICE,ACADEMIC_SCHEDULE"
+        enum type "PARTY_CREATED,PARTY_JOIN_REQUEST,PARTY_JOIN_ACCEPTED,PARTY_JOIN_DECLINED,PARTY_CLOSED,PARTY_REOPENED,PARTY_ARRIVED,PARTY_ENDED,MEMBER_KICKED,SETTLEMENT_COMPLETED,CHAT_MESSAGE,POST_LIKED,COMMENT_CREATED,NOTICE,APP_NOTICE,ACADEMIC_SCHEDULE,FRIEND_REQUEST,FRIEND_ACCEPTED,FRIEND_DECLINED,PARTY_INVITATION,CHAT_ROOM_INVITATION"
         varchar(200) title "NOT NULL"
         varchar(500) message
         json data "추가 데이터"
@@ -807,6 +808,7 @@ erDiagram
 | comment_notifications | BOOLEAN | DEFAULT true | Board/Notice 공통 댓글 알림 |
 | bookmarked_post_comment_notifications | BOOLEAN | DEFAULT true | 북마크한 게시글의 새 댓글 알림 |
 | system_notifications | BOOLEAN | DEFAULT true | 시스템 알림 |
+| friend_and_invitation_notifications | BOOLEAN | DEFAULT true | 친구 요청·수락·거절과 친구 기반 택시파티·공개방 초대 알림 |
 | academic_schedule_notifications | BOOLEAN | DEFAULT true | 학사 일정 알림 마스터 |
 | academic_schedule_day_before_enabled | BOOLEAN | DEFAULT true | 학사 일정 전날 리마인더 허용 |
 | academic_schedule_all_events_enabled | BOOLEAN | DEFAULT false | 중요 일정 외 일반 일정 알림 허용 |
@@ -818,6 +820,8 @@ erDiagram
 | updated_at | DATETIME | NOT NULL | 수정일 |
 
 > Phase 8부터 학사 일정 알림용 `academic_schedule_notifications`, `academic_schedule_day_before_enabled`, `academic_schedule_all_events_enabled` 컬럼을 사용한다.
+
+> Friend 알림은 `friend_and_invitation_notifications`로 제어한다. 기존 null 값은 런타임에서 `true`로 해석한다. 기존 회원은 알림 컬럼 중 하나라도 null이면 기동 시 조건부 bulk update로 전체 기본값을 채우고, 이미 명시적으로 저장한 값은 유지한다.
 
 > Phase 10부터 회원 탈퇴는 hard delete 대신 `status`, `withdrawn_at` 기반 soft delete tombstone으로 관리한다.
 
@@ -1178,10 +1182,10 @@ Taxi history 계약 메모:
 |------|------|---------|------|
 | id | VARCHAR(36) | PK | 알림 ID |
 | user_id | VARCHAR(36) | FK, NOT NULL | 수신 회원 ID |
-| type | VARCHAR(40) | NOT NULL | 알림 타입 (`PARTY_*`, `CHAT_MESSAGE`, `ACADEMIC_SCHEDULE` 등 canonical enum) |
+| type | VARCHAR(40) | NOT NULL | 알림 타입 (`PARTY_*`, `FRIEND_*`, `*_INVITATION`, `CHAT_MESSAGE`, `ACADEMIC_SCHEDULE` 등 canonical enum) |
 | title | VARCHAR(200) | NOT NULL | 알림 제목 |
 | message | VARCHAR(500) | NOT NULL | 알림 메시지 |
-| data | JSON | | 이동/연결용 payload (`partyId`, `requestId`, `chatRoomId`, `postId`, `commentId`, `noticeId`, `appNoticeId`, `academicScheduleId`) |
+| data | JSON | | 이동/연결용 payload (`partyId`, `requestId`, `chatRoomId`, `postId`, `commentId`, `noticeId`, `appNoticeId`, `academicScheduleId`, `friendPublicId`, `invitationId`, `invitationType`) |
 | is_read | BOOLEAN | DEFAULT false | 읽음 여부 |
 | read_at | DATETIME | | 읽음 시각 |
 | created_at | DATETIME | NOT NULL | 생성 시각 |
@@ -1588,6 +1592,7 @@ CREATE UNIQUE INDEX uk_friendships_member_pair ON friendships(member_low_id, mem
 ---
 
 > **문서 이력**
+> - 2026-08-25: 알림 canonical enum을 런타임 `NotificationType`과 동기화 — `PARTY_REOPENED`, 친구 요청·수락·거절, 택시·공개방 초대 타입과 친구·초대 payload 필드를 반영
 > - 2026-08-24: 택시파티 정원·초대 보완 반영 — 정원 도달의 자동 모집 마감을 제거하고, `party_invitations`·`chat_room_invitations`의 EXPIRED 수신자 삭제용 `DISMISSED` 상태와 `(status, accepted_join_request_id)` 인덱스를 추가
 > - 2026-08-18: Friend 관계 Core 테이블 추가 — `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`와 PENDING pair unique·cursor 인덱스를 반영
 > - 2026-08-18: Friend Foundation 테이블 추가 — `friend_profiles`, `friend_code_registry`의 공개 식별자·ACTIVE/RETIRED 영구 코드 registry와 unique 제약을 반영

@@ -45,6 +45,8 @@ public interface FriendshipRepository extends JpaRepository<Friendship, String> 
             """)
     List<Friendship> findAllByMemberId(@Param("memberId") String memberId);
 
+    long deleteByMemberLowIdOrMemberHighId(String memberLowId, String memberHighId);
+
     @Query("""
             select case
                     when f.memberLowId = :ownerMemberId then f.memberHighId

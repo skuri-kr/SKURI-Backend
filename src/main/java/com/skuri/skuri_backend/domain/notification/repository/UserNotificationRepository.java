@@ -26,6 +26,8 @@ public interface UserNotificationRepository extends JpaRepository<UserNotificati
 
     List<UserNotification> findByUserIdAndTypeInOrderByCreatedAtDesc(String userId, Collection<NotificationType> types);
 
+    List<UserNotification> findByUserIdInAndTypeIn(Collection<String> userIds, Collection<NotificationType> types);
+
     @Query("""
             select n.userId as userId, count(n) as unreadCount
             from UserNotification n

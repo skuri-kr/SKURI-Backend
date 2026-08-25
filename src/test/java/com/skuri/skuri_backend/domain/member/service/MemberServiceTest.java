@@ -578,6 +578,7 @@ class MemberServiceTest {
                         false,
                         true,
                         null,
+                        false,
                         null,
                         null,
                         null,
@@ -593,6 +594,7 @@ class MemberServiceTest {
         assertFalse(response.notificationSetting().commentNotifications());
         assertTrue(response.notificationSetting().bookmarkedPostCommentNotifications());
         assertTrue(response.notificationSetting().systemNotifications());
+        assertFalse(response.notificationSetting().friendAndInvitationNotifications());
         assertTrue(response.notificationSetting().academicScheduleNotifications());
         assertTrue(response.notificationSetting().academicScheduleDayBeforeEnabled());
         assertFalse(response.notificationSetting().academicScheduleAllEventsEnabled());
@@ -608,6 +610,7 @@ class MemberServiceTest {
                 () -> memberService.updateMyNotificationSettings(
                         "not-found",
                         new UpdateMemberNotificationSettingsRequest(
+                                null,
                                 null,
                                 null,
                                 null,
@@ -640,8 +643,9 @@ class MemberServiceTest {
     }
 
     @Test
-    void getMyProfile_기존회원의학사일정알림기본값을보존한다() {
+    void getMyProfile_기존회원의nullable알림기본값을보존한다() {
         Member member = memberEntity("firebase-uid", "user@sungkyul.ac.kr");
+        ReflectionTestUtils.setField(member.getNotificationSetting(), "friendAndInvitationNotifications", null);
         ReflectionTestUtils.setField(member.getNotificationSetting(), "academicScheduleNotifications", null);
         ReflectionTestUtils.setField(member.getNotificationSetting(), "academicScheduleDayBeforeEnabled", null);
         ReflectionTestUtils.setField(member.getNotificationSetting(), "academicScheduleAllEventsEnabled", null);
@@ -650,6 +654,7 @@ class MemberServiceTest {
         MemberMeResponse response = memberService.getMyProfile("firebase-uid");
 
         assertNotNull(response.notificationSetting());
+        assertTrue(response.notificationSetting().friendAndInvitationNotifications());
         assertTrue(response.notificationSetting().academicScheduleNotifications());
         assertTrue(response.notificationSetting().academicScheduleDayBeforeEnabled());
         assertFalse(response.notificationSetting().academicScheduleAllEventsEnabled());

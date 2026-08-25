@@ -14,4 +14,6 @@ public interface FriendPreferenceRepository extends JpaRepository<FriendPreferen
     List<FriendPreference> findAllByOwnerMemberIdAndFriendMemberIdIn(String ownerMemberId, Collection<String> friendMemberIds);
 
     void deleteByOwnerMemberIdAndFriendMemberId(String ownerMemberId, String friendMemberId);
+
+    long deleteByOwnerMemberIdOrFriendMemberId(String ownerMemberId, String friendMemberId);
 }

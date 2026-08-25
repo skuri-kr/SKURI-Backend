@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 @Component
@@ -57,6 +58,36 @@ public class FriendMemberPairLockService {
         }
 
         return FriendMemberPair.of(firstMemberId, secondMemberId);
+    }
+
+    /**
+     * 알림처럼 이미 완료된 도메인 이벤트를 후처리할 때, 탈퇴·프로필 미완료를 오류로 노출하지 않고
+     * 조용히 무시하기 위한 ordered pair lock이다.
+     */
+    public Optional<FriendMemberPair> lockActiveProfileCompletePairIfPresent(
+            String firstMemberId,
+            String secondMemberId
+    ) {
+        if (firstMemberId == null || firstMemberId.isBlank()
+                || secondMemberId == null || secondMemberId.isBlank()) {
+            return Optional.empty();
+        }
+        if (firstMemberId.equals(secondMemberId)) {
+            Member member = memberRepository.findActiveByIdForUpdate(firstMemberId).orElse(null);
+            return member != null && member.isProfileComplete()
+                    ? Optional.of(FriendMemberPair.of(firstMemberId, secondMemberId))
+                    : Optional.empty();
+        }
+
+        List<Member> members = memberRepository.findAllActiveByIdInForUpdateOrdered(Set.of(firstMemberId, secondMemberId));
+        boolean firstMemberAvailable = members.stream()
+                .anyMatch(member -> member.getId().equals(firstMemberId) && member.isProfileComplete());
+        boolean secondMemberAvailable = members.stream()
+                .anyMatch(member -> member.getId().equals(secondMemberId) && member.isProfileComplete());
+        if (!firstMemberAvailable || !secondMemberAvailable) {
+            return Optional.empty();
+        }
+        return Optional.of(FriendMemberPair.of(firstMemberId, secondMemberId));
     }
 
     private void requireProfileComplete(Member member) {

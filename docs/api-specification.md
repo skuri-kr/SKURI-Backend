@@ -1,6 +1,6 @@
 # Spring 백엔드 API 명세
 
-> 최종 수정일: 2026-08-18
+> 최종 수정일: 2026-08-25
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -320,6 +320,7 @@ Spring 서버 처리:
       "commentNotifications": true,
       "bookmarkedPostCommentNotifications": true,
       "systemNotifications": true,
+      "friendAndInvitationNotifications": true,
       "academicScheduleNotifications": true,
       "academicScheduleDayBeforeEnabled": true,
       "academicScheduleAllEventsEnabled": false,
@@ -424,7 +425,8 @@ Spring 서버 처리:
 
 - 부분 업데이트 API입니다.
 - 요청 본문에 포함되지 않은 알림 필드는 기존 값을 유지합니다.
-- 런타임 기준으로 현재 지원되는 필드는 `allNotifications`, `partyNotifications`, `noticeNotifications`, `boardLikeNotifications`, `commentNotifications`, `bookmarkedPostCommentNotifications`, `systemNotifications`, `academicScheduleNotifications`, `academicScheduleDayBeforeEnabled`, `academicScheduleAllEventsEnabled`, `noticeNotificationsDetail`입니다.
+- 런타임 기준으로 현재 지원되는 필드는 `allNotifications`, `partyNotifications`, `noticeNotifications`, `boardLikeNotifications`, `commentNotifications`, `bookmarkedPostCommentNotifications`, `systemNotifications`, `friendAndInvitationNotifications`, `academicScheduleNotifications`, `academicScheduleDayBeforeEnabled`, `academicScheduleAllEventsEnabled`, `noticeNotificationsDetail`입니다.
+- `friendAndInvitationNotifications`의 기본값은 `true`이며, 친구 요청·수락·거절과 택시파티·공개 채팅방 초대 알림을 함께 제어합니다. 기존 회원의 알림 설정에 null 컬럼이 있으면 서버 기동 시 전체 알림 기본값으로 조건부 보정하며, 명시적으로 저장된 값은 유지합니다.
 - 학사 일정 알림 기본값은 `academicScheduleNotifications=true`, `academicScheduleDayBeforeEnabled=true`, `academicScheduleAllEventsEnabled=false`입니다.
 
 **Request:**
@@ -434,6 +436,7 @@ Spring 서버 처리:
   "noticeNotifications": false,
   "commentNotifications": true,
   "bookmarkedPostCommentNotifications": true,
+  "friendAndInvitationNotifications": true,
   "academicScheduleNotifications": true,
   "academicScheduleDayBeforeEnabled": true,
   "academicScheduleAllEventsEnabled": false,
@@ -549,7 +552,7 @@ FCM 토큰 삭제
 - 공통 원칙:
   - `notification.title` / `notification.body`: OS 알림 UI에 표시할 텍스트
   - `data.contractVersion`: 현재 `"1"`
-  - `data.type`: canonical `NotificationType` enum (`PARTY_*`, `CHAT_MESSAGE`, `NOTICE`, `APP_NOTICE`, `ACADEMIC_SCHEDULE` 등)
+  - `data.type`: canonical `NotificationType` enum (`PARTY_*`, `FRIEND_*`, `*_INVITATION`, `CHAT_MESSAGE`, `NOTICE`, `APP_NOTICE`, `ACADEMIC_SCHEDULE` 등)
   - `data.*Id`: 클라이언트가 상세 화면 이동 대상을 식별하기 위한 리소스 ID
   - 서버는 RN route/screen 이름을 payload에 넣지 않습니다.
 
@@ -589,13 +592,16 @@ FCM 토큰 삭제
 | `contractVersion` | push payload 계약 버전. 현재 `"1"` | X |
 | `type` | canonical 알림 타입 enum | X |
 | `partyId` | 파티 알림 계열 이동 식별자 (`CHAT_MESSAGE`는 사용하지 않음) | O |
-| `requestId` | 동승 요청 식별자 | O |
+| `requestId` | 동승·친구 요청 식별자 (`PARTY_JOIN_*`, `FRIEND_REQUEST`, `FRIEND_DECLINED`) | O |
 | `chatRoomId` | 채팅방 식별자 (`CHAT_MESSAGE` canonical 식별자, 파티 채팅도 동일) | O |
 | `postId` | 게시글 식별자 | O |
 | `commentId` | 댓글 식별자 | O |
 | `noticeId` | 학교 공지 식별자 | O |
 | `appNoticeId` | 앱 공지 식별자 | O |
 | `academicScheduleId` | 학사 일정 식별자 | O |
+| `friendPublicId` | 친구 공개 식별자 (`FRIEND_ACCEPTED`) | O |
+| `invitationId` | 친구 초대 식별자 (`PARTY_INVITATION`, `CHAT_ROOM_INVITATION`) | O |
+| `invitationType` | 친구 초대 유형 (`PARTY`, `CHAT_ROOM`) | O |
 
 **프레젠테이션 프로필 (sound/channel):**
 
@@ -604,7 +610,7 @@ FCM 토큰 삭제
 | Party | `PARTY_CREATED`, `PARTY_JOIN_REQUEST`, `PARTY_JOIN_ACCEPTED`, `PARTY_JOIN_DECLINED`, `PARTY_CLOSED`, `PARTY_ARRIVED`, `PARTY_ENDED`, `MEMBER_KICKED`, `SETTLEMENT_COMPLETED` | `channelId=party_channel`, `sound=new_taxi_party` | `aps.sound=new_taxi_party.wav` |
 | Chat | `CHAT_MESSAGE` | `channelId=chat_channel`, `sound=new_chat_notification` | `aps.sound=new_chat_notification.wav` |
 | Notice | `NOTICE`, `APP_NOTICE`, `ACADEMIC_SCHEDULE` | `channelId=notice_channel`, `sound=new_notice` | `aps.sound=new_notice.wav` |
-| Default | `POST_LIKED`, `COMMENT_CREATED` | 별도 channel/sound override 없음 (`priority=high`만 지정) | `aps.sound=default` |
+| Default | `POST_LIKED`, `COMMENT_CREATED`, `FRIEND_REQUEST`, `FRIEND_ACCEPTED`, `FRIEND_DECLINED`, `PARTY_INVITATION`, `CHAT_ROOM_INVITATION` | 별도 channel/sound override 없음 (`priority=high`만 지정) | `aps.sound=default` |
 
 - Android `party_channel`, `chat_channel`, `notice_channel`은 클라이언트가 미리 생성해둔 채널과 이름을 맞춰야 합니다.
 - `Default` 그룹은 현재 서버가 별도 `channelId`를 강제하지 않습니다. 전용 기본 채널을 도입하려면 클라이언트와 채널 ID 계약을 함께 추가해야 합니다.
@@ -616,7 +622,7 @@ FCM 토큰 삭제
 | `PARTY_CREATED` | `partyId` | 파티 상세 또는 택시 탭 루트 |
 | `PARTY_JOIN_REQUEST` | `partyId`, `requestId` | 동승 요청 확인 화면 |
 | `PARTY_JOIN_ACCEPTED` / `PARTY_JOIN_DECLINED` | `partyId`, `requestId` | 파티 상세/요청 결과 화면 |
-| `PARTY_CLOSED` / `PARTY_ARRIVED` / `PARTY_ENDED` / `MEMBER_KICKED` / `SETTLEMENT_COMPLETED` | `partyId` | 파티 상세 또는 파티 채팅 |
+| `PARTY_CLOSED` / `PARTY_REOPENED` / `PARTY_ARRIVED` / `PARTY_ENDED` / `MEMBER_KICKED` / `SETTLEMENT_COMPLETED` | `partyId` | 파티 상세 또는 파티 채팅 |
 | `CHAT_MESSAGE` | `chatRoomId` | 채팅방 상세 |
 | `POST_LIKED` | `postId` | 게시글 상세 |
 | `COMMENT_CREATED` (게시글) | `postId`, `commentId` | 게시글 상세 + 댓글 포커스 |
@@ -624,6 +630,9 @@ FCM 토큰 삭제
 | `NOTICE` | `noticeId` | 학교 공지 상세 |
 | `APP_NOTICE` | `appNoticeId` | 앱 공지 상세 |
 | `ACADEMIC_SCHEDULE` | `academicScheduleId` | 학사 일정 상세 |
+| `FRIEND_REQUEST` / `FRIEND_DECLINED` | `requestId` | 친구 허브 요청 탭 |
+| `FRIEND_ACCEPTED` | `friendPublicId` | 친구 상세 |
+| `PARTY_INVITATION` / `CHAT_ROOM_INVITATION` | `invitationId`, `invitationType` | 친구 허브 초대 탭 |
 
 **예시: `PARTY_JOIN_ACCEPTED`**
 ```json
@@ -3977,6 +3986,10 @@ Authorization:Bearer <firebase_id_token>
 | `NOTICE` | 새 학교 공지 | 공지 허용 사용자 | `allNotifications` + `noticeNotifications` + `noticeNotificationsDetail` | O |
 | `APP_NOTICE` | 앱 공지 생성 | 일반: 시스템 알림 허용 사용자 / `HIGH`: 전체 사용자 | 일반: `allNotifications` + `systemNotifications`, `HIGH`는 설정 무시 | O |
 | `ACADEMIC_SCHEDULE` | 학사 일정 리마인더 | 학사 일정 알림 허용 사용자 | `allNotifications` + `academicScheduleNotifications` | O |
+| `FRIEND_REQUEST` | 친구 요청 생성 | 요청 수신자 | `allNotifications` + `friendAndInvitationNotifications` | O |
+| `FRIEND_ACCEPTED` / `FRIEND_DECLINED` | 친구 요청 수락·거절 | 원 요청자 | `allNotifications` + `friendAndInvitationNotifications` | O |
+| `PARTY_INVITATION` | 친구 기반 택시파티 초대 생성 | 초대 수신자 | `allNotifications` + `friendAndInvitationNotifications`; `partyNotifications`는 최초 초대에 미적용 | O |
+| `CHAT_ROOM_INVITATION` | 친구 기반 공개 채팅방 초대 생성 | 초대 수신자 | `allNotifications` + `friendAndInvitationNotifications` | O |
 
 - 공지 댓글은 현재 `Notice.author`가 회원 식별자가 아닌 문자열이므로, 루트 댓글 작성자(공지 작성자) 알림은 런타임에서 보장하지 않습니다. 현재 구현은 부모 댓글 작성자 대상 답글 알림만 발송합니다.
 - 학사 일정 리마인더는 `AcademicScheduleReminder` 도메인 이벤트 기반으로 처리합니다.
@@ -3992,6 +4005,8 @@ Authorization:Bearer <firebase_id_token>
   - `academicScheduleNotifications`
   - `academicScheduleDayBeforeEnabled`
   - `academicScheduleAllEventsEnabled`
+- 친구·초대 알림은 `FRIEND_REQUEST`, `FRIEND_ACCEPTED`, `FRIEND_DECLINED`, `PARTY_INVITATION`, `CHAT_ROOM_INVITATION`으로 구분한다. 유효 수신 조건이 false이면 인박스·알림 SSE·FCM은 만들지 않지만 FriendHub의 원본 PENDING 요청·초대와 badge는 유지한다.
+- 친구 요청·거절 payload에는 `requestId`, 수락 payload에는 `friendPublicId`, 초대 payload에는 `invitationId`, `invitationType`을 포함한다. 클라이언트는 type과 data로 각각 친구 허브 요청 탭·친구 상세·초대 탭으로 이동한다.
 
 ---
 
@@ -4515,6 +4530,9 @@ type NotificationDataPayload = {
   noticeId?: string;
   appNoticeId?: string;
   academicScheduleId?: string;
+  friendPublicId?: string;
+  invitationId?: string;
+  invitationType?: "PARTY" | "CHAT_ROOM";
 };
 
 type NotificationPayload = {
@@ -4525,6 +4543,7 @@ type NotificationPayload = {
     | "PARTY_JOIN_ACCEPTED"
     | "PARTY_JOIN_DECLINED"
     | "PARTY_CLOSED"
+    | "PARTY_REOPENED"
     | "PARTY_ARRIVED"
     | "PARTY_ENDED"
     | "MEMBER_KICKED"
@@ -4534,7 +4553,12 @@ type NotificationPayload = {
     | "COMMENT_CREATED"
     | "NOTICE"
     | "APP_NOTICE"
-    | "ACADEMIC_SCHEDULE";
+    | "ACADEMIC_SCHEDULE"
+    | "FRIEND_REQUEST"
+    | "FRIEND_ACCEPTED"
+    | "FRIEND_DECLINED"
+    | "PARTY_INVITATION"
+    | "CHAT_ROOM_INVITATION";
   title: string;
   message: string;
   data: NotificationDataPayload;
@@ -4614,6 +4638,7 @@ data: {
 | `PARTY_JOIN_ACCEPTED` | `partyId`, `requestId` | 파티 상세 |
 | `PARTY_JOIN_DECLINED` | `partyId`, `requestId` | 파티 목록 |
 | `PARTY_CLOSED` | `partyId` | 파티 상세 |
+| `PARTY_REOPENED` | `partyId` | 파티 상세 |
 | `PARTY_ARRIVED` | `partyId` | 파티 상세 (정산) |
 | `PARTY_ENDED` | `partyId` | 파티 상세 |
 | `MEMBER_KICKED` | `partyId` | 파티 목록 |
@@ -4625,6 +4650,9 @@ data: {
 | `NOTICE` | `noticeId` | 공지 상세 |
 | `APP_NOTICE` | `appNoticeId` | 앱 공지 상세 |
 | `ACADEMIC_SCHEDULE` | `academicScheduleId` | 학사 일정 상세 |
+| `FRIEND_REQUEST` / `FRIEND_DECLINED` | `requestId` | 친구 허브 요청 탭 |
+| `FRIEND_ACCEPTED` | `friendPublicId` | 친구 상세 |
+| `PARTY_INVITATION` / `CHAT_ROOM_INVITATION` | `invitationId`, `invitationType` | 친구 허브 초대 탭 |
 
 ### 10.5 게시물 실시간 구독
 
@@ -5158,6 +5186,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
       "commentNotifications": true,
       "bookmarkedPostCommentNotifications": true,
       "systemNotifications": true,
+      "friendAndInvitationNotifications": true,
       "academicScheduleNotifications": true,
       "academicScheduleDayBeforeEnabled": true,
       "academicScheduleAllEventsEnabled": false,
@@ -5316,6 +5345,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
       "commentNotifications": true,
       "bookmarkedPostCommentNotifications": true,
       "systemNotifications": true,
+      "friendAndInvitationNotifications": true,
       "academicScheduleNotifications": true,
       "academicScheduleDayBeforeEnabled": true,
       "academicScheduleAllEventsEnabled": false,
@@ -7802,6 +7832,7 @@ batch 형식과 outcome 계약은 택시파티 초대와 같고, 친구 관계�
 ---
 
 > 변경 이력
+> - 2026-08-25: 알림 payload 계약 동기화 — `requestId`의 동승·친구 요청 공용 의미, `PARTY_REOPENED`·친구·초대 canonical type, `friendPublicId`·`invitationId`·`invitationType` strict DTO와 이동 규칙을 추가
 > - 2026-08-24: 택시 정원·친구 초대 보완 — 정원 자동 모집 마감 제거, CLOSED 참가자 초대·리더 승인, join request의 `invitationInviterName`, 다중 초대 원본의 안정 선택, 시간 만료 채팅 초대 DELETE의 EXPIRED→DISMISSED 전이, EXPIRED 수신자의 목록 삭제 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-23: TaxiParty·공개 non-PARTY 채팅방 친구 초대 반영 — 수신자별 부분 성공, PENDING·EXPIRED 받은 목록, 수락 재검증, 7일 만료와 inbox count 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-21: Friend Minecraft projection 반영 — 친구 목록·상세 Minecraft 요약과 SELF·FRIEND 계층 조회 계약을 `/v3/api-docs` 기준으로 추가

@@ -206,6 +206,7 @@ class SecurityIntegrationTest {
                                 true,
                                 true,
                                 true,
+                                true,
                                 false,
                                 Map.of("news", true)
                         ),

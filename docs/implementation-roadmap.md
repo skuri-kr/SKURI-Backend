@@ -1,6 +1,6 @@
 # SKURI 백엔드 구현 로드맵
 
-> 최종 수정일: 2026-08-18
+> 최종 수정일: 2026-08-24
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [API 명세](./api-specification.md) | [기술 전략](./tech-strategy.md) | [역할 정의](./role-definition.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md) | [친구 기능 기준 명세](./features/friends.md)
 > 보조 참고: 채팅 Firestore → MySQL 이관 참고는 백엔드 레포 `docs/chat-firestore-to-mysql-migration-reference.md`, 마인크래프트 상세 설계/이력은 백엔드 레포 `docs/minecraft-spring-migration-plan.md`
 
@@ -14,7 +14,7 @@
 | Java | 21 |
 | 빌드 도구 | Gradle |
 | 현재 의존성 | JPA, Web MVC, Validation, Security, Firebase Admin, Springdoc OpenAPI(Swagger UI/Scalar), Thumbnailator, TwelveMonkeys WebP, Lombok, MySQL Connector |
-| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation·관계 Core·출시 준비·친구 화면 완성·시간표 공유·친구 초대 전달 완료, 초대·정원·파티원 UX 보완 진행 중, 알림/나머지 탈퇴 정리 후속 예정 |
+| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Foundation·관계 Core·출시 준비·친구 화면 완성·시간표 공유·친구 초대 완료, 친구·초대 알림과 Friend derived-data 탈퇴 정리 Backend 최종 PR 진행 중, 앱 알림 연결·통합 QA 예정 |
 
 ---
 
@@ -762,6 +762,10 @@ SSE 운영 제약:
 | NoticeCreatedEvent | NOTICE | O | O |
 | AppNoticeCreatedEvent | APP_NOTICE | O | O |
 | AcademicScheduleReminderEvent | ACADEMIC_SCHEDULE | O | O |
+| FriendRequestCreated | FRIEND_REQUEST | O | O |
+| FriendRequestAccepted / FriendRequestDeclined | FRIEND_ACCEPTED / FRIEND_DECLINED | O | O |
+| PartyInvitationCreated | PARTY_INVITATION | O | O |
+| ChatRoomInvitationCreated | CHAT_ROOM_INVITATION | O | O |
 
 #### 8-2-1. 알림 정책 상세 (현행 운영 정책 기준)
 
@@ -783,6 +787,10 @@ SSE 운영 제약:
 | `NOTICE` | 새 학교 공지 생성 | 공지 허용 사용자 | 카테고리 상세 토글 비활성 사용자 제외 | `allNotifications` + `noticeNotifications` + `noticeNotificationsDetail` | O |
 | `APP_NOTICE` | 앱 공지 생성 | 일반: 시스템 알림 허용 사용자 / `HIGH`: 전체 사용자 | `HIGH`는 설정 무시 강제 발송 | 일반: `allNotifications` + `systemNotifications` / `HIGH`: 설정 무시 | O |
 | `ACADEMIC_SCHEDULE` | 학사 일정 리마인더 시각 도달 | 학사 일정 알림 허용 사용자 | 기본은 중요 일정만 대상 | `allNotifications` + `academicScheduleNotifications` | O |
+| `FRIEND_REQUEST` | 친구 요청 생성 | 요청 수신자 | PENDING 생성일 때만 발송 | `allNotifications` + `friendAndInvitationNotifications` | O |
+| `FRIEND_ACCEPTED` / `FRIEND_DECLINED` | 친구 요청 수락·거절 | 원 요청자 | 수락은 최초 전이일 때만 발송 | `allNotifications` + `friendAndInvitationNotifications` | O |
+| `PARTY_INVITATION` | 친구 기반 택시파티 초대 생성 | 초대 수신자 | PENDING 생성일 때만 발송; `partyNotifications`는 최초 초대에 미적용 | `allNotifications` + `friendAndInvitationNotifications` | O |
+| `CHAT_ROOM_INVITATION` | 친구 기반 공개방 초대 생성 | 초대 수신자 | PENDING 생성일 때만 발송 | `allNotifications` + `friendAndInvitationNotifications` | O |
 
 - 저장 구조는 Firestore가 아니라 RDB 테이블(`user_notifications`, `fcm_tokens`)을 사용한다.
 - FCM 전송은 `sendEachForMulticast` 500개 배치와 invalid token 정리 정책을 유지한다.
@@ -799,6 +807,13 @@ SSE 운영 제약:
   - `academicScheduleNotifications = true`
   - `academicScheduleDayBeforeEnabled = true`
   - `academicScheduleAllEventsEnabled = false`
+
+#### 8-2-3. 친구·초대 알림 사용자 옵션
+
+- `friendAndInvitationNotifications`: 친구 요청·수락·거절, 택시파티·공개방 초대 알림의 단일 토글
+- 기본값은 `true`다. 기존 null 값은 true로 해석하고, 알림 컬럼 중 하나라도 null인 기존 회원은 기동 시 조건부 bulk update로 전체 기본값을 보정한다. 이미 명시적으로 저장한 값은 유지한다.
+- 유효 수신 조건은 `allNotifications && friendAndInvitationNotifications`다. false일 때 인박스·알림 SSE·FCM만 생략하며 FriendHub의 원본 요청·초대와 badge는 유지한다.
+- payload는 요청/거절에 `requestId`, 수락에 `friendPublicId`, 초대에 `invitationId`, `invitationType`을 담는다.
 
 #### 8-3. API
 
@@ -1041,7 +1056,7 @@ SSE 운영 제약:
 
 ### Phase 14: 친구·시간표 공유·친구 초대
 
-> 상태: Backend #78~#85와 Frontend #22~#27 전달 완료, 초대·정원·파티원 UX 보완 진행 중, 알림·나머지 탈퇴 정리 후속 예정
+> 상태: Backend #78~#87와 Frontend #22~#29 전달 완료. Backend #88은 친구·초대 알림과 PENDING 초대 외 Friend 파생 데이터 탈퇴 정리의 최종 단계 PR이며, 다음 Frontend PR과 통합 QA를 남겼다.
 > 상세 기준: docs/features/friends.md
 > 후속 구현 시작 조건: 해당 기능 기준 문서 검토 후 사용자의 별도 코드 구현 승인
 
@@ -1085,12 +1100,17 @@ SSE 운영 제약:
 | Backend | [#83](https://github.com/skuri-kr/SKURI-Backend/pull/83) | 친구 Minecraft 안전 projection과 목록·수락 응답 요약 |
 | Backend | [#84](https://github.com/skuri-kr/SKURI-Backend/pull/84) | 시간표 공개 범위·친구별 예외·친구 시간표 projection과 관계 종료 cleanup |
 | Backend | [#85](https://github.com/skuri-kr/SKURI-Backend/pull/85) | 택시파티·공개방 친구 초대와 받은 초대 mutation·만료 정합성 |
+| Backend | [#86](https://github.com/skuri-kr/SKURI-Backend/pull/86) | 파티장·참가자 초대 수락 전이와 택시파티 정원 경계 보완 |
+| Backend | [#87](https://github.com/skuri-kr/SKURI-Backend/pull/87) | 택시파티 정원과 친구 초대 상태 정정 |
+| Backend | [#88](https://github.com/skuri-kr/SKURI-Backend/pull/88) | 친구·초대 인박스·SSE·FCM 전달과 Friend derived-data 탈퇴 정리, 최신 상태·경합 보완 (리뷰 진행 중) |
 | Frontend | [#22](https://github.com/skuri-kr/SKURI-Frontend/pull/22) | 모바일 친구 기능 구현 계획 |
 | Frontend | [#23](https://github.com/skuri-kr/SKURI-Frontend/pull/23) | FriendHub·FriendAdd·FriendDetail·FriendSettings와 관계 Core 연동 |
 | Frontend | [#24](https://github.com/skuri-kr/SKURI-Frontend/pull/24) | Core 출시 준비 UX와 수동 QA 보완 |
 | Frontend | [#25](https://github.com/skuri-kr/SKURI-Frontend/pull/25) | 친구 QR 생성·스캔과 Minecraft 계정 표시 |
 | Frontend | [#26](https://github.com/skuri-kr/SKURI-Frontend/pull/26) | 시간표 공유 설정과 친구 시간표 accordion·공통 공강·같이 듣는 수업 |
 | Frontend | [#27](https://github.com/skuri-kr/SKURI-Frontend/pull/27) | 택시파티·공개방 친구 초대 sheet와 FriendHub 받은 초대 흐름 |
+| Frontend | [#28](https://github.com/skuri-kr/SKURI-Frontend/pull/28) | 친구 초대 sheet·택시파티 정원·파티원 UX 보완 |
+| Frontend | [#29](https://github.com/skuri-kr/SKURI-Frontend/pull/29) | 택시파티 정원과 친구 초대 상태 정정 |
 
 #### 14-4. 시간표 공유 후 구현 단위
 
@@ -1102,13 +1122,13 @@ SSE 운영 제약:
 2. [x] 친구 초대 (Backend #85·Frontend #27 전달 완료)
    - TaxiParty·공개 Chat 수신자별 부분 성공 친구 초대
    - FriendHub 초대 탭·공통 친구 선택 UX
-2-a. [~] 초대·정원·파티원 UX 보완
+2-a. [x] 초대·정원·파티원 UX 보완 (Backend #86·#87·Frontend #28·#29 전달 완료)
    - 파티장 초대 즉시 참가, 참가자 초대 리더 승인 대기
    - 가득 찬 파티의 동승 요청·초대 차단과 PENDING 요청 만료
    - 초대 가능·초대 중·참여 중 목록, 학과방 안내, 파티원 목록·리더 강퇴 UI
-3. [ ] 알림·나머지 탈퇴 정리
-   - 친구 요청·수락·거절·초대 인박스·FCM·SSE·이동
-   - Notification 설정·badge와 PENDING 초대 외 회원 탈퇴 cleanup
+3. [~] 알림·나머지 탈퇴 정리
+   - Backend: 친구 요청·수락·거절·초대 인박스·FCM·SSE 이벤트, Notification 설정과 Friend derived-data 탈퇴 cleanup을 #88에서 구현·자동 검증·문서 동기화한다. 요청은 Member pair → FriendRequest(수락은 Friendship·양방향 차단), 초대는 Member pair → Party/ChatRoom → Invitation의 최신 잠금 상태에서 인앱을 저장하며 FCM은 새 `REQUIRES_NEW` 재검증에서 같은 잠금을 `PushNotificationService.send` 반환까지 유지해 전송한다.
+   - Frontend: NotificationScreen/FCM/SSE cold·warm 이동, 설정 노출과 badge 동기화를 다음 최종 PR에서 구현한 뒤 두 PR 범위를 통합 QA한다.
 
 각 단계에서 OpenAPI, ERD, 도메인 문서와 Contract·Service 테스트를 해당 런타임 PR에 함께 동기화한다. 변경량 때문에 같은 저장소 PR을 분리해야 하면 먼저 사용자 승인을 받는다.
 
@@ -1137,8 +1157,8 @@ SSE 운영 제약:
 - [ ] TaxiParty 마지막 좌석 동시 수락 검증
 - [ ] 공개 non-PARTY 채팅방 초대와 7일 만료 검증
 - [ ] Minecraft 최근 접속·온라인·내부 식별자 미노출 검증
-- [ ] 신규 알림 타입, 알림 설정, 인박스·FCM·SSE 검증
-- [ ] 회원 탈퇴와 친구 끊기·차단 파생 데이터 cleanup 검증
+- [~] 신규 알림 타입, 알림 설정, 인박스·FCM·SSE 검증 (Backend 자동 검증 완료, 앱 통합 QA 예정)
+- [~] 회원 탈퇴와 친구 끊기·차단 파생 데이터 cleanup 검증 (Backend 자동 검증 완료, 통합 QA 예정)
 - [ ] 런타임 OpenAPI와 공유 문서 동기화
 
 ---
@@ -1217,6 +1237,9 @@ Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 > - 2026-08-22: Phase 14 시간표 공유 구현 반영 — Backend·Frontend 각각 한 PR의 구현·테스트·문서 정합성 점검을 반영하고, 남은 2단계 PR 계획으로 전환
 > - 2026-08-24: Phase 14 친구 초대 PR 생성 — Backend #85·Frontend #27의 런타임·테스트·문서 동기화와 후속 알림·나머지 탈퇴 정리 경계를 기록
 > - 2026-08-24: Phase 14 친구 초대 보완 — 파티장·참가자 수락 경로 분리, 정원 도달 JoinRequest 만료, 상태별 초대 목록과 파티원 관리 범위를 동기화
+> - 2026-08-25: Phase 14 알림·탈퇴 경합 보완 — FriendRequest 알림을 ordered pair lock·최신 상태 재검증과 같은 트랜잭션의 inbox 저장으로 묶고, 탈퇴 cleanup 뒤 stale inbox가 남지 않는 경합 회귀 테스트를 추가
+> - 2026-08-25: Phase 14 초대 알림·FCM 경합 보완 — Party/Chat 초대 알림도 초대 mutation과 같은 잠금 순서로 최신 상태를 재검증하고, 친구·초대 FCM은 after-commit의 기존 영속성 컨텍스트가 아닌 새 `REQUIRES_NEW` 트랜잭션에서 재검증하도록 기록
+> - 2026-08-25: Phase 14 친구 수락·FCM 최종 경합 보완 — FRIEND_ACCEPTED는 friendship·양방향 차단을 Member pair → FriendRequest → Friendship 잠금 아래 재검증하고, 친구 FCM은 같은 잠금을 실제 전송 반환까지 유지하도록 보완
 > - 2026-08-21: Phase 14 전달 이력·출시 준비 계획 갱신 — Backend #78·#79·#80과 Frontend #22·#23 완료 범위, 프로필 완료 eligibility와 저장소별 5단계 후속 PR 계획을 반영
 > - 2026-04-06: Admin Chat read API 구현 반영 — 공개 채팅방 관리자 목록/상세/메시지 조회와 관리자 파티 메시지 조회를 Phase 3/Phase 2 운영 API 및 완료 기준에 추가
 > - 2026-04-01: Phase 13 구현 반영 완료 상태로 갱신 — 마인크래프트 public/internal API, public SSE, bridge outbox, IMAGE placeholder, notification policy, 테스트/문서 완료 기준을 체크 상태로 동기화

@@ -89,7 +89,7 @@ public class Member extends BaseTimeEntity {
         if (notificationSetting == null) {
             notificationSetting = NotificationSetting.defaultSetting();
         } else {
-            notificationSetting.backfillAcademicScheduleDefaults();
+            notificationSetting.backfillDefaults();
         }
         if (joinedAt == null) {
             joinedAt = LocalDateTime.now();
@@ -142,6 +142,7 @@ public class Member extends BaseTimeEntity {
             Boolean commentNotifications,
             Boolean bookmarkedPostCommentNotifications,
             Boolean systemNotifications,
+            Boolean friendAndInvitationNotifications,
             Boolean academicScheduleNotifications,
             Boolean academicScheduleDayBeforeEnabled,
             Boolean academicScheduleAllEventsEnabled,
@@ -150,7 +151,7 @@ public class Member extends BaseTimeEntity {
         if (this.notificationSetting == null) {
             this.notificationSetting = NotificationSetting.defaultSetting();
         } else {
-            this.notificationSetting.backfillAcademicScheduleDefaults();
+            this.notificationSetting.backfillDefaults();
         }
         this.notificationSetting.apply(
                 allNotifications,
@@ -160,6 +161,7 @@ public class Member extends BaseTimeEntity {
                 commentNotifications,
                 bookmarkedPostCommentNotifications,
                 systemNotifications,
+                friendAndInvitationNotifications,
                 academicScheduleNotifications,
                 academicScheduleDayBeforeEnabled,
                 academicScheduleAllEventsEnabled,
@@ -172,7 +174,7 @@ public class Member extends BaseTimeEntity {
     }
 
     public boolean hasUnsetNotificationSettingDefaults() {
-        return notificationSetting == null || notificationSetting.hasUnsetAcademicScheduleDefaults();
+        return notificationSetting == null || notificationSetting.hasUnsetDefaults();
     }
 
     public void backfillNotificationSettingDefaults() {
@@ -181,7 +183,7 @@ public class Member extends BaseTimeEntity {
             return;
         }
 
-        notificationSetting.backfillAcademicScheduleDefaults();
+        notificationSetting.backfillDefaults();
     }
 
     public boolean isActive() {

@@ -14,14 +14,18 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +46,11 @@ public class NotificationService {
             NotificationType.PARTY_ENDED,
             NotificationType.MEMBER_KICKED,
             NotificationType.SETTLEMENT_COMPLETED
+    );
+    private static final List<NotificationType> FRIEND_RELATED_TYPES = List.of(
+            NotificationType.FRIEND_REQUEST,
+            NotificationType.FRIEND_DECLINED,
+            NotificationType.FRIEND_ACCEPTED
     );
 
     private final UserNotificationRepository userNotificationRepository;
@@ -105,8 +114,21 @@ public class NotificationService {
         }
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createInboxNotifications(NotificationDispatchRequest request) {
+        persistInboxNotifications(request);
+    }
+
+    /**
+     * 친구 관계처럼 별도 write lock을 이미 획득한 도메인 후처리에서 사용한다.
+     * 인박스 저장과 SSE 발행 시점을 그 lock transaction의 commit에 함께 묶는다.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void createInboxNotificationsInCurrentTransaction(NotificationDispatchRequest request) {
+        persistInboxNotifications(request);
+    }
+
+    private void persistInboxNotifications(NotificationDispatchRequest request) {
         if (!request.inboxEnabled() || request.recipientIds().isEmpty()) {
             return;
         }
@@ -143,6 +165,46 @@ public class NotificationService {
         userNotificationRepository.deleteAllInBatch(targets);
         if (unreadRemovedCount > 0) {
             publishUnreadCountChangedAfterCommit(memberId);
+        }
+    }
+
+    /**
+     * 회원 탈퇴로 유효하지 않아지는 상대방의 친구 인앱 알림을 함께 정리한다.
+     * 호출자는 탈퇴 트랜잭션 안에서 이 메서드를 호출해야 하며, unread-count SSE는 outer transaction commit 뒤에만 발행된다.
+     */
+    @Transactional
+    public void deleteFriendRelatedNotifications(
+            Map<String, Set<String>> requestIdsByMemberId,
+            String withdrawnFriendPublicId
+    ) {
+        Map<String, Set<String>> validRequestIdsByMemberId = resolveFriendRequestIdsByMemberId(requestIdsByMemberId);
+        if (validRequestIdsByMemberId.isEmpty()) {
+            return;
+        }
+
+        List<UserNotification> targets = userNotificationRepository.findByUserIdInAndTypeIn(
+                        validRequestIdsByMemberId.keySet(),
+                        FRIEND_RELATED_TYPES
+                ).stream()
+                .filter(notification -> FRIEND_RELATED_TYPES.contains(notification.getType()))
+                .filter(notification -> matchesWithdrawnFriendNotification(
+                        notification,
+                        validRequestIdsByMemberId,
+                        withdrawnFriendPublicId
+                ))
+                .toList();
+
+        if (targets.isEmpty()) {
+            return;
+        }
+
+        Set<String> unreadAffectedMemberIds = targets.stream()
+                .filter(notification -> !notification.isRead())
+                .map(UserNotification::getUserId)
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+        userNotificationRepository.deleteAllInBatch(targets);
+        if (!unreadAffectedMemberIds.isEmpty()) {
+            runAfterCommit(() -> publishUnreadCounts(unreadAffectedMemberIds));
         }
     }
 
@@ -227,7 +289,7 @@ public class NotificationService {
             return Map.of();
         }
 
-        Map<String, Long> unreadCounts = new java.util.LinkedHashMap<>();
+        Map<String, Long> unreadCounts = new LinkedHashMap<>();
         memberIds.forEach(memberId -> unreadCounts.put(memberId, 0L));
         userNotificationRepository.countUnreadByUserIds(memberIds, UNREAD_COUNT_EXCLUDED_TYPE)
                 .forEach(count -> unreadCounts.put(count.getUserId(), count.getUnreadCount()));
@@ -243,6 +305,44 @@ public class NotificationService {
                 .map(UserNotification::getUserId)
                 .distinct()
                 .toList();
+    }
+
+    private Map<String, Set<String>> resolveFriendRequestIdsByMemberId(Map<String, Set<String>> requestIdsByMemberId) {
+        Map<String, Set<String>> validRequestIdsByMemberId = new LinkedHashMap<>();
+        if (requestIdsByMemberId == null || requestIdsByMemberId.isEmpty()) {
+            return validRequestIdsByMemberId;
+        }
+
+        requestIdsByMemberId.forEach((memberId, requestIds) -> {
+            if (memberId == null || memberId.isBlank() || requestIds == null || requestIds.isEmpty()) {
+                return;
+            }
+
+            Set<String> validRequestIds = requestIds.stream()
+                    .filter(requestId -> requestId != null && !requestId.isBlank())
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            if (!validRequestIds.isEmpty()) {
+                validRequestIdsByMemberId.put(memberId, validRequestIds);
+            }
+        });
+        return validRequestIdsByMemberId;
+    }
+
+    private boolean matchesWithdrawnFriendNotification(
+            UserNotification notification,
+            Map<String, Set<String>> requestIdsByMemberId,
+            String withdrawnFriendPublicId
+    ) {
+        if (notification.getType() == NotificationType.FRIEND_ACCEPTED) {
+            return withdrawnFriendPublicId != null
+                    && !withdrawnFriendPublicId.isBlank()
+                    && notification.matchesFriendPublicId(withdrawnFriendPublicId);
+        }
+
+        return requestIdsByMemberId
+                .getOrDefault(notification.getUserId(), Set.of())
+                .stream()
+                .anyMatch(notification::matchesFriendRequest);
     }
 
     private long countUnreadNotifications(String memberId) {

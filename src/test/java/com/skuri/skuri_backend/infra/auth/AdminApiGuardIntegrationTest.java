@@ -488,6 +488,7 @@ class AdminApiGuardIntegrationTest {
                                                 true,
                                                 true,
                                                 true,
+                                                true,
                                                 false,
                                                 Map.of("academic", true, "event", false)
                                         )

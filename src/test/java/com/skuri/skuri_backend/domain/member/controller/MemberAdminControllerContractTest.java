@@ -180,6 +180,7 @@ class MemberAdminControllerContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value("member-1"))
                 .andExpect(jsonPath("$.data.bankAccount.bankName").value("신한은행"))
+                .andExpect(jsonPath("$.data.notificationSetting.friendAndInvitationNotifications").value(true))
                 .andExpect(jsonPath("$.data.notificationSetting.noticeNotificationsDetail.academic").value(true));
     }
 
@@ -385,6 +386,7 @@ class MemberAdminControllerContractTest {
                 null,
                 new MemberBankAccountResponse("신한은행", "110-123-456789", "홍길동", false),
                 new MemberNotificationSettingResponse(
+                        true,
                         true,
                         true,
                         true,
