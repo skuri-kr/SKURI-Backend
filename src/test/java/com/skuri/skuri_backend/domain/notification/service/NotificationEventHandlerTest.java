@@ -13,11 +13,9 @@ import com.skuri.skuri_backend.domain.board.repository.PostRepository;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessage;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
-import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitation;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMemberId;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
-import com.skuri.skuri_backend.domain.chat.repository.ChatRoomInvitationRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
@@ -29,11 +27,9 @@ import com.skuri.skuri_backend.domain.notification.entity.NotificationType;
 import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Location;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
-import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.SettlementAccountSnapshot;
 import com.skuri.skuri_backend.domain.taxiparty.repository.JoinRequestRepository;
-import com.skuri.skuri_backend.domain.taxiparty.repository.PartyInvitationRepository;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -74,8 +70,6 @@ class NotificationEventHandlerTest {
     @Mock
     private ChatMessageRepository chatMessageRepository;
     @Mock
-    private ChatRoomInvitationRepository chatRoomInvitationRepository;
-    @Mock
     private PostRepository postRepository;
     @Mock
     private PostInteractionRepository postInteractionRepository;
@@ -90,8 +84,6 @@ class NotificationEventHandlerTest {
     @Mock
     private AcademicScheduleRepository academicScheduleRepository;
     @Mock
-    private PartyInvitationRepository partyInvitationRepository;
-    @Mock
     private MemberRepository memberRepository;
     @Mock
     private NotificationService notificationService;
@@ -99,6 +91,8 @@ class NotificationEventHandlerTest {
     private PushNotificationService pushNotificationService;
     @Mock
     private FriendNotificationDeliveryService friendNotificationDeliveryService;
+    @Mock
+    private InvitationNotificationDeliveryService invitationNotificationDeliveryService;
 
     @InjectMocks
     private NotificationEventHandler notificationEventHandler;
@@ -153,47 +147,17 @@ class NotificationEventHandlerTest {
     }
 
     @Test
-    void handlePartyInvitationCreated_파티알림설정과무관하게초대설정만확인한다() {
-        PartyInvitation invitation = PartyInvitation.create("party-1", "inviter-1", "invitee-1");
-        ReflectionTestUtils.setField(invitation, "id", "party-invitation-1");
-        Member inviter = Member.create("inviter-1", "inviter@sungkyul.ac.kr", "초대자", LocalDateTime.now());
-        Member invitee = Member.create("invitee-1", "invitee@sungkyul.ac.kr", "피초대자", LocalDateTime.now());
-        ReflectionTestUtils.setField(invitee.getNotificationSetting(), "partyNotifications", false);
-
-        when(partyInvitationRepository.findById("party-invitation-1")).thenReturn(Optional.of(invitation));
-        when(memberRepository.findActiveById("inviter-1")).thenReturn(Optional.of(inviter));
-        when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(invitee));
-
+    void handlePartyInvitationCreated_잠금전용전달서비스에위임한다() {
         notificationEventHandler.handle(new NotificationDomainEvent.PartyInvitationCreated("party-invitation-1"));
 
-        ArgumentCaptor<NotificationDispatchRequest> captor = ArgumentCaptor.forClass(NotificationDispatchRequest.class);
-        verify(notificationService).createInboxNotifications(captor.capture());
-        assertEquals(NotificationType.PARTY_INVITATION, captor.getValue().type());
-        assertEquals("party-invitation-1", captor.getValue().data().invitationId());
-        assertEquals("PARTY", captor.getValue().data().invitationType());
+        verify(invitationNotificationDeliveryService).deliverPartyInvitationCreated("party-invitation-1");
     }
 
     @Test
-    void handleChatRoomInvitationCreated_친구초대알림을끄면인박스와푸시를만들지않는다() {
-        ChatRoomInvitation invitation = ChatRoomInvitation.create(
-                "public:university",
-                "inviter-1",
-                "invitee-1",
-                LocalDateTime.now()
-        );
-        ReflectionTestUtils.setField(invitation, "id", "chat-invitation-1");
-        Member inviter = Member.create("inviter-1", "inviter@sungkyul.ac.kr", "초대자", LocalDateTime.now());
-        Member invitee = Member.create("invitee-1", "invitee@sungkyul.ac.kr", "피초대자", LocalDateTime.now());
-        ReflectionTestUtils.setField(invitee.getNotificationSetting(), "friendAndInvitationNotifications", false);
-
-        when(chatRoomInvitationRepository.findById("chat-invitation-1")).thenReturn(Optional.of(invitation));
-        when(memberRepository.findActiveById("inviter-1")).thenReturn(Optional.of(inviter));
-        when(memberRepository.findActiveById("invitee-1")).thenReturn(Optional.of(invitee));
-
+    void handleChatRoomInvitationCreated_잠금전용전달서비스에위임한다() {
         notificationEventHandler.handle(new NotificationDomainEvent.ChatRoomInvitationCreated("chat-invitation-1"));
 
-        verify(notificationService, never()).createInboxNotifications(org.mockito.ArgumentMatchers.any());
-        verify(pushNotificationService, never()).send(org.mockito.ArgumentMatchers.any());
+        verify(invitationNotificationDeliveryService).deliverChatRoomInvitationCreated("chat-invitation-1");
     }
 
     @Test

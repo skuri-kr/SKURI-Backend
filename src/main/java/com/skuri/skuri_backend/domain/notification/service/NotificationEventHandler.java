@@ -13,11 +13,8 @@ import com.skuri.skuri_backend.domain.board.repository.PostRepository;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessage;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessageType;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
-import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitation;
-import com.skuri.skuri_backend.domain.chat.entity.ChatRoomInvitationStatus;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomMember;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
-import com.skuri.skuri_backend.domain.chat.repository.ChatRoomInvitationRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
@@ -35,11 +32,8 @@ import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequest;
 import com.skuri.skuri_backend.domain.taxiparty.entity.JoinRequestStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.Party;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyEndReason;
-import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitation;
-import com.skuri.skuri_backend.domain.taxiparty.entity.PartyInvitationStatus;
 import com.skuri.skuri_backend.domain.taxiparty.entity.PartyStatus;
 import com.skuri.skuri_backend.domain.taxiparty.repository.JoinRequestRepository;
-import com.skuri.skuri_backend.domain.taxiparty.repository.PartyInvitationRepository;
 import com.skuri.skuri_backend.domain.taxiparty.repository.PartyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +56,6 @@ public class NotificationEventHandler {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final ChatMessageRepository chatMessageRepository;
-    private final ChatRoomInvitationRepository chatRoomInvitationRepository;
     private final PostRepository postRepository;
     private final PostInteractionRepository postInteractionRepository;
     private final CommentRepository commentRepository;
@@ -70,11 +63,11 @@ public class NotificationEventHandler {
     private final NoticeCommentRepository noticeCommentRepository;
     private final AppNoticeRepository appNoticeRepository;
     private final AcademicScheduleRepository academicScheduleRepository;
-    private final PartyInvitationRepository partyInvitationRepository;
     private final MemberRepository memberRepository;
     private final NotificationService notificationService;
     private final PushNotificationService pushNotificationService;
     private final FriendNotificationDeliveryService friendNotificationDeliveryService;
+    private final InvitationNotificationDeliveryService invitationNotificationDeliveryService;
 
     public void handle(NotificationDomainEvent event) {
         switch (event) {
@@ -523,49 +516,11 @@ public class NotificationEventHandler {
     }
 
     private void handlePartyInvitationCreated(NotificationDomainEvent.PartyInvitationCreated event) {
-        PartyInvitation invitation = partyInvitationRepository.findById(event.invitationId()).orElse(null);
-        if (invitation == null || invitation.getStatus() != PartyInvitationStatus.PENDING) {
-            return;
-        }
-
-        Member inviter = findActiveMember(invitation.getInviterId());
-        Member invitee = findActiveMember(invitation.getInviteeId());
-        if (inviter == null || !isFriendAndInvitationNotificationAllowed(invitee)) {
-            return;
-        }
-
-        dispatch(NotificationDispatchRequest.of(
-                NotificationType.PARTY_INVITATION,
-                List.of(invitee.getId()),
-                "택시파티 초대가 도착했어요",
-                displayMemberName(inviter) + "님이 택시파티에 초대했어요.",
-                NotificationData.ofInvitation(invitation.getId(), "PARTY"),
-                true,
-                true
-        ));
+        invitationNotificationDeliveryService.deliverPartyInvitationCreated(event.invitationId());
     }
 
     private void handleChatRoomInvitationCreated(NotificationDomainEvent.ChatRoomInvitationCreated event) {
-        ChatRoomInvitation invitation = chatRoomInvitationRepository.findById(event.invitationId()).orElse(null);
-        if (invitation == null || invitation.getStatus() != ChatRoomInvitationStatus.PENDING) {
-            return;
-        }
-
-        Member inviter = findActiveMember(invitation.getInviterId());
-        Member invitee = findActiveMember(invitation.getInviteeId());
-        if (inviter == null || !isFriendAndInvitationNotificationAllowed(invitee)) {
-            return;
-        }
-
-        dispatch(NotificationDispatchRequest.of(
-                NotificationType.CHAT_ROOM_INVITATION,
-                List.of(invitee.getId()),
-                "공개 채팅방 초대가 도착했어요",
-                displayMemberName(inviter) + "님이 공개 채팅방에 초대했어요.",
-                NotificationData.ofInvitation(invitation.getId(), "CHAT_ROOM"),
-                true,
-                true
-        ));
+        invitationNotificationDeliveryService.deliverChatRoomInvitationCreated(event.invitationId());
     }
 
     private void dispatch(NotificationDispatchRequest request) {
@@ -616,15 +571,6 @@ public class NotificationEventHandler {
 
         NotificationSetting setting = settingOf(member);
         return setting.isAllNotifications() && setting.isPartyNotifications();
-    }
-
-    private boolean isFriendAndInvitationNotificationAllowed(Member member) {
-        if (member == null) {
-            return false;
-        }
-
-        NotificationSetting setting = settingOf(member);
-        return setting.isAllNotifications() && setting.isFriendAndInvitationNotifications();
     }
 
     private boolean isBoardLikeNotificationAllowed(Member member) {
@@ -823,12 +769,6 @@ public class NotificationEventHandler {
 
     private String displaySenderName(String senderName) {
         return senderName == null || senderName.isBlank() ? "익명" : senderName;
-    }
-
-    private String displayMemberName(Member member) {
-        return member == null || member.getNickname() == null || member.getNickname().isBlank()
-                ? "친구"
-                : member.getNickname();
     }
 
     private String preview(String value, int maxLength) {
