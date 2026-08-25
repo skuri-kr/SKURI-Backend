@@ -1,6 +1,5 @@
 package com.skuri.skuri_backend.domain.notification.service;
 
-import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -10,8 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class FriendNotificationPushRecheckService {
 
-    private final FriendRequestRepository friendRequestRepository;
-    private final FriendNotificationDispatchResolver dispatchResolver;
+    private final FriendNotificationStateResolver stateResolver;
     private final PushNotificationService pushNotificationService;
 
     /**
@@ -19,8 +17,7 @@ public class FriendNotificationPushRecheckService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendIfStillCurrent(FriendNotificationKind kind, String requestId) {
-        friendRequestRepository.findById(requestId)
-                .flatMap(request -> dispatchResolver.resolve(kind, request))
+        stateResolver.resolve(kind, requestId)
                 .ifPresent(pushNotificationService::send);
     }
 }
