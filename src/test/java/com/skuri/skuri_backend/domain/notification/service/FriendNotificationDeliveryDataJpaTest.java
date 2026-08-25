@@ -2,6 +2,7 @@ package com.skuri.skuri_backend.domain.notification.service;
 
 import com.skuri.skuri_backend.common.config.JpaAuditingConfig;
 import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
+import com.skuri.skuri_backend.domain.friend.entity.Friendship;
 import com.skuri.skuri_backend.domain.friend.repository.FriendCodeRegistryRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendPreferenceRepository;
 import com.skuri.skuri_backend.domain.friend.repository.FriendProfileRepository;
@@ -47,10 +48,13 @@ import static org.mockito.Mockito.when;
         FriendMemberPairLockService.class,
         NotificationService.class,
         FriendNotificationDispatchResolver.class,
+        FriendNotificationStateResolver.class,
         FriendNotificationPushRecheckService.class,
         FriendNotificationDeliveryService.class,
         FriendWithdrawalCleanupService.class,
-        FriendNotificationDeliveryDataJpaTest.WithdrawalCommand.class
+        FriendNotificationDeliveryDataJpaTest.WithdrawalCommand.class,
+        FriendNotificationDeliveryDataJpaTest.RelationshipRemovalCommand.class,
+        FriendNotificationDeliveryDataJpaTest.RequestCancellationCommand.class
 })
 class FriendNotificationDeliveryDataJpaTest {
 
@@ -86,6 +90,15 @@ class FriendNotificationDeliveryDataJpaTest {
 
     @Autowired
     private WithdrawalCommand withdrawalCommand;
+
+    @Autowired
+    private RelationshipRemovalCommand relationshipRemovalCommand;
+
+    @Autowired
+    private RequestCancellationCommand requestCancellationCommand;
+
+    @Autowired
+    private FriendNotificationPushRecheckService pushRecheckService;
 
     @MockitoBean
     private NotificationSseService notificationSseService;
@@ -152,6 +165,82 @@ class FriendNotificationDeliveryDataJpaTest {
         }
     }
 
+    @Test
+    void 친구관계종료가먼저완료되면수락알림을생성하지않는다() throws Exception {
+        Member requester = saveProfileCompleteMember("requester", "요청자");
+        Member recipient = saveProfileCompleteMember("recipient", "수락자");
+        FriendRequest request = FriendRequest.create(
+                requester.getId(), recipient.getId(), "recipient:requester", LocalDateTime.now()
+        );
+        request.accept(LocalDateTime.now());
+        request = friendRequestRepository.saveAndFlush(request);
+        friendshipRepository.saveAndFlush(Friendship.create("recipient", "requester"));
+
+        CountDownLatch relationshipLockAcquired = new CountDownLatch(1);
+        CountDownLatch allowRelationshipRemoval = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> relationshipRemoval = executor.submit(() -> relationshipRemovalCommand.remove(
+                    requester.getId(), recipient.getId(), relationshipLockAcquired, allowRelationshipRemoval
+            ));
+            assertTrue(relationshipLockAcquired.await(1, TimeUnit.SECONDS));
+
+            String requestId = request.getId();
+            Future<?> delivery = executor.submit(
+                    () -> friendNotificationDeliveryService.deliverFriendRequestAccepted(requestId)
+            );
+            assertFalse(delivery.isDone(), "관계 종료가 보유한 회원 잠금이 수락 알림 전달을 대기시켜야 합니다.");
+
+            allowRelationshipRemoval.countDown();
+            relationshipRemoval.get(2, TimeUnit.SECONDS);
+            delivery.get(2, TimeUnit.SECONDS);
+
+            assertThat(userNotificationRepository.findByUserIdOrderByCreatedAtDesc(requester.getId())).isEmpty();
+        } finally {
+            allowRelationshipRemoval.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void FCM전송중에는친구요청취소가회원잠금해제까지대기한다() throws Exception {
+        Member requester = saveProfileCompleteMember("requester", "요청자");
+        Member recipient = saveProfileCompleteMember("recipient", "수신자");
+        FriendRequest request = friendRequestRepository.saveAndFlush(FriendRequest.create(
+                requester.getId(), recipient.getId(), "recipient:requester", LocalDateTime.now()
+        ));
+
+        CountDownLatch pushEntered = new CountDownLatch(1);
+        CountDownLatch allowPushToReturn = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            pushEntered.countDown();
+            assertTrue(allowPushToReturn.await(1, TimeUnit.SECONDS));
+            return null;
+        }).when(pushNotificationService).send(any(NotificationDispatchRequest.class));
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> push = executor.submit(
+                    () -> pushRecheckService.sendIfStillCurrent(FriendNotificationKind.REQUEST_CREATED, request.getId())
+            );
+            assertTrue(pushEntered.await(1, TimeUnit.SECONDS));
+
+            Future<?> cancellation = executor.submit(() -> requestCancellationCommand.cancel(request.getId()));
+            assertFalse(cancellation.isDone(), "FCM 전송 전 최종 판단이 보유한 회원 잠금이 취소를 대기시켜야 합니다.");
+
+            allowPushToReturn.countDown();
+            push.get(2, TimeUnit.SECONDS);
+            cancellation.get(2, TimeUnit.SECONDS);
+
+            assertThat(friendRequestRepository.findById(request.getId())).hasValueSatisfying(
+                    persisted -> assertThat(persisted.isPending()).isFalse()
+            );
+        } finally {
+            allowPushToReturn.countDown();
+            executor.shutdownNow();
+        }
+    }
+
     private Member saveProfileCompleteMember(String memberId, String nickname) {
         Member member = Member.create(memberId, memberId + "@sungkyul.ac.kr", nickname, LocalDateTime.now());
         member.updateProfile(nickname, null, "20260001", "컴퓨터공학과", null);
@@ -178,6 +267,71 @@ class FriendNotificationDeliveryDataJpaTest {
             LocalDateTime withdrawnAt = LocalDateTime.now();
             member.withdraw(withdrawnAt);
             friendWithdrawalCleanupService.cleanupWithdrawnMember(memberId, withdrawnAt);
+        }
+    }
+
+    @Service
+    static class RelationshipRemovalCommand {
+
+        private final FriendMemberPairLockService pairLockService;
+        private final FriendshipRepository friendshipRepository;
+
+        RelationshipRemovalCommand(
+                FriendMemberPairLockService pairLockService,
+                FriendshipRepository friendshipRepository
+        ) {
+            this.pairLockService = pairLockService;
+            this.friendshipRepository = friendshipRepository;
+        }
+
+        @Transactional
+        public void remove(
+                String firstMemberId,
+                String secondMemberId,
+                CountDownLatch relationshipLockAcquired,
+                CountDownLatch allowRelationshipRemoval
+        ) {
+            var pair = pairLockService.lockActivePair(firstMemberId, secondMemberId);
+            Friendship friendship = friendshipRepository.findByMemberPairForUpdate(
+                    pair.lowMemberId(), pair.highMemberId()
+            ).orElseThrow();
+            friendshipRepository.delete(friendship);
+            relationshipLockAcquired.countDown();
+            await(allowRelationshipRemoval);
+        }
+    }
+
+    @Service
+    static class RequestCancellationCommand {
+
+        private final FriendRequestRepository friendRequestRepository;
+        private final FriendMemberPairLockService pairLockService;
+
+        RequestCancellationCommand(
+                FriendRequestRepository friendRequestRepository,
+                FriendMemberPairLockService pairLockService
+        ) {
+            this.friendRequestRepository = friendRequestRepository;
+            this.pairLockService = pairLockService;
+        }
+
+        @Transactional
+        public void cancel(String requestId) {
+            FriendRequest snapshot = friendRequestRepository.findById(requestId).orElseThrow();
+            pairLockService.lockActivePair(snapshot.getRequesterId(), snapshot.getRecipientId());
+            FriendRequest request = friendRequestRepository.findByIdForUpdate(requestId).orElseThrow();
+            request.cancel(LocalDateTime.now());
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(1, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("테스트 동기화 대기 시간이 초과되었습니다.");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("테스트 동기화가 중단되었습니다.", exception);
         }
     }
 }

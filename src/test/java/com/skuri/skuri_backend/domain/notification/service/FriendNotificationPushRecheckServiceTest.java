@@ -1,7 +1,5 @@
 package com.skuri.skuri_backend.domain.notification.service;
 
-import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
-import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
 import com.skuri.skuri_backend.domain.notification.entity.NotificationType;
 import com.skuri.skuri_backend.domain.notification.model.NotificationData;
 import org.junit.jupiter.api.Test;
@@ -9,11 +7,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,9 +22,7 @@ import static org.mockito.Mockito.when;
 class FriendNotificationPushRecheckServiceTest {
 
     @Mock
-    private FriendRequestRepository friendRequestRepository;
-    @Mock
-    private FriendNotificationDispatchResolver dispatchResolver;
+    private FriendNotificationStateResolver stateResolver;
     @Mock
     private PushNotificationService pushNotificationService;
 
@@ -46,9 +40,8 @@ class FriendNotificationPushRecheckServiceTest {
 
     @Test
     void 최신상태가아니면FCM을보내지않는다() {
-        FriendRequest request = request();
-        when(friendRequestRepository.findById("friend-request-1")).thenReturn(Optional.of(request));
-        when(dispatchResolver.resolve(FriendNotificationKind.REQUEST_CREATED, request)).thenReturn(Optional.empty());
+        when(stateResolver.resolve(FriendNotificationKind.REQUEST_CREATED, "friend-request-1"))
+                .thenReturn(Optional.empty());
 
         pushRecheckService.sendIfStillCurrent(FriendNotificationKind.REQUEST_CREATED, "friend-request-1");
 
@@ -57,7 +50,6 @@ class FriendNotificationPushRecheckServiceTest {
 
     @Test
     void 최신상태면재검증결과로FCM을보낸다() {
-        FriendRequest request = request();
         NotificationDispatchRequest dispatch = NotificationDispatchRequest.of(
                 NotificationType.FRIEND_REQUEST,
                 List.of("recipient-1"),
@@ -67,19 +59,11 @@ class FriendNotificationPushRecheckServiceTest {
                 true,
                 true
         );
-        when(friendRequestRepository.findById("friend-request-1")).thenReturn(Optional.of(request));
-        when(dispatchResolver.resolve(FriendNotificationKind.REQUEST_CREATED, request)).thenReturn(Optional.of(dispatch));
+        when(stateResolver.resolve(FriendNotificationKind.REQUEST_CREATED, "friend-request-1"))
+                .thenReturn(Optional.of(dispatch));
 
         pushRecheckService.sendIfStillCurrent(FriendNotificationKind.REQUEST_CREATED, "friend-request-1");
 
         verify(pushNotificationService).send(dispatch);
-    }
-
-    private FriendRequest request() {
-        FriendRequest request = FriendRequest.create(
-                "requester-1", "recipient-1", "recipient-1:requester-1", LocalDateTime.now()
-        );
-        ReflectionTestUtils.setField(request, "id", "friend-request-1");
-        return request;
     }
 }
