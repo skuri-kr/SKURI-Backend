@@ -40,6 +40,7 @@ import static org.mockito.Mockito.verify;
         NotificationService.class,
         FriendMemberPairLockService.class,
         FriendNotificationDispatchResolver.class,
+        FriendNotificationStateResolver.class,
         FriendNotificationPushRecheckService.class,
         FriendNotificationDeliveryService.class,
         InvitationNotificationStateResolver.class,
