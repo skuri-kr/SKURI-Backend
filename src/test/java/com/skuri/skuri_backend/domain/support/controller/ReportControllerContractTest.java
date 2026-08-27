@@ -95,6 +95,29 @@ class ReportControllerContractTest {
     }
 
     @Test
+    void createReport_공지댓글정상요청_201() throws Exception {
+        mockUserToken("user-token");
+        when(reportService.createReport(org.mockito.ArgumentMatchers.eq("user-uid"), any(CreateReportRequest.class)))
+                .thenReturn(new ReportCreateResponse("report-3", ReportStatus.PENDING, LocalDateTime.of(2026, 8, 27, 12, 10)));
+
+        mockMvc.perform(
+                        post("/v1/reports")
+                                .header(AUTHORIZATION, "Bearer user-token")
+                                .contentType(APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "targetType": "NOTICE_COMMENT",
+                                          "targetId": "notice_comment_uuid",
+                                          "category": "ABUSE",
+                                          "reason": "공지 댓글에 부적절한 표현이 있습니다."
+                                        }
+                                        """)
+                )
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").value("report-3"));
+    }
+
+    @Test
     void createReport_토큰없음_401() throws Exception {
         mockMvc.perform(
                         post("/v1/reports")
@@ -200,6 +223,29 @@ class ReportControllerContractTest {
                 )
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("CHAT_MESSAGE_NOT_FOUND"));
+    }
+
+    @Test
+    void createReport_공지댓글없음_404() throws Exception {
+        mockUserToken("user-token");
+        when(reportService.createReport(org.mockito.ArgumentMatchers.eq("user-uid"), any(CreateReportRequest.class)))
+                .thenThrow(new BusinessException(ErrorCode.NOTICE_COMMENT_NOT_FOUND));
+
+        mockMvc.perform(
+                        post("/v1/reports")
+                                .header(AUTHORIZATION, "Bearer user-token")
+                                .contentType(APPLICATION_JSON)
+                                .content("""
+                                        {
+                                          "targetType": "NOTICE_COMMENT",
+                                          "targetId": "missing_notice_comment",
+                                          "category": "ABUSE",
+                                          "reason": "공지 댓글을 찾을 수 없습니다."
+                                        }
+                                        """)
+                )
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("NOTICE_COMMENT_NOT_FOUND"));
     }
 
     private void mockUserToken(String token) {
