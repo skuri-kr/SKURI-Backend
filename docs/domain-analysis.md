@@ -758,8 +758,9 @@ Hooks:
     - 요청에서 attachments 생략/null은 허용하고 서버에서 빈 배열로 정규화
     - 응답은 항상 `attachments: []` 형태를 유지하며 null을 반환하지 않음
   - Report
-    - id, targetType (POST, COMMENT, MEMBER, CHAT_MESSAGE, CHAT_ROOM, TAXI_PARTY)
+    - id, targetType (POST, COMMENT, NOTICE_COMMENT, MEMBER, CHAT_MESSAGE, CHAT_ROOM, TAXI_PARTY)
     - targetId, targetAuthorId, category, reason
+    - `NOTICE_COMMENT.targetAuthorId = noticeComment.userId`, 삭제 댓글은 신고 대상에서 제외
     - `CHAT_MESSAGE.targetAuthorId = message.senderId`
     - `CHAT_MESSAGE` 신고는 접수 시점 원문/이미지 URL/계좌 payload/수정시각을 `targetSnapshot` JSON으로 보존한다.
     - `CHAT_ROOM.targetAuthorId = chatRoom.createdBy` (creator가 없는 seed/public 방은 null 허용, `PARTY` 타입 방은 제외)

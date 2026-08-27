@@ -15,6 +15,8 @@ import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
 import com.skuri.skuri_backend.domain.image.service.MediaCleanupTaskService;
 import com.skuri.skuri_backend.domain.image.storage.StorageRepository;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.notice.entity.NoticeComment;
+import com.skuri.skuri_backend.domain.notice.repository.NoticeCommentRepository;
 import com.skuri.skuri_backend.domain.support.dto.request.CreateReportRequest;
 import com.skuri.skuri_backend.domain.support.dto.request.UpdateReportStatusRequest;
 import com.skuri.skuri_backend.domain.support.dto.response.AdminReportResponse;
@@ -57,6 +59,9 @@ class ReportServiceTest {
 
     @Mock
     private CommentRepository commentRepository;
+
+    @Mock
+    private NoticeCommentRepository noticeCommentRepository;
 
     @Mock
     private MemberRepository memberRepository;
@@ -159,6 +164,85 @@ class ReportServiceTest {
         );
 
         assertEquals(ErrorCode.REPORT_ALREADY_SUBMITTED, exception.getErrorCode());
+    }
+
+    @Test
+    void createReport_공지댓글_작성자를대상작성자로저장한다() {
+        ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
+        NoticeComment comment = mock(NoticeComment.class);
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId(
+                "user-1", ReportTargetType.NOTICE_COMMENT, "notice-comment-1"
+        )).thenReturn(false);
+        when(noticeCommentRepository.findByIdAndDeletedFalse("notice-comment-1"))
+                .thenReturn(Optional.of(comment));
+        when(comment.getUserId()).thenReturn("author-1");
+        when(reportRepository.saveAndFlush(captor.capture()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        reportService.createReport(
+                "user-1",
+                new CreateReportRequest(
+                        ReportTargetType.NOTICE_COMMENT,
+                        "notice-comment-1",
+                        "abuse",
+                        "부적절한 공지 댓글입니다."
+                )
+        );
+
+        assertEquals(ReportTargetType.NOTICE_COMMENT, captor.getValue().getTargetType());
+        assertEquals("notice-comment-1", captor.getValue().getTargetId());
+        assertEquals("author-1", captor.getValue().getTargetAuthorId());
+        assertEquals("ABUSE", captor.getValue().getCategory());
+    }
+
+    @Test
+    void createReport_공지댓글_자기자신신고는실패한다() {
+        NoticeComment comment = mock(NoticeComment.class);
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId(
+                "user-1", ReportTargetType.NOTICE_COMMENT, "notice-comment-1"
+        )).thenReturn(false);
+        when(noticeCommentRepository.findByIdAndDeletedFalse("notice-comment-1"))
+                .thenReturn(Optional.of(comment));
+        when(comment.getUserId()).thenReturn("user-1");
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> reportService.createReport(
+                        "user-1",
+                        new CreateReportRequest(
+                                ReportTargetType.NOTICE_COMMENT,
+                                "notice-comment-1",
+                                "ABUSE",
+                                "내 공지 댓글입니다."
+                        )
+                )
+        );
+
+        assertEquals(ErrorCode.CANNOT_REPORT_YOURSELF, exception.getErrorCode());
+    }
+
+    @Test
+    void createReport_삭제되었거나없는공지댓글은신고할수없다() {
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId(
+                "user-1", ReportTargetType.NOTICE_COMMENT, "notice-comment-1"
+        )).thenReturn(false);
+        when(noticeCommentRepository.findByIdAndDeletedFalse("notice-comment-1"))
+                .thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> reportService.createReport(
+                        "user-1",
+                        new CreateReportRequest(
+                                ReportTargetType.NOTICE_COMMENT,
+                                "notice-comment-1",
+                                "ABUSE",
+                                "삭제된 공지 댓글입니다."
+                        )
+                )
+        );
+
+        assertEquals(ErrorCode.NOTICE_COMMENT_NOT_FOUND, exception.getErrorCode());
     }
 
     @Test

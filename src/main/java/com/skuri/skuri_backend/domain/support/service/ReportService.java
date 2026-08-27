@@ -20,6 +20,8 @@ import com.skuri.skuri_backend.domain.image.service.MediaCleanupTaskService;
 import com.skuri.skuri_backend.domain.image.storage.StorageRepository;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.notice.exception.NoticeCommentNotFoundException;
+import com.skuri.skuri_backend.domain.notice.repository.NoticeCommentRepository;
 import com.skuri.skuri_backend.domain.support.dto.request.CreateReportRequest;
 import com.skuri.skuri_backend.domain.support.dto.request.UpdateReportStatusRequest;
 import com.skuri.skuri_backend.domain.support.dto.response.AdminReportResponse;
@@ -51,6 +53,7 @@ public class ReportService {
     private final ReportRepository reportRepository;
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
+    private final NoticeCommentRepository noticeCommentRepository;
     private final MemberRepository memberRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
@@ -116,6 +119,9 @@ public class ReportService {
             case COMMENT -> new ReportTarget(commentRepository.findActiveById(targetId)
                     .orElseThrow(CommentNotFoundException::new)
                     .getAuthorId());
+            case NOTICE_COMMENT -> new ReportTarget(noticeCommentRepository.findByIdAndDeletedFalse(targetId)
+                    .orElseThrow(NoticeCommentNotFoundException::new)
+                    .getUserId());
             case MEMBER -> new ReportTarget(memberRepository.findById(targetId)
                     .orElseThrow(MemberNotFoundException::new)
                     .getId());

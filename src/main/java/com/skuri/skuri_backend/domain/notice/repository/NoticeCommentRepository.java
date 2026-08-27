@@ -31,6 +31,8 @@ public interface NoticeCommentRepository extends JpaRepository<NoticeComment, St
 
     Optional<NoticeComment> findById(String commentId);
 
+    Optional<NoticeComment> findByIdAndDeletedFalse(String commentId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select c

@@ -136,6 +136,43 @@ class ReportAdminControllerContractTest {
     }
 
     @Test
+    void getReports_공지댓글필터정상요청_200() throws Exception {
+        mockToken("admin-token", true);
+        when(reportService.getAdminReports(ReportStatus.PENDING, ReportTargetType.NOTICE_COMMENT, 0, 20))
+                .thenReturn(PageResponse.<AdminReportResponse>builder()
+                        .content(java.util.List.of(new AdminReportResponse(
+                                "report-notice-comment-1",
+                                "user-uid",
+                                ReportTargetType.NOTICE_COMMENT,
+                                "notice-comment-1",
+                                "author-1",
+                                "ABUSE",
+                                "공지 댓글에 부적절한 표현이 있습니다.",
+                                ReportStatus.PENDING,
+                                null,
+                                null,
+                                LocalDateTime.of(2026, 8, 27, 12, 10),
+                                LocalDateTime.of(2026, 8, 27, 12, 10)
+                        )))
+                        .page(0)
+                        .size(20)
+                        .totalElements(1)
+                        .totalPages(1)
+                        .hasNext(false)
+                        .hasPrevious(false)
+                        .build());
+
+        mockMvc.perform(
+                        get("/v1/admin/reports")
+                                .header(AUTHORIZATION, "Bearer admin-token")
+                                .param("status", "PENDING")
+                                .param("targetType", "NOTICE_COMMENT")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].targetType").value("NOTICE_COMMENT"));
+    }
+
+    @Test
     void getReports_비관리자요청_403() throws Exception {
         mockToken("user-token", false);
 

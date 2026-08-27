@@ -587,7 +587,7 @@ erDiagram
 
     reports {
         varchar(36) id PK "UUID"
-        enum target_type "POST,COMMENT,MEMBER,CHAT_MESSAGE,CHAT_ROOM,TAXI_PARTY"
+        enum target_type "POST,COMMENT,NOTICE_COMMENT,MEMBER,CHAT_MESSAGE,CHAT_ROOM,TAXI_PARTY"
         varchar(100) target_id "NOT NULL"
         varchar(36) target_author_id
         json target_snapshot "nullable, CHAT_MESSAGE report evidence"
