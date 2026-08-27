@@ -174,6 +174,7 @@ public class AdminDashboardService {
         return switch (targetType) {
             case POST -> "게시글 신고";
             case COMMENT -> "댓글 신고";
+            case NOTICE_COMMENT -> "공지 댓글 신고";
             case MEMBER -> "회원 신고";
             case CHAT_MESSAGE -> "채팅 메시지 신고";
             case CHAT_ROOM -> "채팅방 신고";
