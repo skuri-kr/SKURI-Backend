@@ -64,7 +64,28 @@ public final class OpenApiAppExamples {
             }
             """;
 
-    public static final String SUCCESS_ADMIN_APP_NOTICE_UPDATE = SUCCESS_APP_NOTICE_DETAIL;
+    public static final String SUCCESS_ADMIN_APP_NOTICE_UPDATE = """
+            {
+              "success": true,
+              "data": {
+                "id": "app_notice_uuid",
+                "title": "서버 점검 안내",
+                "content": "2월 20일 새벽 2시~4시 서버 점검이 있습니다.",
+                "category": "MAINTENANCE",
+                "priority": "HIGH",
+                "imageUrls": [],
+                "actionUrl": null,
+                "actionLabel": null,
+                "viewCount": 101,
+                "likeCount": 12,
+                "commentCount": 4,
+                "isLiked": false,
+                "publishedAt": "2026-02-20T00:00:00",
+                "createdAt": "2026-02-19T12:00:00",
+                "updatedAt": "2026-02-19T12:00:00"
+              }
+            }
+            """;
 
     public static final String SUCCESS_APP_NOTICE_UNREAD_COUNT = """
             {
