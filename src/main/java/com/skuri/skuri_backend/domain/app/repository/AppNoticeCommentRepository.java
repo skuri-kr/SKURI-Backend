@@ -33,6 +33,14 @@ public interface AppNoticeCommentRepository extends JpaRepository<AppNoticeComme
     @Query("select c from AppNoticeComment c where c.id = :commentId")
     Optional<AppNoticeComment> findByIdForUpdate(@Param("commentId") String commentId);
 
+    @Query("""
+            select c from AppNoticeComment c
+            join fetch c.appNotice
+            left join fetch c.parent
+            where c.id = :commentId
+            """)
+    Optional<AppNoticeComment> findNotificationAggregateById(@Param("commentId") String commentId);
+
     @Query("select c.appNotice.id from AppNoticeComment c where c.id = :commentId")
     Optional<String> findAppNoticeIdById(@Param("commentId") String commentId);
 

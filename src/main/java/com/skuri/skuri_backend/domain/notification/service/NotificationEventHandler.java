@@ -486,7 +486,7 @@ public class NotificationEventHandler {
     }
 
     private void handleAppNoticeCommentCreated(NotificationDomainEvent.AppNoticeCommentCreated event) {
-        AppNoticeComment comment = appNoticeCommentRepository.findById(event.commentId()).orElse(null);
+        AppNoticeComment comment = appNoticeCommentRepository.findNotificationAggregateById(event.commentId()).orElse(null);
         if (comment == null || comment.isDeleted()) {
             return;
         }
