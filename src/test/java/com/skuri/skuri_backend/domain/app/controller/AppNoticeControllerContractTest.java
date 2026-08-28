@@ -10,6 +10,7 @@ import com.skuri.skuri_backend.infra.auth.config.ApiAccessDeniedHandler;
 import com.skuri.skuri_backend.infra.auth.config.ApiAuthenticationEntryPoint;
 import com.skuri.skuri_backend.infra.auth.config.SecurityConfig;
 import com.skuri.skuri_backend.infra.auth.firebase.FirebaseAuthenticationFilter;
+import com.skuri.skuri_backend.infra.auth.firebase.FirebaseTokenClaims;
 import com.skuri.skuri_backend.infra.auth.firebase.FirebaseTokenVerifier;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
+import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -58,6 +60,20 @@ class AppNoticeControllerContractTest {
         when(appNoticeService.getPublishedNotice("app-notice-1")).thenReturn(appNoticeResponse());
 
         mockMvc.perform(get("/v1/app-notices/app-notice-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value("app-notice-1"));
+    }
+
+    @Test
+    void getAppNotice_인증토큰이있으면_사용자별좋아요상태를조회한다() throws Exception {
+        when(firebaseTokenVerifier.verify("valid-token")).thenReturn(new FirebaseTokenClaims(
+                "firebase-uid", "user@sungkyul.ac.kr", "google.com", "provider-id", "홍길동", null
+        ));
+        when(appNoticeService.getPublishedNotice("firebase-uid", "app-notice-1"))
+                .thenReturn(appNoticeResponse());
+
+        mockMvc.perform(get("/v1/app-notices/app-notice-1")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value("app-notice-1"));
     }

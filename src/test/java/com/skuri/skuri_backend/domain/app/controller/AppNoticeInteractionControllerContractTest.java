@@ -60,6 +60,18 @@ class AppNoticeInteractionControllerContractTest {
     }
 
     @Test
+    void 댓글목록_유효한토큰_200() throws Exception {
+        mockValidToken();
+        when(appNoticeService.getComments("firebase-uid", "app-notice-1"))
+                .thenReturn(java.util.List.of(commentResponse()));
+
+        mockMvc.perform(get("/v1/app-notices/app-notice-1/comments")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value("app-comment-1"));
+    }
+
+    @Test
     void 댓글작성_정상요청_201() throws Exception {
         mockValidToken();
         when(appNoticeService.createComment(eq("firebase-uid"), eq("app-notice-1"), any()))

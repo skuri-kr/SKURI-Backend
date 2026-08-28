@@ -35,6 +35,7 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
             new OperationKey("delete", "/v1/posts/{postId}"),
             new OperationKey("delete", "/v1/comments/{commentId}"),
             new OperationKey("delete", "/v1/notice-comments/{commentId}"),
+            new OperationKey("delete", "/v1/app-notice-comments/{commentId}"),
             new OperationKey("delete", "/v1/members/me/photo"),
             new OperationKey("delete", "/v1/admin/app-notices/{appNoticeId}"),
             new OperationKey("delete", "/v1/admin/campus-banners/{bannerId}"),

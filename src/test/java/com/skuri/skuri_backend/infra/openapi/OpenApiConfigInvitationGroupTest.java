@@ -19,4 +19,10 @@ class OpenApiConfigInvitationGroupTest {
         assertThat(config.chatApi().getPathsToMatch())
                 .contains("/v1/chat-rooms/**", "/v1/chat-room-invitations/**");
     }
+
+    @Test
+    void notice그룹은_앱공지댓글경로를포함한다() {
+        assertThat(config.noticeApi().getPathsToMatch())
+                .contains("/v1/app-notices/**", "/v1/app-notice-comments/**");
+    }
 }

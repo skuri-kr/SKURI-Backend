@@ -3,13 +3,17 @@ package com.skuri.skuri_backend.domain.app.service;
 import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.domain.app.dto.request.CreateAppNoticeRequest;
+import com.skuri.skuri_backend.domain.app.dto.request.UpdateAppNoticeRequest;
 import com.skuri.skuri_backend.domain.app.dto.response.AppNoticeResponse;
 import com.skuri.skuri_backend.domain.app.dto.response.AppNoticeReadResponse;
 import com.skuri.skuri_backend.domain.app.dto.response.AppNoticeUnreadCountResponse;
 import com.skuri.skuri_backend.domain.app.entity.AppNotice;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticeComment;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticeCommentLike;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticeCategory;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticePriority;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticeReadStatus;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticeLike;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeReadStatusRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeLikeRepository;
@@ -109,7 +113,7 @@ class AppNoticeServiceTest {
         AppNotice appNotice = appNotice("app-notice-1");
         Member member = Member.create("member-1", "member-1@sungkyul.ac.kr", "회원", LocalDateTime.now());
         when(appNoticeRepository.findByIdForUpdate("app-notice-1")).thenReturn(Optional.of(appNotice));
-        when(memberRepository.findActiveById("member-1")).thenReturn(Optional.of(member));
+        when(memberRepository.findActiveByIdForUpdate("member-1")).thenReturn(Optional.of(member));
         when(appNoticeCommentRepository.save(any())).thenAnswer(invocation -> {
             Object comment = invocation.getArgument(0);
             ReflectionTestUtils.setField(comment, "id", "app-comment-1");
@@ -186,7 +190,7 @@ class AppNoticeServiceTest {
     @Test
     void deleteAppNotice_읽음상태를먼저정리한다() {
         AppNotice appNotice = appNotice("app-notice-1");
-        when(appNoticeRepository.findById("app-notice-1")).thenReturn(Optional.of(appNotice));
+        when(appNoticeRepository.findByIdForUpdate("app-notice-1")).thenReturn(Optional.of(appNotice));
 
         appNoticeService.deleteAppNotice("app-notice-1");
 
@@ -195,10 +199,63 @@ class AppNoticeServiceTest {
     }
 
     @Test
+    void updateAppNotice_URL만변경하면_기존버튼문구를유지한다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        appNotice.updateAction("https://old.skuri.app", "기존 문구");
+        when(appNoticeRepository.findByIdForUpdate("app-notice-1")).thenReturn(Optional.of(appNotice));
+        UpdateAppNoticeRequest request = new UpdateAppNoticeRequest(
+                null, null, null, null, null,
+                "https://new.skuri.app", null, null
+        );
+
+        AppNoticeResponse response = appNoticeService.updateAppNotice("app-notice-1", request);
+
+        assertEquals("https://new.skuri.app", response.actionUrl());
+        assertEquals("기존 문구", response.actionLabel());
+    }
+
+    @Test
+    void updateAppNotice_빈URL이면_기존URL과문구를모두제거한다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        appNotice.updateAction("https://old.skuri.app", "기존 문구");
+        when(appNoticeRepository.findByIdForUpdate("app-notice-1")).thenReturn(Optional.of(appNotice));
+        UpdateAppNoticeRequest request = new UpdateAppNoticeRequest(
+                null, null, null, null, null,
+                "", "기존 문구", null
+        );
+
+        AppNoticeResponse response = appNoticeService.updateAppNotice("app-notice-1", request);
+
+        assertEquals(null, response.actionUrl());
+        assertEquals(null, response.actionLabel());
+    }
+
+    @Test
     void deleteAllReadStatusesByUserId_리포지토리에위임한다() {
         appNoticeService.deleteAllReadStatusesByUserId("member-1");
 
         verify(appNoticeReadStatusRepository).deleteById_UserId("member-1");
+    }
+
+    @Test
+    void handleMemberWithdrawal_좋아요카운터를원자적으로감소시킨다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        AppNoticeComment comment = AppNoticeComment.create(
+                appNotice, "author-1", "작성자", "댓글", false, null, null, null
+        );
+        ReflectionTestUtils.setField(comment, "id", "app-comment-1");
+        AppNoticeLike noticeLike = AppNoticeLike.create(appNotice, "member-1");
+        AppNoticeCommentLike commentLike = AppNoticeCommentLike.create(comment, "member-1");
+        when(appNoticeCommentRepository.findByUserId("member-1")).thenReturn(List.of());
+        when(appNoticeCommentLikeRepository.findById_UserId("member-1")).thenReturn(List.of(commentLike));
+        when(appNoticeLikeRepository.findById_UserId("member-1")).thenReturn(List.of(noticeLike));
+
+        appNoticeService.handleMemberWithdrawal("member-1");
+
+        verify(appNoticeCommentRepository).decrementLikeCountAtomically("app-comment-1", 1);
+        verify(appNoticeRepository).decrementLikeCountAtomically("app-notice-1", 1);
+        verify(appNoticeCommentLikeRepository).deleteAllInBatch(List.of(commentLike));
+        verify(appNoticeLikeRepository).deleteAllInBatch(List.of(noticeLike));
     }
 
     private AppNotice appNotice(String id) {
