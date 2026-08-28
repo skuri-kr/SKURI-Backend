@@ -631,6 +631,7 @@ FCM 토큰 삭제
 | `POST_LIKED` | `postId` | 게시글 상세 |
 | `COMMENT_CREATED` (게시글) | `postId`, `commentId` | 게시글 상세 + 댓글 포커스 |
 | `COMMENT_CREATED` (공지) | `noticeId`, `commentId` | 공지 상세 + 댓글 포커스 |
+| `COMMENT_CREATED` (앱 공지) | `appNoticeId`, `commentId` | 앱 공지 상세 + 댓글 포커스 |
 | `NOTICE` | `noticeId` | 학교 공지 상세 |
 | `APP_NOTICE` | `appNoticeId` | 앱 공지 상세 |
 | `ACADEMIC_SCHEDULE` | `academicScheduleId` | 학사 일정 상세 |
@@ -4065,6 +4066,7 @@ Authorization:Bearer <firebase_id_token>
 | `POST_LIKED` | 게시글 좋아요 | 게시글 작성자 | `allNotifications` + `boardLikeNotifications` | O |
 | `COMMENT_CREATED` (게시글) | 댓글/답글 생성 | 게시글 작성자, 부모 댓글 작성자, 게시글 북마크 사용자 | `allNotifications` + `commentNotifications` + `bookmarkedPostCommentNotifications` (중복 수신자는 1회 dedupe) | O |
 | `COMMENT_CREATED` (공지) | 공지 댓글 답글 생성 | 부모 댓글 작성자 | `allNotifications` + `commentNotifications` | O |
+| `COMMENT_CREATED` (앱 공지) | 앱 공지 댓글/답글 생성 | 작성자 제외 활성 운영자 전체, 답글의 부모 댓글 작성자 | 운영자 알림은 설정 무시, 부모 작성자는 댓글 알림 설정 반영, 중복 수신자는 답글 알림 1회 | O |
 | `NOTICE` | 새 학교 공지 | 공지 허용 사용자 | `allNotifications` + `noticeNotifications` + `noticeNotificationsDetail` | O |
 | `APP_NOTICE` | 앱 공지 생성 | 일반: 시스템 알림 허용 사용자 / `HIGH`: 전체 사용자 | 일반: `allNotifications` + `systemNotifications`, `HIGH`는 설정 무시 | O |
 | `ACADEMIC_SCHEDULE` | 학사 일정 리마인더 | 학사 일정 알림 허용 사용자 | `allNotifications` + `academicScheduleNotifications` | O |
@@ -4729,6 +4731,7 @@ data: {
 | `POST_LIKED` | `postId` | 게시글 상세 |
 | `COMMENT_CREATED` (게시글) | `postId`, `commentId` | 게시글 상세 |
 | `COMMENT_CREATED` (공지) | `noticeId`, `commentId` | 공지 상세 |
+| `COMMENT_CREATED` (앱 공지) | `appNoticeId`, `commentId` | 앱 공지 상세 + 댓글 포커스 |
 | `NOTICE` | `noticeId` | 공지 상세 |
 | `APP_NOTICE` | `appNoticeId` | 앱 공지 상세 |
 | `ACADEMIC_SCHEDULE` | `academicScheduleId` | 학사 일정 상세 |
@@ -5688,6 +5691,8 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 앱 공지 생성
 
 - `imageUrls[]`에는 `POST /v1/images`의 `APP_NOTICE_IMAGE` 업로드 결과 URL을 넣을 수 있습니다.
+- `actionUrl`은 유효한 HTTPS URL만 허용한다.
+- `actionLabel`은 최대 30자이며 `actionUrl`이 있을 때만 사용할 수 있다.
 
 **Request:**
 ```json
@@ -5697,7 +5702,8 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
   "category": "MAINTENANCE",
   "priority": "HIGH",
   "imageUrls": [],
-  "actionUrl": null,
+  "actionUrl": "https://status.skuri.app",
+  "actionLabel": "점검 현황 보기",
   "publishedAt": "2026-02-20T00:00:00Z"
 }
 ```
