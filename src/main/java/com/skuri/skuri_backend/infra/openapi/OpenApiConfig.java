@@ -88,6 +88,7 @@ public class OpenApiConfig {
                         "/v1/members/me/notice-bookmarks",
                         "/v1/members/me/app-notices/**",
                         "/v1/app-notices/**",
+                        "/v1/app-notice-comments/**",
                         "/v1/admin/notices/**",
                         "/v1/admin/app-notices/**"
                 )

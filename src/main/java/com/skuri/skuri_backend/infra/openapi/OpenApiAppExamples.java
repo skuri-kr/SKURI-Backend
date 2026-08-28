@@ -86,6 +86,33 @@ public final class OpenApiAppExamples {
             }
             """;
 
+    public static final String SUCCESS_APP_NOTICE_LIKE = """
+            {"success":true,"data":{"isLiked":true,"likeCount":8}}
+            """;
+
+    public static final String SUCCESS_APP_NOTICE_UNLIKE = """
+            {"success":true,"data":{"isLiked":false,"likeCount":7}}
+            """;
+
+    public static final String SUCCESS_APP_NOTICE_COMMENTS_LIST = OpenApiNoticeExamples.SUCCESS_NOTICE_COMMENTS_LIST;
+
+    public static final String SUCCESS_APP_NOTICE_COMMENT_CREATE = OpenApiNoticeExamples.SUCCESS_NOTICE_COMMENT_CREATE;
+
+    public static final String SUCCESS_APP_NOTICE_COMMENT_UPDATE = OpenApiNoticeExamples.SUCCESS_NOTICE_COMMENT_UPDATE;
+
+    public static final String SUCCESS_APP_NOTICE_COMMENT_LIKE = OpenApiNoticeExamples.SUCCESS_NOTICE_COMMENT_LIKE;
+
+    public static final String SUCCESS_APP_NOTICE_COMMENT_UNLIKE = OpenApiNoticeExamples.SUCCESS_NOTICE_COMMENT_UNLIKE;
+
     public static final String ERROR_APP_NOTICE_NOT_FOUND =
             "{\"success\":false,\"message\":\"앱 공지를 찾을 수 없습니다.\",\"errorCode\":\"APP_NOTICE_NOT_FOUND\",\"timestamp\":\"2026-03-06T12:00:00\"}";
+
+    public static final String ERROR_APP_NOTICE_COMMENT_NOT_FOUND =
+            "{\"success\":false,\"message\":\"앱 공지 댓글을 찾을 수 없습니다.\",\"errorCode\":\"APP_NOTICE_COMMENT_NOT_FOUND\",\"timestamp\":\"2026-03-06T12:00:00\"}";
+
+    public static final String ERROR_NOT_APP_NOTICE_COMMENT_AUTHOR =
+            "{\"success\":false,\"message\":\"앱 공지 댓글 작성자만 수정/삭제할 수 있습니다.\",\"errorCode\":\"NOT_APP_NOTICE_COMMENT_AUTHOR\",\"timestamp\":\"2026-03-06T12:00:00\"}";
+
+    public static final String ERROR_APP_NOTICE_COMMENT_ALREADY_DELETED =
+            "{\"success\":false,\"message\":\"이미 삭제된 댓글입니다.\",\"errorCode\":\"COMMENT_ALREADY_DELETED\",\"timestamp\":\"2026-03-06T12:00:00\"}";
 }
