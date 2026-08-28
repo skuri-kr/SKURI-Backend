@@ -46,6 +46,8 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -367,6 +369,9 @@ public class NoticeService {
             String memberId,
             Set<String> likedCommentIds
     ) {
+        Map<String, String> currentProfileImagesByAuthorId = resolveCurrentAuthorProfileImages(
+                comments.stream().map(NoticeComment::getUserId).toList()
+        );
         Map<String, List<NoticeComment>> childrenByParent = new LinkedHashMap<>();
         List<NoticeComment> roots = new ArrayList<>();
 
@@ -380,7 +385,15 @@ public class NoticeService {
 
         List<NoticeCommentResponse> flattened = new ArrayList<>();
         for (NoticeComment root : roots) {
-            appendCommentTree(flattened, root, 0, memberId, likedCommentIds, childrenByParent);
+            appendCommentTree(
+                    flattened,
+                    root,
+                    0,
+                    memberId,
+                    likedCommentIds,
+                    childrenByParent,
+                    currentProfileImagesByAuthorId
+            );
         }
         return flattened;
     }
@@ -391,11 +404,26 @@ public class NoticeService {
             int depth,
             String memberId,
             Set<String> likedCommentIds,
-            Map<String, List<NoticeComment>> childrenByParent
+            Map<String, List<NoticeComment>> childrenByParent,
+            Map<String, String> currentProfileImagesByAuthorId
     ) {
-        flattened.add(toCommentResponse(comment, memberId, depth, likedCommentIds.contains(comment.getId())));
+        flattened.add(toCommentResponse(
+                comment,
+                memberId,
+                depth,
+                likedCommentIds.contains(comment.getId()),
+                currentProfileImagesByAuthorId
+        ));
         for (NoticeComment child : childrenByParent.getOrDefault(comment.getId(), List.of())) {
-            appendCommentTree(flattened, child, depth + 1, memberId, likedCommentIds, childrenByParent);
+            appendCommentTree(
+                    flattened,
+                    child,
+                    depth + 1,
+                    memberId,
+                    likedCommentIds,
+                    childrenByParent,
+                    currentProfileImagesByAuthorId
+            );
         }
     }
 
@@ -410,12 +438,29 @@ public class NoticeService {
     }
 
     private NoticeCommentResponse toCommentResponse(NoticeComment comment, String memberId, int depth, boolean isLiked) {
+        return toCommentResponse(
+                comment,
+                memberId,
+                depth,
+                isLiked,
+                resolveCurrentAuthorProfileImages(Collections.singletonList(comment.getUserId()))
+        );
+    }
+
+    private NoticeCommentResponse toCommentResponse(
+            NoticeComment comment,
+            String memberId,
+            int depth,
+            boolean isLiked,
+            Map<String, String> currentProfileImagesByAuthorId
+    ) {
         boolean deleted = comment.isDeleted();
         AuthorView authorView = resolveAuthorView(
                 comment.isAnonymous(),
                 deleted,
                 comment.getUserId(),
                 comment.getUserDisplayName(),
+                currentProfileImagesByAuthorId.get(comment.getUserId()),
                 comment.getAnonymousOrder()
         );
         return new NoticeCommentResponse(
@@ -425,6 +470,7 @@ public class NoticeService {
                 comment.getContent(),
                 authorView.authorId,
                 authorView.authorName,
+                authorView.authorProfileImage,
                 !deleted && comment.isAnonymous(),
                 deleted ? null : comment.getAnonymousOrder(),
                 !deleted && comment.isAuthor(memberId),
@@ -454,24 +500,40 @@ public class NoticeService {
         return noticeCommentLikeRepository.existsById_UserIdAndId_CommentId(memberId, commentId);
     }
 
+    private Map<String, String> resolveCurrentAuthorProfileImages(List<String> authorIds) {
+        Set<String> activeAuthorIds = authorIds.stream()
+                .filter(authorId -> authorId != null && !authorId.isBlank())
+                .collect(Collectors.toSet());
+        if (activeAuthorIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, String> profileImagesByAuthorId = new HashMap<>();
+        memberRepository.findAllActiveByIdIn(activeAuthorIds).forEach(member ->
+                profileImagesByAuthorId.put(member.getId(), member.getPhotoUrl())
+        );
+        return profileImagesByAuthorId;
+    }
+
     private AuthorView resolveAuthorView(
             boolean anonymous,
             boolean deleted,
             String authorId,
             String authorName,
+            String authorProfileImage,
             Integer anonymousOrder
     ) {
         if (deleted) {
-            return new AuthorView(null, null);
+            return new AuthorView(null, null, null);
         }
         if (MemberWithdrawalSanitizer.isWithdrawnAuthorId(authorId)) {
-            return new AuthorView(null, authorName);
+            return new AuthorView(null, authorName, null);
         }
         if (!anonymous) {
-            return new AuthorView(authorId, authorName);
+            return new AuthorView(authorId, authorName, authorProfileImage);
         }
         String displayName = anonymousOrder == null ? "익명" : "익명" + anonymousOrder;
-        return new AuthorView(null, displayName);
+        return new AuthorView(null, displayName, null);
     }
 
     private AnonymousMetadata resolveAnonymousMetadata(String noticeId, String userId, boolean anonymous) {
@@ -588,6 +650,6 @@ public class NoticeService {
     private record AnonymousMetadata(String anonId, Integer anonymousOrder) {
     }
 
-    private record AuthorView(String authorId, String authorName) {
+    private record AuthorView(String authorId, String authorName, String authorProfileImage) {
     }
 }
