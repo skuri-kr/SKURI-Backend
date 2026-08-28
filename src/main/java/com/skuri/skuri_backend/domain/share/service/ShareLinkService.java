@@ -125,7 +125,7 @@ public class ShareLinkService {
 
     @Transactional(readOnly = true)
     public CafeteriaSharePreviewResponse getCafeteriaPreview() {
-        CafeteriaMenuResponse menu = cafeteriaMenuService.getCurrentWeekMenu(LocalDate.now(KOREA_ZONE));
+        CafeteriaMenuResponse menu = cafeteriaMenuService.getCurrentWeekMenuWithoutReactions(LocalDate.now(KOREA_ZONE));
         List<CafeteriaSharePreviewResponse.Category> categories = menu.categories().stream()
                 .map(category -> new CafeteriaSharePreviewResponse.Category(category.code(), category.label()))
                 .toList();

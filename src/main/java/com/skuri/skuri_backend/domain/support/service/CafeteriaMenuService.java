@@ -55,6 +55,13 @@ public class CafeteriaMenuService {
     }
 
     @Transactional(readOnly = true)
+    public CafeteriaMenuResponse getCurrentWeekMenuWithoutReactions(LocalDate date) {
+        CafeteriaMenu cafeteriaMenu = cafeteriaMenuRepository.findById(toWeekId(date))
+                .orElseThrow(CafeteriaMenuNotFoundException::new);
+        return toResponseWithoutReactions(cafeteriaMenu);
+    }
+
+    @Transactional(readOnly = true)
     public CafeteriaMenuResponse getCurrentWeekMenu(String memberId, LocalDate date) {
         return getMenuByWeekId(memberId, toWeekId(date));
     }
@@ -127,6 +134,22 @@ public class CafeteriaMenuService {
                 memberId
         );
 
+        return toResponse(cafeteriaMenu, normalizedEntries, reactionSummaries);
+    }
+
+    private CafeteriaMenuResponse toResponseWithoutReactions(CafeteriaMenu cafeteriaMenu) {
+        Map<String, Map<String, List<CafeteriaMenuEntryMetadata>>> normalizedEntries =
+                cafeteriaMenu.getMenuEntries().isEmpty()
+                        ? synthesizeMenuEntries(cafeteriaMenu.getMenus())
+                        : completeCategoryEntries(cafeteriaMenu.getMenuEntries());
+        return toResponse(cafeteriaMenu, normalizedEntries, Map.of());
+    }
+
+    private CafeteriaMenuResponse toResponse(
+            CafeteriaMenu cafeteriaMenu,
+            Map<String, Map<String, List<CafeteriaMenuEntryMetadata>>> normalizedEntries,
+            Map<String, CafeteriaReactionSummary> reactionSummaries
+    ) {
         return new CafeteriaMenuResponse(
                 cafeteriaMenu.getWeekId(),
                 cafeteriaMenu.getWeekStart(),
