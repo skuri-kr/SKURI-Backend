@@ -97,7 +97,7 @@ class MemberLifecycleServiceTest {
         verify(taxiPartyService).handleMemberWithdrawal("member-1");
         verify(chatService).removeMemberFromAllChatRooms("member-1");
         verify(boardService).handleMemberWithdrawal("member-1");
-        verify(appNoticeService).deleteAllReadStatusesByUserId("member-1");
+        verify(appNoticeService).handleMemberWithdrawal("member-1");
         verify(noticeService).handleMemberWithdrawal("member-1");
         verify(notificationService).deleteAllByUserId("member-1");
         verify(fcmTokenService).deleteAllByUserId("member-1");

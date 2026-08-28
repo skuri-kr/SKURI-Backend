@@ -4,6 +4,11 @@ import com.skuri.skuri_backend.domain.academic.entity.AcademicSchedule;
 import com.skuri.skuri_backend.domain.academic.entity.AcademicScheduleType;
 import com.skuri.skuri_backend.domain.academic.repository.AcademicScheduleRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeRepository;
+import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentRepository;
+import com.skuri.skuri_backend.domain.app.entity.AppNotice;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticeCategory;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticeComment;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticePriority;
 import com.skuri.skuri_backend.domain.board.entity.Comment;
 import com.skuri.skuri_backend.domain.board.entity.Post;
 import com.skuri.skuri_backend.domain.board.entity.PostCategory;
@@ -46,6 +51,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -81,6 +87,8 @@ class NotificationEventHandlerTest {
     private NoticeCommentRepository noticeCommentRepository;
     @Mock
     private AppNoticeRepository appNoticeRepository;
+    @Mock
+    private AppNoticeCommentRepository appNoticeCommentRepository;
     @Mock
     private AcademicScheduleRepository academicScheduleRepository;
     @Mock
@@ -193,6 +201,58 @@ class NotificationEventHandlerTest {
     }
 
     @Test
+    void handleAppNoticeCommentCreated_작성자를제외한활성운영자모두에게알린다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        AppNoticeComment comment = AppNoticeComment.create(
+                appNotice, "actor-1", "작성자", "새 댓글", false, null, null, null
+        );
+        ReflectionTestUtils.setField(comment, "id", "app-comment-1");
+
+        when(appNoticeCommentRepository.findById("app-comment-1")).thenReturn(Optional.of(comment));
+        when(memberRepository.findActiveAdminIdsExcluding("actor-1"))
+                .thenReturn(List.of("admin-1", "admin-2"));
+
+        notificationEventHandler.handle(new NotificationDomainEvent.AppNoticeCommentCreated("app-comment-1"));
+
+        ArgumentCaptor<NotificationDispatchRequest> captor = ArgumentCaptor.forClass(NotificationDispatchRequest.class);
+        verify(notificationService).createInboxNotifications(captor.capture());
+        verify(pushNotificationService).send(captor.getValue());
+        assertEquals(NotificationType.COMMENT_CREATED, captor.getValue().type());
+        assertEquals(Set.of("admin-1", "admin-2"), captor.getValue().recipientIds());
+        assertEquals("app-notice-1", captor.getValue().data().appNoticeId());
+        assertEquals("app-comment-1", captor.getValue().data().commentId());
+    }
+
+    @Test
+    void handleAppNoticeCommentCreated_부모작성자가운영자면답글알림으로한번만수신한다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        AppNoticeComment parent = AppNoticeComment.create(
+                appNotice, "admin-1", "운영자", "부모 댓글", false, null, null, null
+        );
+        ReflectionTestUtils.setField(parent, "id", "app-comment-parent");
+        AppNoticeComment reply = AppNoticeComment.create(
+                appNotice, "actor-1", "작성자", "새 답글", false, null, null, parent
+        );
+        ReflectionTestUtils.setField(reply, "id", "app-comment-reply");
+
+        when(appNoticeCommentRepository.findById("app-comment-reply")).thenReturn(Optional.of(reply));
+        when(memberRepository.findActiveAdminIdsExcluding("actor-1"))
+                .thenReturn(List.of("admin-1", "admin-2"));
+        when(memberRepository.findActiveById("admin-1")).thenReturn(Optional.of(
+                Member.create("admin-1", "admin-1@sungkyul.ac.kr", "운영자", LocalDateTime.now())
+        ));
+
+        notificationEventHandler.handle(new NotificationDomainEvent.AppNoticeCommentCreated("app-comment-reply"));
+
+        ArgumentCaptor<NotificationDispatchRequest> captor = ArgumentCaptor.forClass(NotificationDispatchRequest.class);
+        verify(notificationService, times(2)).createInboxNotifications(captor.capture());
+        List<NotificationDispatchRequest> requests = captor.getAllValues();
+        assertEquals(List.of("admin-1"), requests.get(0).recipientIds().stream().toList());
+        assertEquals("내 댓글에 답글이 달렸어요", requests.get(0).title());
+        assertEquals(List.of("admin-2"), requests.get(1).recipientIds().stream().toList());
+    }
+
+    @Test
     void handleAcademicScheduleReminder_옵션에따라수신대상이결정된다() {
         AcademicSchedule schedule = AcademicSchedule.create(
                 "수강신청",
@@ -217,6 +277,15 @@ class NotificationEventHandlerTest {
         verify(notificationService).createInboxNotifications(captor.capture());
         assertEquals(NotificationType.ACADEMIC_SCHEDULE, captor.getValue().type());
         assertEquals(List.of("member-1"), captor.getValue().recipientIds().stream().toList());
+    }
+
+    private AppNotice appNotice(String id) {
+        AppNotice appNotice = AppNotice.create(
+                "앱 공지", "내용", AppNoticeCategory.GENERAL, AppNoticePriority.NORMAL,
+                List.of(), null, null, LocalDateTime.now().minusMinutes(1)
+        );
+        ReflectionTestUtils.setField(appNotice, "id", id);
+        return appNotice;
     }
 
     @Test

@@ -1,6 +1,9 @@
 package com.skuri.skuri_backend.domain.app.service;
 
 import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
+import com.skuri.skuri_backend.common.exception.BusinessException;
+import com.skuri.skuri_backend.domain.app.dto.request.CreateAppNoticeRequest;
+import com.skuri.skuri_backend.domain.app.dto.response.AppNoticeResponse;
 import com.skuri.skuri_backend.domain.app.dto.response.AppNoticeReadResponse;
 import com.skuri.skuri_backend.domain.app.dto.response.AppNoticeUnreadCountResponse;
 import com.skuri.skuri_backend.domain.app.entity.AppNotice;
@@ -9,6 +12,13 @@ import com.skuri.skuri_backend.domain.app.entity.AppNoticePriority;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticeReadStatus;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeReadStatusRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeRepository;
+import com.skuri.skuri_backend.domain.app.repository.AppNoticeLikeRepository;
+import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentRepository;
+import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentLikeRepository;
+import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.member.entity.Member;
+import com.skuri.skuri_backend.domain.notice.dto.request.CreateNoticeCommentRequest;
+import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,6 +33,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -39,6 +51,18 @@ class AppNoticeServiceTest {
     private AppNoticeReadStatusRepository appNoticeReadStatusRepository;
 
     @Mock
+    private AppNoticeLikeRepository appNoticeLikeRepository;
+
+    @Mock
+    private AppNoticeCommentRepository appNoticeCommentRepository;
+
+    @Mock
+    private AppNoticeCommentLikeRepository appNoticeCommentLikeRepository;
+
+    @Mock
+    private MemberRepository memberRepository;
+
+    @Mock
     private AfterCommitApplicationEventPublisher eventPublisher;
 
     @InjectMocks
@@ -51,6 +75,53 @@ class AppNoticeServiceTest {
         AppNoticeUnreadCountResponse response = appNoticeService.getUnreadCount("member-1");
 
         assertEquals(3, response.count());
+    }
+
+    @Test
+    void getPublishedNotice_상세조회마다조회수를증가시키고좋아요상태를합성한다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        appNotice.incrementViewCount();
+        when(appNoticeRepository.incrementPublishedViewCount(eq("app-notice-1"), any(LocalDateTime.class))).thenReturn(1);
+        when(appNoticeRepository.findPublishedById(eq("app-notice-1"), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(appNotice));
+        when(appNoticeLikeRepository.existsById_UserIdAndId_AppNoticeId("member-1", "app-notice-1"))
+                .thenReturn(true);
+
+        AppNoticeResponse response = appNoticeService.getPublishedNotice("member-1", "app-notice-1");
+
+        assertEquals(1, response.viewCount());
+        assertTrue(response.isLiked());
+    }
+
+    @Test
+    void createAppNotice_HTTP액션URL은거부한다() {
+        CreateAppNoticeRequest request = new CreateAppNoticeRequest(
+                "제목", "본문", AppNoticeCategory.GENERAL, AppNoticePriority.NORMAL,
+                List.of(), "http://example.com", "자세히 보기", LocalDateTime.now()
+        );
+
+        assertThrows(BusinessException.class, () -> appNoticeService.createAppNotice(request));
+        verify(appNoticeRepository, never()).save(any(AppNotice.class));
+    }
+
+    @Test
+    void createComment_댓글수를증가시키고알림이벤트를발행한다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        Member member = Member.create("member-1", "member-1@sungkyul.ac.kr", "회원", LocalDateTime.now());
+        when(appNoticeRepository.findByIdForUpdate("app-notice-1")).thenReturn(Optional.of(appNotice));
+        when(memberRepository.findActiveById("member-1")).thenReturn(Optional.of(member));
+        when(appNoticeCommentRepository.save(any())).thenAnswer(invocation -> {
+            Object comment = invocation.getArgument(0);
+            ReflectionTestUtils.setField(comment, "id", "app-comment-1");
+            return comment;
+        });
+
+        appNoticeService.createComment(
+                "member-1", "app-notice-1", new CreateNoticeCommentRequest("댓글", false, null)
+        );
+
+        assertEquals(1, appNotice.getCommentCount());
+        verify(eventPublisher).publish(new NotificationDomainEvent.AppNoticeCommentCreated("app-comment-1"));
     }
 
     @Test
