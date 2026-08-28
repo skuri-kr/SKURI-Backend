@@ -9,6 +9,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -122,6 +123,42 @@ class BoardNoticeOpenApiSchemaIntegrationTest {
         assertTrue(operation.path("responses").has("401"));
         assertTrue(operation.path("responses").has("403"));
         assertTrue(operation.path("responses").path("403").toString().contains("withdrawn_member"));
+    }
+
+    @Test
+    void app_notice_create_OpenAPI가_액션필드제약을노출한다() throws Exception {
+        JsonNode root = apiDocs();
+        JsonNode requestSchema = resolveSchema(
+                root,
+                root.path("paths")
+                        .path("/v1/admin/app-notices")
+                        .path("post")
+                        .path("requestBody")
+                        .path("content")
+                        .path("application/json")
+                        .path("schema")
+        );
+
+        assertTrue(requestSchema.path("properties").path("actionUrl").path("description").asText().contains("HTTPS"));
+        assertTrue(requestSchema.path("properties").path("actionLabel").path("description").asText().contains("actionUrl"));
+    }
+
+    @Test
+    void app_notice_admin_update_OpenAPI_예시는_isLiked_false를노출한다() throws Exception {
+        JsonNode example = apiDocs()
+                .path("paths")
+                .path("/v1/admin/app-notices/{appNoticeId}")
+                .path("patch")
+                .path("responses")
+                .path("200")
+                .path("content")
+                .path("application/json")
+                .path("examples")
+                .path("default")
+                .path("value");
+
+        assertTrue(example.path("data").path("isLiked").isBoolean());
+        assertFalse(example.path("data").path("isLiked").asBoolean());
     }
 
     @Test
