@@ -1,6 +1,6 @@
 # Spring 백엔드 ERD (Entity Relationship Diagram)
 
-> 최종 수정일: 2026-08-25
+> 최종 수정일: 2026-08-28
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -1581,6 +1581,23 @@ CREATE INDEX idx_friend_requests_status_expires ON friend_requests(status, expir
 CREATE UNIQUE INDEX uk_friendships_member_pair ON friendships(member_low_id, member_high_id);
 ```
 
+### 4.12 Share Link
+
+```sql
+CREATE TABLE share_links (
+    code VARCHAR(8) PRIMARY KEY,
+    resource_type VARCHAR(16) NOT NULL,
+    resource_id VARCHAR(160) NOT NULL,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT uk_share_links_resource UNIQUE (resource_type, resource_id)
+);
+```
+
+- `resource_type`은 현재 `NOTICE | BOARD`이며 시간표·분실물 등 후속 공개 콘텐츠를 같은 registry로 확장할 수 있다.
+- `resource_id`는 원본 도메인 ID를 보존한다. 서로 다른 원본 테이블을 참조하므로 물리 FK 대신 발급·해석 시 해당 repository가 활성 원본을 검증한다.
+- `code`는 혼동 문자를 제외한 Base58 8자리이며 비만료·미변경을 기본 정책으로 한다.
+
 ---
 
 ## 참고
@@ -1592,6 +1609,7 @@ CREATE UNIQUE INDEX uk_friendships_member_pair ON friendships(member_low_id, mem
 ---
 
 > **문서 이력**
+> - 2026-08-28: `share_links` 범용 registry, 원본별 unique 제약과 논리 참조 정책을 추가
 > - 2026-08-25: 알림 canonical enum을 런타임 `NotificationType`과 동기화 — `PARTY_REOPENED`, 친구 요청·수락·거절, 택시·공개방 초대 타입과 친구·초대 payload 필드를 반영
 > - 2026-08-24: 택시파티 정원·초대 보완 반영 — 정원 도달의 자동 모집 마감을 제거하고, `party_invitations`·`chat_room_invitations`의 EXPIRED 수신자 삭제용 `DISMISSED` 상태와 `(status, accepted_join_request_id)` 인덱스를 추가
 > - 2026-08-18: Friend 관계 Core 테이블 추가 — `friend_requests`, `friendships`, `friend_preferences`, `member_blocks`와 PENDING pair unique·cursor 인덱스를 반영

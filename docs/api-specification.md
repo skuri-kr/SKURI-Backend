@@ -1,6 +1,6 @@
 # Spring 백엔드 API 명세
 
-> 최종 수정일: 2026-08-25
+> 최종 수정일: 2026-08-28
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -21,6 +21,7 @@
 12. [Admin API](#12-admin-api)
 13. [Minecraft API](#13-minecraft-api)
 14. [Friend API](#14-friend-api)
+15. [Share Link API](#15-share-link-api)
 
 ---
 
@@ -29,7 +30,7 @@
 ### 1.1 Base URL
 
 ```
-Production: (도메인 미정)
+Production: https://api.skuri.kr/v1
 Development: http://localhost:8080/v1
 ```
 
@@ -48,7 +49,7 @@ Authorization: Bearer <firebase_id_token>
 
 **Public API (인증 불필요):**
 
-비즈니스 API 기준으로는 아래 5개 API만 인증 없이 호출 가능합니다.  
+비즈니스 API 기준으로는 아래 API만 인증 없이 호출 가능합니다.
 추가로 API 문서 UI/스펙 조회 엔드포인트도 인증 없이 접근 가능합니다.
 
 | API | 이유 |
@@ -58,6 +59,9 @@ Authorization: Bearer <firebase_id_token>
 | `GET /v1/app-notices/{appNoticeId}` | 로그인 전 개별 점검/업데이트 공지 상세 표시 필요 |
 | `GET /v1/legal-documents/{documentKey}` | 설정 화면의 이용약관 / 개인정보 처리방침 표시 |
 | `GET /v1/campus-banners` | 로그인 전 캠퍼스 홈 배너 노출 필요 |
+| `GET /v1/share-links/notice/{code}/preview` | 공유된 학교 공지의 제한된 공개 미리보기 제공 |
+| `GET /v1/share-links/board/{code}/preview` | 공유된 게시물의 익명 안전 공개 미리보기 제공 |
+| `GET /v1/share-links/cafeteria/preview` | 링크 웹의 이번 주 학식 미리보기 제공 |
 | `GET /v3/api-docs/**` | OpenAPI 스펙(JSON) 조회 |
 | `GET /swagger-ui/**`, `GET /swagger-ui.html` | Swagger UI 조회 |
 | `GET /scalar/**` | Scalar UI 조회 |
@@ -7842,7 +7846,32 @@ batch 형식과 outcome 계약은 택시파티 초대와 같고, 친구 관계�
 
 ---
 
+## 15. Share Link API
+
+> `code`는 혼동 문자를 제외한 Base58 8자리(`[1-9A-HJ-NP-Za-km-z]{8}`)다. 같은 `(resourceType, resourceId)`는 항상 같은 비만료 코드를 재사용한다. 기존 Base64/원본 ID 형태의 긴 링크는 호환하지 않는다.
+
+| Method | Path | 인증 | 설명 |
+|---|---|---|---|
+| `POST` | `/v1/share-links` | 필요 | `NOTICE` 또는 `BOARD` 원본의 짧은 링크 발급 |
+| `GET` | `/v1/share-links/{resourceType}/{code}/resolve` | 필요 | 짧은 코드를 앱 내부 원본 ID로 해석 |
+| `GET` | `/v1/share-links/notice/{code}/preview` | 불필요 | 학교 공지 공개 미리보기 |
+| `GET` | `/v1/share-links/board/{code}/preview` | 불필요 | 게시물 공개 미리보기 |
+| `GET` | `/v1/share-links/cafeteria/preview` | 불필요 | 이번 주 학식 공개 미리보기 |
+
+### 15.1 공개 범위
+
+- 공지: 제목·카테고리·부서·작성자·게시 시각과 최대 350 code point 텍스트, 허용된 HTTPS 이미지 1장, 표 1개, 전체 4블록만 반환한다.
+- 공지 이미지 호스트는 `sungkyul.ac.kr`, `skuri.kr`, `skuri.app` 및 각 하위 도메인으로 제한한다.
+- 공지 표는 raw HTML이 아닌 `rows[].cells[]` 구조이며 최대 4행×5열, 셀 80 code point로 제한한다. script/iframe/form 등 실행 가능한 HTML은 제거한다.
+- 게시물: 제목·카테고리·게시 시각·익명 안전 작성자명과 최대 240 code point 본문만 반환한다. 이미지, 댓글, 반응/조회 수, 작성자 내부 ID·프로필은 반환하지 않는다.
+- 학식: `Asia/Seoul` 기준 현재 주의 메뉴만 반환하고 사용자 반응과 집계는 제외한다.
+- 원본이 삭제·숨김되었거나 코드가 없으면 공개 preview와 보호 resolve 모두 `404 SHARE_LINK_NOT_FOUND`를 반환한다.
+- 앱 미설치 후 설치한 콘텐츠를 복원하는 deferred deep link는 제공하지 않는다.
+
+---
+
 > 변경 이력
+> - 2026-08-28: Share Link API 추가 — 8자리 Base58 코드, 보호된 발급·해석, 공지/게시물/이번 주 학식의 제한된 공개 미리보기와 긴 링크 비호환 정책을 반영
 > - 2026-08-25: 알림 payload 계약 동기화 — `requestId`의 동승·친구 요청 공용 의미, `PARTY_REOPENED`·친구·초대 canonical type, `friendPublicId`·`invitationId`·`invitationType` strict DTO와 이동 규칙을 추가
 > - 2026-08-24: 택시 정원·친구 초대 보완 — 정원 자동 모집 마감 제거, CLOSED 참가자 초대·리더 승인, join request의 `invitationInviterName`, 다중 초대 원본의 안정 선택, 시간 만료 채팅 초대 DELETE의 EXPIRED→DISMISSED 전이, EXPIRED 수신자의 목록 삭제 계약을 `/v3/api-docs` 기준으로 추가
 > - 2026-08-23: TaxiParty·공개 non-PARTY 채팅방 친구 초대 반영 — 수신자별 부분 성공, PENDING·EXPIRED 받은 목록, 수락 재검증, 7일 만료와 inbox count 계약을 `/v3/api-docs` 기준으로 추가

@@ -184,11 +184,15 @@ Spring 백엔드는 Access Token / Refresh Token을 직접 발급하거나 관�
   - `GET /v1/app-notices/**`
   - `GET /v1/legal-documents/**`
   - `GET /v1/campus-banners/**`
+  - `GET /v1/share-links/notice/*/preview`
+  - `GET /v1/share-links/board/*/preview`
+  - `GET /v1/share-links/cafeteria/preview`
   - `GET /uploads/**` (`MEDIA_STORAGE_PROVIDER=LOCAL`일 때 `media.storage.url-prefix` 기준 공개 업로드 파일 조회)
   - `GET /v3/api-docs/**`
   - `GET /swagger-ui/**`, `GET /swagger-ui.html`
   - `GET /scalar/**`
 - 보호 API에 인증 정보가 없거나 유효하지 않으면 401을 반환한다.
+- `POST /v1/share-links`와 `GET /v1/share-links/{resourceType}/{code}/resolve`는 보호 API다. 서버는 원본 공개 상태를 재확인하며, 공개 preview에는 원문 전체·개인화 상태·반응 집계·내부 작성자 식별자를 포함하지 않는다.
 - 관리자 권한 정책:
   - 인증 필터에서 `uid` 기준 `members.isAdmin` 조회 후 `true`면 `ROLE_ADMIN` authority를 부여한다.
   - Admin API는 공통 메타 어노테이션(`@AdminApiAccess`, 내부적으로 `@PreAuthorize("hasRole('ADMIN')")`)으로 보호한다.
