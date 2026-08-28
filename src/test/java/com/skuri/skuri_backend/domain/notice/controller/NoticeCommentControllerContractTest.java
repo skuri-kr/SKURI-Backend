@@ -74,6 +74,7 @@ class NoticeCommentControllerContractTest {
                 .andExpect(jsonPath("$.data.content").value("수정된 댓글"))
                 .andExpect(jsonPath("$.data.isAnonymous").value(true))
                 .andExpect(jsonPath("$.data.authorProfileImage").value(nullValue()))
+                .andExpect(jsonPath("$.data.isAuthorAdmin").value(false))
                 .andExpect(jsonPath("$.data.likeCount").value(5))
                 .andExpect(jsonPath("$.data.isLiked").value(true));
     }
@@ -227,6 +228,7 @@ class NoticeCommentControllerContractTest {
                 null,
                 "익명1",
                 null,
+                false,
                 true,
                 1,
                 true,

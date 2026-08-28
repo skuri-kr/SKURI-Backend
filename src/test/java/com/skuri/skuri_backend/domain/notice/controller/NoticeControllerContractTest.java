@@ -206,6 +206,7 @@ class NoticeControllerContractTest {
                 .andExpect(jsonPath("$.data[0].parentId").value("notice-comment-parent"))
                 .andExpect(jsonPath("$.data[0].depth").value(1))
                 .andExpect(jsonPath("$.data[0].authorProfileImage").value("https://example.com/current-profile.jpg"))
+                .andExpect(jsonPath("$.data[0].isAuthorAdmin").value(true))
                 .andExpect(jsonPath("$.data[0].likeCount").value(5))
                 .andExpect(jsonPath("$.data[0].isLiked").value(true));
     }
@@ -242,6 +243,7 @@ class NoticeControllerContractTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.id").value("notice-comment-1"))
                 .andExpect(jsonPath("$.data.authorProfileImage").value("https://example.com/current-profile.jpg"))
+                .andExpect(jsonPath("$.data.isAuthorAdmin").value(true))
                 .andExpect(jsonPath("$.data.likeCount").value(5))
                 .andExpect(jsonPath("$.data.isLiked").value(true));
     }
@@ -340,6 +342,7 @@ class NoticeControllerContractTest {
                 "firebase-uid",
                 "홍길동",
                 "https://example.com/current-profile.jpg",
+                true,
                 false,
                 null,
                 true,

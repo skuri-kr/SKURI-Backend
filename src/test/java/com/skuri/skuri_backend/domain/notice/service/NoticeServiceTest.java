@@ -488,6 +488,8 @@ class NoticeServiceTest {
         CommentFixture anonymousComment = comment("comment-2", notice, null, "member-3", true, 1);
         Member namedAuthor = memberWithProfileImage("member-2", "https://example.com/current-member-2.jpg");
         Member anonymousAuthor = memberWithProfileImage("member-3", "https://example.com/current-member-3.jpg");
+        ReflectionTestUtils.setField(namedAuthor, "isAdmin", true);
+        ReflectionTestUtils.setField(anonymousAuthor, "isAdmin", true);
 
         when(noticeRepository.findById("notice-1")).thenReturn(Optional.of(notice));
         when(noticeCommentRepository.findByNoticeIdOrderByCreatedAtAsc("notice-1"))
@@ -497,7 +499,9 @@ class NoticeServiceTest {
         List<NoticeCommentResponse> responses = noticeService.getComments("member-1", "notice-1");
 
         assertEquals("https://example.com/current-member-2.jpg", responses.get(0).authorProfileImage());
+        assertTrue(responses.get(0).isAuthorAdmin());
         assertNull(responses.get(1).authorProfileImage());
+        assertFalse(responses.get(1).isAuthorAdmin());
         verify(memberRepository).findAllActiveByIdIn(any());
     }
 

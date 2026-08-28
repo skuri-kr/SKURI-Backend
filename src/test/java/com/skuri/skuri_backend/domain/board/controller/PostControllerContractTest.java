@@ -119,6 +119,7 @@ class PostControllerContractTest {
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].id").value("post-1"))
+                .andExpect(jsonPath("$.data.content[0].isAuthorAdmin").value(true))
                 .andExpect(jsonPath("$.data.content[0].bookmarkCount").value(3))
                 .andExpect(jsonPath("$.data.content[0].isLiked").value(true))
                 .andExpect(jsonPath("$.data.content[0].isBookmarked").value(false))
@@ -205,6 +206,7 @@ class PostControllerContractTest {
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.isAnonymous").value(true))
+                .andExpect(jsonPath("$.data.isAuthorAdmin").value(false))
                 .andExpect(jsonPath("$.data.images[0].url").value("https://example.com/post-1.jpg"));
     }
 
@@ -327,6 +329,7 @@ class PostControllerContractTest {
                 .andExpect(jsonPath("$.data[0].id").value("comment-1"))
                 .andExpect(jsonPath("$.data[0].parentId").value("parent-comment-1"))
                 .andExpect(jsonPath("$.data[0].depth").value(1))
+                .andExpect(jsonPath("$.data[0].isAuthorAdmin").value(true))
                 .andExpect(jsonPath("$.data[0].likeCount").value(3))
                 .andExpect(jsonPath("$.data[0].isLiked").value(true));
     }
@@ -384,6 +387,7 @@ class PostControllerContractTest {
                 "firebase-uid",
                 "홍길동",
                 "https://example.com/profile.jpg",
+                true,
                 false,
                 PostCategory.GENERAL,
                 1,
@@ -407,6 +411,7 @@ class PostControllerContractTest {
                 "firebase-uid",
                 "홍길동",
                 "https://example.com/profile.jpg",
+                true,
                 false,
                 PostCategory.GENERAL,
                 10,
@@ -431,6 +436,7 @@ class PostControllerContractTest {
                 null,
                 "익명",
                 null,
+                false,
                 true,
                 PostCategory.GENERAL,
                 1,
@@ -455,6 +461,7 @@ class PostControllerContractTest {
                 "firebase-uid",
                 "홍길동",
                 "https://example.com/profile.jpg",
+                true,
                 false,
                 null,
                 true,
