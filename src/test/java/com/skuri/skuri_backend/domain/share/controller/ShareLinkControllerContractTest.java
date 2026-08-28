@@ -3,10 +3,14 @@ package com.skuri.skuri_backend.domain.share.controller;
 import com.skuri.skuri_backend.domain.board.entity.PostCategory;
 import com.skuri.skuri_backend.domain.minecraft.config.MinecraftInternalSecretFilter;
 import com.skuri.skuri_backend.domain.share.dto.response.BoardSharePreviewResponse;
+import com.skuri.skuri_backend.domain.share.dto.response.CafeteriaSharePreviewResponse;
+import com.skuri.skuri_backend.domain.share.dto.response.NoticeSharePreviewResponse;
+import com.skuri.skuri_backend.domain.share.dto.response.ShareLinkResolveResponse;
 import com.skuri.skuri_backend.domain.share.dto.response.ShareLinkResponse;
 import com.skuri.skuri_backend.domain.share.exception.ShareLinkNotFoundException;
 import com.skuri.skuri_backend.domain.share.model.ShareResourceType;
 import com.skuri.skuri_backend.domain.share.service.ShareLinkService;
+import com.skuri.skuri_backend.domain.support.exception.CafeteriaMenuNotFoundException;
 import com.skuri.skuri_backend.infra.auth.config.ApiAccessDeniedHandler;
 import com.skuri.skuri_backend.infra.auth.config.ApiAuthenticationEntryPoint;
 import com.skuri.skuri_backend.infra.auth.config.SecurityConfig;
@@ -20,7 +24,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -64,6 +71,43 @@ class ShareLinkControllerContractTest {
     }
 
     @Test
+    void 공지미리보기는_만료된토큰이포함돼도_공개조회된다() throws Exception {
+        when(shareLinkService.getNoticePreview("7Kp3mQxA")).thenReturn(new NoticeSharePreviewResponse(
+                "7Kp3mQxA", "공지 제목", "학사", "교무처", "성결대학교",
+                LocalDateTime.of(2026, 8, 28, 9, 0), List.of(), false
+        ));
+
+        mockMvc.perform(get("/v1/share-links/notice/7Kp3mQxA/preview")
+                        .header(AUTHORIZATION, "Bearer expired-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.title").value("공지 제목"));
+
+        verifyNoInteractions(firebaseTokenVerifier);
+    }
+
+    @Test
+    void 학식미리보기는_인증없이_이번주메뉴를반환한다() throws Exception {
+        when(shareLinkService.getCafeteriaPreview()).thenReturn(new CafeteriaSharePreviewResponse(
+                "2026-W35",
+                LocalDate.of(2026, 8, 24),
+                LocalDate.of(2026, 8, 30),
+                List.of(new CafeteriaSharePreviewResponse.Category("rollNoodles", "Roll & Noodles")),
+                Map.of("2026-08-28", Map.of(
+                        "rollNoodles",
+                        List.of(new CafeteriaSharePreviewResponse.MenuEntry("제육덮밥", List.of()))
+                ))
+        ));
+
+        mockMvc.perform(get("/v1/share-links/cafeteria/preview")
+                        .header(AUTHORIZATION, "Bearer expired-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.weekId").value("2026-W35"))
+                .andExpect(jsonPath("$.data.days['2026-08-28'].rollNoodles[0].title").value("제육덮밥"));
+
+        verifyNoInteractions(firebaseTokenVerifier);
+    }
+
+    @Test
     void 링크발급은_인증이필요하다() throws Exception {
         mockMvc.perform(post("/v1/share-links")
                         .contentType(APPLICATION_JSON)
@@ -91,8 +135,52 @@ class ShareLinkControllerContractTest {
     }
 
     @Test
+    void 링크해석은_인증후_앱내부ID를반환한다() throws Exception {
+        mockValidToken();
+        when(shareLinkService.resolve("notice", "7Kp3mQxA")).thenReturn(new ShareLinkResolveResponse(
+                ShareResourceType.NOTICE, "7Kp3mQxA", "notice-1"
+        ));
+
+        mockMvc.perform(get("/v1/share-links/notice/7Kp3mQxA/resolve")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.resourceType").value("NOTICE"))
+                .andExpect(jsonPath("$.data.resourceId").value("notice-1"));
+    }
+
+    @Test
+    void 링크해석은_인증이없으면_401이다() throws Exception {
+        mockMvc.perform(get("/v1/share-links/notice/7Kp3mQxA/resolve"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        verifyNoInteractions(shareLinkService);
+    }
+
+    @Test
+    void 존재하지않는공유코드는_해석할때_404다() throws Exception {
+        mockValidToken();
+        when(shareLinkService.resolve("notice", "7Kp3mQxA")).thenThrow(new ShareLinkNotFoundException());
+
+        mockMvc.perform(get("/v1/share-links/notice/7Kp3mQxA/resolve")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("SHARE_LINK_NOT_FOUND"));
+    }
+
+    @Test
     void 유효하지않은긴코드는_422로_거부한다() throws Exception {
         mockMvc.perform(get("/v1/share-links/notice/aHR0cHM6Ly93d3cuc3VuZ2t5dWw/preview"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+
+        mockMvc.perform(get("/v1/share-links/board/aHR0cHM6Ly93d3cuc3VuZ2t5dWw/preview"))
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
+
+        mockValidToken();
+        mockMvc.perform(get("/v1/share-links/notice/aHR0cHM6Ly93d3cuc3VuZ2t5dWw/resolve")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
 
@@ -106,6 +194,24 @@ class ShareLinkControllerContractTest {
         mockMvc.perform(get("/v1/share-links/board/5Rm2Qn8B/preview"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.errorCode").value("SHARE_LINK_NOT_FOUND"));
+    }
+
+    @Test
+    void 공지공유링크가없으면_404다() throws Exception {
+        when(shareLinkService.getNoticePreview("7Kp3mQxA")).thenThrow(new ShareLinkNotFoundException());
+
+        mockMvc.perform(get("/v1/share-links/notice/7Kp3mQxA/preview"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("SHARE_LINK_NOT_FOUND"));
+    }
+
+    @Test
+    void 이번주학식이없으면_404다() throws Exception {
+        when(shareLinkService.getCafeteriaPreview()).thenThrow(new CafeteriaMenuNotFoundException());
+
+        mockMvc.perform(get("/v1/share-links/cafeteria/preview"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("CAFETERIA_MENU_NOT_FOUND"));
     }
 
     private void mockValidToken() {

@@ -73,6 +73,23 @@ class NoticePreviewBlockExtractorTest {
     }
 
     @Test
+    void 중첩표의행은_바깥표의행으로_중복노출하지않는다() {
+        String html = """
+                <table>
+                  <tr><th>구분</th><th>내용</th></tr>
+                  <tr><td>외부 행</td><td>설명<table><tr><td>중첩 행</td></tr></table></td></tr>
+                  <tr><td>마지막 행</td><td>끝</td></tr>
+                </table>
+                """;
+
+        SharePreviewBlockResponse table = extractor.extract(html, "", null).blocks().getFirst();
+
+        assertThat(table.rows()).hasSize(3);
+        assertThat(table.rows()).extracting(row -> row.cells().getFirst().text())
+                .containsExactly("구분", "외부 행", "마지막 행");
+    }
+
+    @Test
     void 전체텍스트와_블록수를_제한하고_원문전체를_반환하지않는다() {
         String html = "<p>" + "가".repeat(400) + "</p><p>둘</p><p>셋</p><p>넷</p><p>다섯</p>";
 
