@@ -128,6 +128,7 @@ public class AppNoticeService {
 
     @Transactional
     public NoticeCommentResponse updateComment(String memberId, String commentId, UpdateNoticeCommentRequest request) {
+        findMemberForUpdateOrThrow(memberId);
         AppNoticeComment comment = findCommentForAggregateWriteOrThrow(commentId);
         requireCommentAuthor(comment, memberId);
         boolean targetAnonymous = request.isAnonymous() != null ? request.isAnonymous() : comment.isAnonymous();
@@ -138,6 +139,7 @@ public class AppNoticeService {
 
     @Transactional
     public void deleteComment(String memberId, String commentId) {
+        findMemberForUpdateOrThrow(memberId);
         AppNoticeComment comment = findCommentForAggregateWriteOrThrow(commentId);
         requireCommentAuthor(comment, memberId);
         AppNotice appNotice = comment.getAppNotice();
@@ -159,6 +161,7 @@ public class AppNoticeService {
 
     @Transactional
     public NoticeLikeResponse unlikeNotice(String memberId, String appNoticeId) {
+        findMemberForUpdateOrThrow(memberId);
         AppNotice appNotice = findPublishedNoticeForUpdateOrThrow(appNoticeId);
         appNoticeLikeRepository.findById_UserIdAndId_AppNoticeId(memberId, appNoticeId).ifPresent(like -> {
             appNoticeLikeRepository.delete(like);
@@ -181,6 +184,7 @@ public class AppNoticeService {
 
     @Transactional
     public NoticeCommentLikeResponse unlikeComment(String memberId, String commentId) {
+        findMemberForUpdateOrThrow(memberId);
         AppNoticeComment comment = findCommentForAggregateWriteOrThrow(commentId);
         appNoticeCommentLikeRepository.findById_UserIdAndId_CommentId(memberId, commentId).ifPresent(like -> {
             appNoticeCommentLikeRepository.delete(like);
