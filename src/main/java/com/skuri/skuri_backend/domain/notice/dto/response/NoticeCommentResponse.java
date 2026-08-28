@@ -17,6 +17,8 @@ public record NoticeCommentResponse(
         String authorId,
         @Schema(description = "작성자 이름", nullable = true, example = "홍길동")
         String authorName,
+        @Schema(description = "작성자 현재 프로필 이미지", nullable = true, example = "https://cdn.skuri.app/profiles/user-1.png")
+        String authorProfileImage,
         @Schema(description = "익명 여부", example = "false")
         boolean isAnonymous,
         @Schema(description = "익명 순번", nullable = true, example = "2")

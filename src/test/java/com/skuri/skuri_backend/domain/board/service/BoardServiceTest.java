@@ -259,6 +259,26 @@ class BoardServiceTest {
     }
 
     @Test
+    void getComments_현재프로필이미지를_한번에조회하고_익명에는노출하지않는다() {
+        Post post = post("post-1", "author-1");
+        Comment namedComment = comment("comment-1", post, null, "member-2", false, null);
+        Comment anonymousComment = comment("comment-2", post, null, "member-3", true, 1);
+        Member namedAuthor = memberWithProfileImage("member-2", "https://example.com/current-member-2.jpg");
+        Member anonymousAuthor = memberWithProfileImage("member-3", "https://example.com/current-member-3.jpg");
+
+        when(postRepository.findByIdAndDeletedFalseAndHiddenFalse("post-1")).thenReturn(Optional.of(post));
+        when(commentRepository.findByPostIdOrderByCreatedAtAsc("post-1"))
+                .thenReturn(List.of(namedComment, anonymousComment));
+        when(memberRepository.findAllActiveByIdIn(any())).thenReturn(List.of(namedAuthor, anonymousAuthor));
+
+        List<CommentResponse> responses = boardService.getComments("member-1", "post-1");
+
+        assertEquals("https://example.com/current-member-2.jpg", responses.get(0).authorProfileImage());
+        assertNull(responses.get(1).authorProfileImage());
+        verify(memberRepository).findAllActiveByIdIn(any());
+    }
+
+    @Test
     void createComment_익명순번은_기존순번을재사용한다() {
         Post post = post("post-1", "author-1");
         Member member = Member.create("member-1", "member-1@sungkyul.ac.kr", "사용자", LocalDateTime.now());
@@ -497,7 +517,6 @@ class BoardServiceTest {
         when(projection.getContent()).thenReturn("본문");
         when(projection.getAuthorId()).thenReturn("author-1");
         when(projection.getAuthorName()).thenReturn("작성자");
-        when(projection.getAuthorProfileImage()).thenReturn("https://example.com/profile.jpg");
         when(projection.isAnonymous()).thenReturn(false);
         when(projection.getCategory()).thenReturn(PostCategory.GENERAL);
         when(projection.getViewCount()).thenReturn(10);
@@ -517,6 +536,44 @@ class BoardServiceTest {
         assertEquals(1, response.getContent().size());
         assertEquals(3, response.getContent().get(0).bookmarkCount());
         assertEquals("https://example.com/post-1-thumb.jpg", response.getContent().get(0).thumbnailUrl());
+    }
+
+    @Test
+    void getPosts_작성시스냅샷대신_현재프로필이미지를반환한다() {
+        PostSummaryProjection projection = summaryProjection("post-1", 0);
+        Member author = memberWithProfileImage("author-post-1", "https://example.com/current-profile.jpg");
+
+        when(postRepository.searchSummaries(any(), any(), any(), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(projection)));
+        when(postImageRepository.findFirstThumbnailByPostIds(List.of("post-1"))).thenReturn(List.of());
+        when(postInteractionRepository.findById_UserIdAndId_PostIdIn("member-1", List.of("post-1")))
+                .thenReturn(List.of());
+        when(commentRepository.findCommentedPostIds("member-1", List.of("post-1"))).thenReturn(List.of());
+        when(memberRepository.findAllActiveByIdIn(any())).thenReturn(List.of(author));
+
+        var response = boardService.getPosts("member-1", PostCategory.GENERAL, null, null, "latest", 0, 20);
+
+        assertEquals("https://example.com/current-profile.jpg", response.getContent().get(0).authorProfileImage());
+        verify(memberRepository).findAllActiveByIdIn(any());
+    }
+
+    @Test
+    void getPostDetail_작성시스냅샷대신_현재프로필이미지를반환한다() {
+        Post post = post("post-1", "author-1");
+        Member author = memberWithProfileImage("author-1", "https://example.com/current-profile.jpg");
+
+        when(postRepository.incrementViewCount("post-1")).thenReturn(1);
+        when(postRepository.findActiveDetailById("post-1")).thenReturn(Optional.of(post));
+        when(postInteractionRepository.existsById_UserIdAndId_PostIdAndLikedTrue("member-1", "post-1"))
+                .thenReturn(false);
+        when(postInteractionRepository.existsById_UserIdAndId_PostIdAndBookmarkedTrue("member-1", "post-1"))
+                .thenReturn(false);
+        when(memberRepository.findAllActiveByIdIn(any())).thenReturn(List.of(author));
+
+        PostDetailResponse response = boardService.getPostDetail("member-1", "post-1");
+
+        assertEquals("https://example.com/current-profile.jpg", response.authorProfileImage());
+        verify(memberRepository).findAllActiveByIdIn(any());
     }
 
     @Test
@@ -751,6 +808,12 @@ class BoardServiceTest {
         return post;
     }
 
+    private Member memberWithProfileImage(String id, String photoUrl) {
+        Member member = Member.create(id, id + "@sungkyul.ac.kr", "사용자", LocalDateTime.now());
+        member.updateProfile(null, null, null, null, photoUrl);
+        return member;
+    }
+
     private PostSummaryProjection summaryProjection(String id, int commentCount) {
         return summaryProjection(id, commentCount, true);
     }
@@ -762,7 +825,6 @@ class BoardServiceTest {
         when(projection.getContent()).thenReturn("본문 " + id);
         when(projection.getAuthorId()).thenReturn("author-" + id);
         when(projection.getAuthorName()).thenReturn("작성자");
-        when(projection.getAuthorProfileImage()).thenReturn("https://example.com/profile.jpg");
         when(projection.isAnonymous()).thenReturn(false);
         when(projection.getCategory()).thenReturn(PostCategory.GENERAL);
         when(projection.getViewCount()).thenReturn(10);
