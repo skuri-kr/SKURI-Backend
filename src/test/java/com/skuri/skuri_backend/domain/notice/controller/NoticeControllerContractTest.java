@@ -337,6 +337,7 @@ class NoticeControllerContractTest {
                 "댓글 내용",
                 "firebase-uid",
                 "홍길동",
+                "https://example.com/current-profile.jpg",
                 false,
                 null,
                 true,

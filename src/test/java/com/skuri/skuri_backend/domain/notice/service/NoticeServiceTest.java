@@ -482,6 +482,26 @@ class NoticeServiceTest {
     }
 
     @Test
+    void getComments_현재프로필이미지를_한번에조회하고_익명에는노출하지않는다() {
+        Notice notice = notice("notice-1");
+        CommentFixture namedComment = comment("comment-1", notice, null, "member-2", false, null);
+        CommentFixture anonymousComment = comment("comment-2", notice, null, "member-3", true, 1);
+        Member namedAuthor = memberWithProfileImage("member-2", "https://example.com/current-member-2.jpg");
+        Member anonymousAuthor = memberWithProfileImage("member-3", "https://example.com/current-member-3.jpg");
+
+        when(noticeRepository.findById("notice-1")).thenReturn(Optional.of(notice));
+        when(noticeCommentRepository.findByNoticeIdOrderByCreatedAtAsc("notice-1"))
+                .thenReturn(List.of(namedComment.comment, anonymousComment.comment));
+        when(memberRepository.findAllActiveByIdIn(any())).thenReturn(List.of(namedAuthor, anonymousAuthor));
+
+        List<NoticeCommentResponse> responses = noticeService.getComments("member-1", "notice-1");
+
+        assertEquals("https://example.com/current-member-2.jpg", responses.get(0).authorProfileImage());
+        assertNull(responses.get(1).authorProfileImage());
+        verify(memberRepository).findAllActiveByIdIn(any());
+    }
+
+    @Test
     void handleMemberWithdrawal_댓글좋아요익명화와좋아요읽음기록삭제를수행한다() {
         Notice notice = notice("notice-1");
         ReflectionTestUtils.setField(notice, "likeCount", 2);
@@ -539,6 +559,12 @@ class NoticeServiceTest {
         ReflectionTestUtils.setField(notice, "createdAt", LocalDateTime.now());
         ReflectionTestUtils.setField(notice, "updatedAt", LocalDateTime.now());
         return notice;
+    }
+
+    private Member memberWithProfileImage(String id, String photoUrl) {
+        Member member = Member.create(id, id + "@sungkyul.ac.kr", "사용자", LocalDateTime.now());
+        member.updateProfile(null, null, null, null, photoUrl);
+        return member;
     }
 
     private NoticeSummaryProjection noticeSummary(String id, String thumbnailUrl) {

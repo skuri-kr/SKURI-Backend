@@ -224,6 +224,7 @@ class NoticeCommentControllerContractTest {
                 "수정된 댓글",
                 null,
                 "익명1",
+                null,
                 true,
                 1,
                 true,
