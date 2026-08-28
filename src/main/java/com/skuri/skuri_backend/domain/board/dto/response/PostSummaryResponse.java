@@ -19,6 +19,8 @@ public record PostSummaryResponse(
         String authorName,
         @Schema(description = "작성자 프로필 이미지", nullable = true, example = "https://cdn.skuri.app/profiles/user-1.png")
         String authorProfileImage,
+        @Schema(description = "작성자가 현재 운영자인지 여부", example = "false")
+        boolean isAuthorAdmin,
         @Schema(description = "익명 글 여부", example = "false")
         boolean isAnonymous,
         @Schema(description = "카테고리", example = "GENERAL")

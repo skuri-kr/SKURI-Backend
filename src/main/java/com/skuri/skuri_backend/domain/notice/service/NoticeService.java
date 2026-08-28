@@ -369,7 +369,7 @@ public class NoticeService {
             String memberId,
             Set<String> likedCommentIds
     ) {
-        Map<String, String> currentProfileImagesByAuthorId = resolveCurrentAuthorProfileImages(
+        Map<String, CurrentAuthorProfile> currentAuthorsById = resolveCurrentAuthors(
                 comments.stream().map(NoticeComment::getUserId).toList()
         );
         Map<String, List<NoticeComment>> childrenByParent = new LinkedHashMap<>();
@@ -392,7 +392,7 @@ public class NoticeService {
                     memberId,
                     likedCommentIds,
                     childrenByParent,
-                    currentProfileImagesByAuthorId
+                    currentAuthorsById
             );
         }
         return flattened;
@@ -405,14 +405,14 @@ public class NoticeService {
             String memberId,
             Set<String> likedCommentIds,
             Map<String, List<NoticeComment>> childrenByParent,
-            Map<String, String> currentProfileImagesByAuthorId
+            Map<String, CurrentAuthorProfile> currentAuthorsById
     ) {
         flattened.add(toCommentResponse(
                 comment,
                 memberId,
                 depth,
                 likedCommentIds.contains(comment.getId()),
-                currentProfileImagesByAuthorId
+                currentAuthorsById
         ));
         for (NoticeComment child : childrenByParent.getOrDefault(comment.getId(), List.of())) {
             appendCommentTree(
@@ -422,7 +422,7 @@ public class NoticeService {
                     memberId,
                     likedCommentIds,
                     childrenByParent,
-                    currentProfileImagesByAuthorId
+                    currentAuthorsById
             );
         }
     }
@@ -443,7 +443,7 @@ public class NoticeService {
                 memberId,
                 depth,
                 isLiked,
-                resolveCurrentAuthorProfileImages(Collections.singletonList(comment.getUserId()))
+                resolveCurrentAuthors(Collections.singletonList(comment.getUserId()))
         );
     }
 
@@ -452,7 +452,7 @@ public class NoticeService {
             String memberId,
             int depth,
             boolean isLiked,
-            Map<String, String> currentProfileImagesByAuthorId
+            Map<String, CurrentAuthorProfile> currentAuthorsById
     ) {
         boolean deleted = comment.isDeleted();
         AuthorView authorView = resolveAuthorView(
@@ -460,7 +460,7 @@ public class NoticeService {
                 deleted,
                 comment.getUserId(),
                 comment.getUserDisplayName(),
-                currentProfileImagesByAuthorId.get(comment.getUserId()),
+                currentAuthorsById.get(comment.getUserId()),
                 comment.getAnonymousOrder()
         );
         return new NoticeCommentResponse(
@@ -471,6 +471,7 @@ public class NoticeService {
                 authorView.authorId,
                 authorView.authorName,
                 authorView.authorProfileImage,
+                authorView.authorAdmin,
                 !deleted && comment.isAnonymous(),
                 deleted ? null : comment.getAnonymousOrder(),
                 !deleted && comment.isAuthor(memberId),
@@ -500,7 +501,7 @@ public class NoticeService {
         return noticeCommentLikeRepository.existsById_UserIdAndId_CommentId(memberId, commentId);
     }
 
-    private Map<String, String> resolveCurrentAuthorProfileImages(List<String> authorIds) {
+    private Map<String, CurrentAuthorProfile> resolveCurrentAuthors(List<String> authorIds) {
         Set<String> activeAuthorIds = authorIds.stream()
                 .filter(authorId -> authorId != null && !authorId.isBlank())
                 .collect(Collectors.toSet());
@@ -508,11 +509,14 @@ public class NoticeService {
             return Map.of();
         }
 
-        Map<String, String> profileImagesByAuthorId = new HashMap<>();
+        Map<String, CurrentAuthorProfile> currentAuthorsById = new HashMap<>();
         memberRepository.findAllActiveByIdIn(activeAuthorIds).forEach(member ->
-                profileImagesByAuthorId.put(member.getId(), member.getPhotoUrl())
+                currentAuthorsById.put(
+                        member.getId(),
+                        new CurrentAuthorProfile(member.getPhotoUrl(), member.isAdmin())
+                )
         );
-        return profileImagesByAuthorId;
+        return currentAuthorsById;
     }
 
     private AuthorView resolveAuthorView(
@@ -520,20 +524,25 @@ public class NoticeService {
             boolean deleted,
             String authorId,
             String authorName,
-            String authorProfileImage,
+            CurrentAuthorProfile currentAuthor,
             Integer anonymousOrder
     ) {
         if (deleted) {
-            return new AuthorView(null, null, null);
+            return new AuthorView(null, null, null, false);
         }
         if (MemberWithdrawalSanitizer.isWithdrawnAuthorId(authorId)) {
-            return new AuthorView(null, authorName, null);
+            return new AuthorView(null, authorName, null, false);
         }
         if (!anonymous) {
-            return new AuthorView(authorId, authorName, authorProfileImage);
+            return new AuthorView(
+                    authorId,
+                    authorName,
+                    currentAuthor == null ? null : currentAuthor.photoUrl(),
+                    currentAuthor != null && currentAuthor.isAdmin()
+            );
         }
         String displayName = anonymousOrder == null ? "익명" : "익명" + anonymousOrder;
-        return new AuthorView(null, displayName, null);
+        return new AuthorView(null, displayName, null, false);
     }
 
     private AnonymousMetadata resolveAnonymousMetadata(String noticeId, String userId, boolean anonymous) {
@@ -650,6 +659,9 @@ public class NoticeService {
     private record AnonymousMetadata(String anonId, Integer anonymousOrder) {
     }
 
-    private record AuthorView(String authorId, String authorName, String authorProfileImage) {
+    private record CurrentAuthorProfile(String photoUrl, boolean isAdmin) {
+    }
+
+    private record AuthorView(String authorId, String authorName, String authorProfileImage, boolean authorAdmin) {
     }
 }
