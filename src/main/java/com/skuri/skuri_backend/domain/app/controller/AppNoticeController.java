@@ -6,6 +6,9 @@ import com.skuri.skuri_backend.domain.app.service.AppNoticeService;
 import com.skuri.skuri_backend.infra.auth.firebase.AuthenticatedMember;
 import com.skuri.skuri_backend.infra.openapi.OpenApiAppExamples;
 import com.skuri.skuri_backend.infra.openapi.OpenApiAppSchemas;
+import com.skuri.skuri_backend.infra.openapi.OpenApiCommonExamples;
+import com.skuri.skuri_backend.infra.openapi.OpenApiConfig;
+import com.skuri.skuri_backend.infra.openapi.OpenApiMemberExamples;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -35,7 +38,7 @@ public class AppNoticeController {
     @GetMapping
     @Operation(
             summary = "앱 공지 목록 조회",
-            description = "로그인 전에도 호출 가능한 공개 API입니다.",
+            description = "점검 화면에서도 사용하는 완전 공개 API이며 Authorization 헤더를 처리하지 않습니다.",
             security = @SecurityRequirement(name = "")
     )
     @ApiResponses({
@@ -56,8 +59,11 @@ public class AppNoticeController {
     @GetMapping("/{appNoticeId}")
     @Operation(
             summary = "앱 공지 상세 조회",
-            description = "로그인 전에도 호출 가능한 공개 API입니다.",
-            security = @SecurityRequirement(name = "")
+            description = "익명으로 호출할 수 있으며 유효한 Firebase ID Token을 보내면 사용자별 좋아요 상태를 반환합니다.",
+            security = {
+                    @SecurityRequirement(name = ""),
+                    @SecurityRequirement(name = OpenApiConfig.SECURITY_SCHEME_NAME)
+            }
     )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -67,6 +73,27 @@ public class AppNoticeController {
                             mediaType = "application/json",
                             schema = @Schema(implementation = OpenApiAppSchemas.AppNoticeApiResponse.class),
                             examples = @ExampleObject(name = "default", value = OpenApiAppExamples.SUCCESS_APP_NOTICE_DETAIL)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401",
+                    description = "선택 인증 토큰 검증 실패",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = @ExampleObject(name = "default", value = OpenApiCommonExamples.ERROR_UNAUTHORIZED)
+                    )
+            ),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403",
+                    description = "이메일 도메인 제한 또는 탈퇴 회원 접근 제한",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ApiResponse.class),
+                            examples = {
+                                    @ExampleObject(name = "email_domain_restricted", value = OpenApiCommonExamples.ERROR_EMAIL_DOMAIN_RESTRICTED),
+                                    @ExampleObject(name = "withdrawn_member", value = OpenApiMemberExamples.ERROR_MEMBER_WITHDRAWN)
+                            }
                     )
             ),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(

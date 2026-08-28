@@ -59,7 +59,10 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
             return false;
         }
         String uri = request.getRequestURI();
-        if (uri.equals("/v1/app-notices") || uri.startsWith("/v1/app-notices/")) {
+        if (uri.equals("/v1/app-notices")) {
+            return true;
+        }
+        if (uri.startsWith("/v1/app-notices/")) {
             return isPublicAppNoticeReadRoute(uri)
                     && !StringUtils.hasText(request.getHeader(HttpHeaders.AUTHORIZATION));
         }
@@ -76,8 +79,7 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private boolean isPublicAppNoticeReadRoute(String uri) {
-        return "/v1/app-notices".equals(uri)
-                || uri.matches("^/v1/app-notices/[^/]+$");
+        return uri.matches("^/v1/app-notices/[^/]+$");
     }
 
     private boolean isPublicSharePreviewRoute(String uri) {
