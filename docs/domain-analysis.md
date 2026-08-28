@@ -608,7 +608,12 @@ Hooks:
     - id, title, content
     - category (UPDATE, MAINTENANCE, EVENT, GENERAL)
     - priority (HIGH, NORMAL, LOW)
-    - imageUrls[], actionUrl, publishedAt
+    - imageUrls[], actionUrl(HTTPS only), actionLabel, publishedAt
+    - viewCount, likeCount, commentCount
+  - AppNoticeComment / AppNoticeLike / AppNoticeCommentLike
+    - 학교 공지와 동일한 익명 댓글·답글·좋아요·soft delete 정책
+    - 댓글 작성자는 제외하고 모든 활성 운영자에게 알림 설정과 무관하게 인앱·푸시 알림
+    - 답글의 부모 작성자 알림은 운영자 알림과 중복 제거
 
 조회/응답 정책:
   - 내 북마크 공지: GET /v1/members/me/notice-bookmarks

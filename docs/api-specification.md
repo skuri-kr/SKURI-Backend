@@ -2898,6 +2898,11 @@ Authorization:Bearer <firebase_id_token>
       "priority": "NORMAL",
       "imageUrls": ["https://..."],
       "actionUrl": "https://...",
+      "actionLabel": "업데이트 안내 보기",
+      "viewCount": 42,
+      "likeCount": 7,
+      "commentCount": 3,
+      "isLiked": false,
       "publishedAt": "2026-02-01T00:00:00Z",
       "createdAt": "2026-01-31T18:00:00Z",
       "updatedAt": "2026-01-31T18:00:00Z"
@@ -2914,6 +2919,7 @@ Authorization:Bearer <firebase_id_token>
 - `GET /v1/app-notices/{appNoticeId}`
 위 두 API는 모두 Public API이며 인증이 필요 없다.
 - Public 조회는 `publishedAt <= now()`인 앱 공지만 노출한다.
+- 상세 조회는 호출할 때마다 `viewCount`를 1 증가시킨다. 인증 토큰이 있으면 `isLiked`를 현재 사용자 기준으로 합성하고, 없으면 `false`다.
 - 앱 공지 unread count와 읽음 처리는 일반 알림(`GET /v1/notifications/unread-count`)과 별도 source of truth를 사용한다.
 
 **Response:**
@@ -2928,12 +2934,37 @@ Authorization:Bearer <firebase_id_token>
     "priority": "HIGH",
     "imageUrls": [],
     "actionUrl": null,
+    "actionLabel": null,
+    "viewCount": 101,
+    "likeCount": 12,
+    "commentCount": 4,
+    "isLiked": true,
     "publishedAt": "2026-02-20T00:00:00Z",
     "createdAt": "2026-02-19T12:00:00Z",
     "updatedAt": "2026-02-19T12:00:00Z"
   }
 }
 ```
+
+#### 앱 공지 좋아요·댓글 API
+
+아래 API는 모두 인증이 필요하다. 댓글 응답 구조와 익명·수정·삭제·대댓글·댓글 좋아요 정책은 학교 공지 댓글과 동일하다.
+
+| Method | Path | 설명 |
+|---|---|---|
+| `POST` | `/v1/app-notices/{appNoticeId}/like` | 앱 공지 좋아요 |
+| `DELETE` | `/v1/app-notices/{appNoticeId}/like` | 앱 공지 좋아요 취소 |
+| `GET` | `/v1/app-notices/{appNoticeId}/comments` | 댓글/답글 목록 |
+| `POST` | `/v1/app-notices/{appNoticeId}/comments` | 댓글/답글 작성 |
+| `PATCH` | `/v1/app-notice-comments/{commentId}` | 댓글 수정 |
+| `DELETE` | `/v1/app-notice-comments/{commentId}` | 댓글 삭제(soft delete) |
+| `POST` | `/v1/app-notice-comments/{commentId}/like` | 댓글 좋아요 |
+| `DELETE` | `/v1/app-notice-comments/{commentId}/like` | 댓글 좋아요 취소 |
+
+- 앱 공지 댓글 작성 시 작성자를 제외한 모든 활성 운영자(`members.is_admin = true`)에게 알림 설정과 무관하게 `COMMENT_CREATED` 인앱·푸시 알림을 생성한다.
+- 답글이면 부모 댓글 작성자에게도 기존 댓글 알림 설정을 적용한다. 부모 작성자가 운영자 대상에도 포함되면 답글 알림 하나만 보내 중복을 제거한다.
+- 알림 data는 `appNoticeId`, `commentId`를 포함한다.
+- 신고 시 `targetType=APP_NOTICE_COMMENT`를 사용한다.
 
 #### GET /v1/members/me/app-notices/unread-count
 읽지 않은 앱 공지 수
@@ -2979,6 +3010,8 @@ Authorization:Bearer <firebase_id_token>
 |----------|------|------|
 | `NOTICE_NOT_FOUND` | 404 | 존재하지 않는 학교 공지 |
 | `APP_NOTICE_NOT_FOUND` | 404 | 존재하지 않는 앱 공지 |
+| `APP_NOTICE_COMMENT_NOT_FOUND` | 404 | 존재하지 않는 앱 공지 댓글 |
+| `NOT_APP_NOTICE_COMMENT_AUTHOR` | 403 | 앱 공지 댓글 작성자가 아닌데 수정/삭제 시도 |
 | `NOTICE_COMMENT_NOT_FOUND` | 404 | 존재하지 않는 공지 댓글 |
 | `NOT_NOTICE_COMMENT_AUTHOR` | 403 | 댓글 작성자가 아닌데 수정/삭제 시도 |
 | `COMMENT_ALREADY_DELETED` | 409 | 이미 삭제된 댓글 수정/재삭제 시도 |
@@ -5492,7 +5525,8 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
   "actionType": "IN_APP",
   "actionTarget": "TAXI_MAIN",
   "actionParams": null,
-  "actionUrl": null,
+  "actionUrl": "https://status.skuri.app",
+  "actionLabel": "점검 현황 보기",
   "isActive": true,
   "displayStartAt": "2026-03-25T00:00:00",
   "displayEndAt": null
@@ -5672,6 +5706,8 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
 - 전달한 필드만 반영한다.
 - 누락된 필드와 `null` 필드는 변경하지 않는다.
 - 모든 수정 가능 필드를 보내면 전체 수정처럼 사용할 수 있다.
+- `actionUrl`은 유효한 HTTPS URL만 허용한다. 빈 문자열을 보내면 URL과 버튼 문구를 제거한다.
+- `actionLabel`은 최대 30자이며 URL이 있을 때만 사용할 수 있다. 빈 문자열이면 앱은 `관련 페이지 보기` 기본 문구를 사용한다.
 
 **Request:**
 ```json
@@ -5694,6 +5730,11 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
     "priority": "HIGH",
     "imageUrls": [],
     "actionUrl": null,
+    "actionLabel": null,
+    "viewCount": 101,
+    "likeCount": 12,
+    "commentCount": 4,
+    "isLiked": false,
     "publishedAt": "2026-02-20T00:00:00Z",
     "createdAt": "2026-02-19T12:00:00Z",
     "updatedAt": "2026-02-19T12:30:00Z"
