@@ -5,6 +5,7 @@ import com.skuri.skuri_backend.domain.support.dto.request.CreateReportRequest;
 import com.skuri.skuri_backend.domain.support.dto.response.ReportCreateResponse;
 import com.skuri.skuri_backend.domain.support.service.ReportService;
 import com.skuri.skuri_backend.infra.auth.firebase.AuthenticatedMember;
+import com.skuri.skuri_backend.infra.openapi.OpenApiAppExamples;
 import com.skuri.skuri_backend.infra.openapi.OpenApiBoardExamples;
 import com.skuri.skuri_backend.infra.openapi.OpenApiChatExamples;
 import com.skuri.skuri_backend.infra.openapi.OpenApiCommonExamples;
@@ -44,7 +45,7 @@ public class ReportController {
     private final ReportService reportService;
 
     @PostMapping
-    @Operation(summary = "신고 접수", description = "게시글/게시글 댓글/공지 댓글/회원/채팅 메시지/일반 채팅방/택시파티 대상 신고를 접수합니다.")
+    @Operation(summary = "신고 접수", description = "게시글/게시글 댓글/학교 공지 댓글/앱 공지 댓글/회원/채팅 메시지/일반 채팅방/택시파티 대상 신고를 접수합니다.")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "201",
@@ -92,6 +93,7 @@ public class ReportController {
                                     @ExampleObject(name = "post_not_found", value = OpenApiBoardExamples.ERROR_POST_NOT_FOUND),
                                     @ExampleObject(name = "comment_not_found", value = OpenApiBoardExamples.ERROR_COMMENT_NOT_FOUND),
                                     @ExampleObject(name = "notice_comment_not_found", value = OpenApiNoticeExamples.ERROR_NOTICE_COMMENT_NOT_FOUND),
+                                    @ExampleObject(name = "app_notice_comment_not_found", value = OpenApiAppExamples.ERROR_APP_NOTICE_COMMENT_NOT_FOUND),
                                     @ExampleObject(name = "member_not_found", value = OpenApiMemberExamples.ERROR_MEMBER_NOT_FOUND),
                                     @ExampleObject(name = "chat_message_not_found", value = OpenApiChatExamples.ERROR_CHAT_MESSAGE_NOT_FOUND),
                                     @ExampleObject(name = "chat_room_not_found", value = OpenApiChatExamples.ERROR_CHAT_ROOM_NOT_FOUND),
@@ -143,6 +145,17 @@ public class ReportController {
                                               "targetId": "notice_comment_uuid",
                                               "category": "ABUSE",
                                               "reason": "공지 댓글에 부적절한 표현이 있습니다."
+                                            }
+                                            """
+                            ),
+                            @ExampleObject(
+                                    name = "app_notice_comment_report",
+                                    value = """
+                                            {
+                                              "targetType": "APP_NOTICE_COMMENT",
+                                              "targetId": "app_notice_comment_uuid",
+                                              "category": "ABUSE",
+                                              "reason": "앱 공지 댓글에 부적절한 표현이 있습니다."
                                             }
                                             """
                             ),
