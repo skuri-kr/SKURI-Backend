@@ -2,6 +2,12 @@ package com.skuri.skuri_backend.domain.notification.service;
 
 import com.skuri.skuri_backend.common.config.JpaAuditingConfig;
 import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
+import com.skuri.skuri_backend.domain.app.entity.AppNotice;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticeCategory;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticeComment;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticePriority;
+import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentRepository;
+import com.skuri.skuri_backend.domain.app.repository.AppNoticeRepository;
 import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
 import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
@@ -22,6 +28,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -55,6 +62,12 @@ class NotificationAfterCommitDeliveryDataJpaTest {
 
     @Autowired
     private FriendRequestRepository friendRequestRepository;
+
+    @Autowired
+    private AppNoticeRepository appNoticeRepository;
+
+    @Autowired
+    private AppNoticeCommentRepository appNoticeCommentRepository;
 
     @Autowired
     private UserNotificationRepository userNotificationRepository;
@@ -115,6 +128,47 @@ class NotificationAfterCommitDeliveryDataJpaTest {
                 .satisfies(notification -> assertThat(notification.getType()).isEqualTo(NotificationType.FRIEND_REQUEST));
         verify(notificationSseService).publishNotification(eq("recipient"), any());
         verify(notificationSseService).publishUnreadCountChanged("recipient", 1L);
+    }
+
+    @Test
+    void 외부트랜잭션커밋후_앱공지댓글의지연연관을조회해_운영자알림을생성한다() {
+        LocalDateTime now = LocalDateTime.now();
+        Member author = Member.create("author", "author@sungkyul.ac.kr", "작성자", now);
+        Member admin = Member.create("admin", "admin@sungkyul.ac.kr", "운영자", now);
+        admin.updateAdminRole(true);
+        memberRepository.saveAndFlush(author);
+        memberRepository.saveAndFlush(admin);
+
+        AppNotice appNotice = appNoticeRepository.saveAndFlush(AppNotice.create(
+                "앱 공지",
+                "내용",
+                AppNoticeCategory.GENERAL,
+                AppNoticePriority.NORMAL,
+                List.of(),
+                null,
+                now.minusMinutes(1)
+        ));
+        AppNoticeComment comment = appNoticeCommentRepository.saveAndFlush(AppNoticeComment.create(
+                appNotice,
+                author.getId(),
+                "작성자",
+                "새 댓글",
+                false,
+                null,
+                null,
+                null
+        ));
+
+        transactionalEventPublisher.publish(new NotificationDomainEvent.AppNoticeCommentCreated(comment.getId()));
+
+        assertThat(userNotificationRepository.findByUserIdOrderByCreatedAtDesc(admin.getId()))
+                .singleElement()
+                .satisfies(notification -> {
+                    assertThat(notification.getType()).isEqualTo(NotificationType.COMMENT_CREATED);
+                    assertThat(notification.getData().appNoticeId()).isEqualTo(appNotice.getId());
+                    assertThat(notification.getData().commentId()).isEqualTo(comment.getId());
+                });
+        verify(pushNotificationService).send(any(NotificationDispatchRequest.class));
     }
 
     @Service

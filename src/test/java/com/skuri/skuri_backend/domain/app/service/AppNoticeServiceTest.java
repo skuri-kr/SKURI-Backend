@@ -22,6 +22,7 @@ import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentLikeReposit
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.notice.dto.request.CreateNoticeCommentRequest;
+import com.skuri.skuri_backend.domain.notice.dto.request.UpdateNoticeCommentRequest;
 import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -256,6 +258,87 @@ class AppNoticeServiceTest {
         verify(appNoticeRepository).decrementLikeCountAtomically("app-notice-1", 1);
         verify(appNoticeCommentLikeRepository).deleteAllInBatch(List.of(commentLike));
         verify(appNoticeLikeRepository).deleteAllInBatch(List.of(noticeLike));
+    }
+
+    @Test
+    void updateComment_회원잠금을_공지와댓글잠금보다먼저획득한다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        AppNoticeComment comment = comment(appNotice, "member-1", "app-comment-1");
+        Member member = member("member-1");
+        when(memberRepository.findActiveByIdForUpdate("member-1")).thenReturn(Optional.of(member));
+        stubCommentAggregateWrite(appNotice, comment);
+
+        appNoticeService.updateComment("member-1", "app-comment-1", new UpdateNoticeCommentRequest("수정 댓글"));
+
+        var order = inOrder(memberRepository, appNoticeRepository, appNoticeCommentRepository);
+        order.verify(memberRepository).findActiveByIdForUpdate("member-1");
+        order.verify(appNoticeCommentRepository).findAppNoticeIdById("app-comment-1");
+        order.verify(appNoticeRepository).findByIdForUpdate("app-notice-1");
+        order.verify(appNoticeCommentRepository).findByIdForUpdate("app-comment-1");
+    }
+
+    @Test
+    void deleteComment_회원잠금을_공지와댓글잠금보다먼저획득한다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        AppNoticeComment comment = comment(appNotice, "member-1", "app-comment-1");
+        when(memberRepository.findActiveByIdForUpdate("member-1")).thenReturn(Optional.of(member("member-1")));
+        stubCommentAggregateWrite(appNotice, comment);
+
+        appNoticeService.deleteComment("member-1", "app-comment-1");
+
+        var order = inOrder(memberRepository, appNoticeRepository, appNoticeCommentRepository);
+        order.verify(memberRepository).findActiveByIdForUpdate("member-1");
+        order.verify(appNoticeCommentRepository).findAppNoticeIdById("app-comment-1");
+        order.verify(appNoticeRepository).findByIdForUpdate("app-notice-1");
+        order.verify(appNoticeCommentRepository).findByIdForUpdate("app-comment-1");
+    }
+
+    @Test
+    void unlikeNotice_회원잠금을_공지잠금보다먼저획득한다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        when(memberRepository.findActiveByIdForUpdate("member-1")).thenReturn(Optional.of(member("member-1")));
+        when(appNoticeRepository.findByIdForUpdate("app-notice-1")).thenReturn(Optional.of(appNotice));
+
+        appNoticeService.unlikeNotice("member-1", "app-notice-1");
+
+        var order = inOrder(memberRepository, appNoticeRepository);
+        order.verify(memberRepository).findActiveByIdForUpdate("member-1");
+        order.verify(appNoticeRepository).findByIdForUpdate("app-notice-1");
+    }
+
+    @Test
+    void unlikeComment_회원잠금을_공지와댓글잠금보다먼저획득한다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        AppNoticeComment comment = comment(appNotice, "member-1", "app-comment-1");
+        when(memberRepository.findActiveByIdForUpdate("member-1")).thenReturn(Optional.of(member("member-1")));
+        stubCommentAggregateWrite(appNotice, comment);
+
+        appNoticeService.unlikeComment("member-1", "app-comment-1");
+
+        var order = inOrder(memberRepository, appNoticeRepository, appNoticeCommentRepository);
+        order.verify(memberRepository).findActiveByIdForUpdate("member-1");
+        order.verify(appNoticeCommentRepository).findAppNoticeIdById("app-comment-1");
+        order.verify(appNoticeRepository).findByIdForUpdate("app-notice-1");
+        order.verify(appNoticeCommentRepository).findByIdForUpdate("app-comment-1");
+    }
+
+    private void stubCommentAggregateWrite(AppNotice appNotice, AppNoticeComment comment) {
+        when(appNoticeCommentRepository.findAppNoticeIdById("app-comment-1"))
+                .thenReturn(Optional.of("app-notice-1"));
+        when(appNoticeRepository.findByIdForUpdate("app-notice-1")).thenReturn(Optional.of(appNotice));
+        when(appNoticeCommentRepository.findByIdForUpdate("app-comment-1")).thenReturn(Optional.of(comment));
+    }
+
+    private AppNoticeComment comment(AppNotice appNotice, String memberId, String commentId) {
+        AppNoticeComment comment = AppNoticeComment.create(
+                appNotice, memberId, "작성자", "댓글", false, null, null, null
+        );
+        ReflectionTestUtils.setField(comment, "id", commentId);
+        return comment;
+    }
+
+    private Member member(String memberId) {
+        return Member.create(memberId, memberId + "@sungkyul.ac.kr", "회원", LocalDateTime.now());
     }
 
     private AppNotice appNotice(String id) {

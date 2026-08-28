@@ -114,6 +114,24 @@ class BoardNoticeOpenApiSchemaIntegrationTest {
         assertTrue(commentDataSchema.path("properties").has("updatedAt"));
     }
 
+    @Test
+    void app_notice_detail_OpenAPI가_익명과선택인증_오류응답을노출한다() throws Exception {
+        JsonNode operation = apiDocs().path("paths").path("/v1/app-notices/{appNoticeId}").path("get");
+
+        assertTrue(operation.path("security").toString().contains("firebase-id-token"));
+        assertTrue(operation.path("responses").has("401"));
+        assertTrue(operation.path("responses").has("403"));
+        assertTrue(operation.path("responses").path("403").toString().contains("withdrawn_member"));
+    }
+
+    @Test
+    void report_OpenAPI가_앱공지댓글요청과404예시를노출한다() throws Exception {
+        JsonNode operation = apiDocs().path("paths").path("/v1/reports").path("post");
+
+        assertTrue(operation.path("requestBody").toString().contains("app_notice_comment_report"));
+        assertTrue(operation.path("responses").path("404").toString().contains("app_notice_comment_not_found"));
+    }
+
     private JsonNode apiDocs() throws Exception {
         String responseBody = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())

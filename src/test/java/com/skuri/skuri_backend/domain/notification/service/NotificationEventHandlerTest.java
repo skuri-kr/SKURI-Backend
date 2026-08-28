@@ -208,7 +208,7 @@ class NotificationEventHandlerTest {
         );
         ReflectionTestUtils.setField(comment, "id", "app-comment-1");
 
-        when(appNoticeCommentRepository.findById("app-comment-1")).thenReturn(Optional.of(comment));
+        when(appNoticeCommentRepository.findNotificationAggregateById("app-comment-1")).thenReturn(Optional.of(comment));
         when(memberRepository.findActiveAdminIdsExcluding("actor-1"))
                 .thenReturn(List.of("admin-1", "admin-2"));
 
@@ -235,7 +235,7 @@ class NotificationEventHandlerTest {
         );
         ReflectionTestUtils.setField(reply, "id", "app-comment-reply");
 
-        when(appNoticeCommentRepository.findById("app-comment-reply")).thenReturn(Optional.of(reply));
+        when(appNoticeCommentRepository.findNotificationAggregateById("app-comment-reply")).thenReturn(Optional.of(reply));
         when(memberRepository.findActiveAdminIdsExcluding("actor-1"))
                 .thenReturn(List.of("admin-1", "admin-2"));
         when(memberRepository.findActiveById("admin-1")).thenReturn(Optional.of(
