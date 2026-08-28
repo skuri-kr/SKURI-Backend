@@ -207,4 +207,12 @@ public class OpenApiConfig {
                 .pathsToMatch("/v1/friends/**", "/v1/friend-codes/**", "/v1/friend-requests/**")
                 .build();
     }
+
+    @Bean
+    public GroupedOpenApi shareApi() {
+        return GroupedOpenApi.builder()
+                .group("share")
+                .pathsToMatch("/v1/share-links/**")
+                .build();
+    }
 }

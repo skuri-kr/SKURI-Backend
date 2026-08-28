@@ -19,6 +19,10 @@ public enum ErrorCode {
     RESOURCE_CONCURRENT_MODIFICATION(HttpStatus.CONFLICT, "RESOURCE_CONCURRENT_MODIFICATION", "동시 수정 충돌이 발생했습니다. 다시 시도해주세요."),
     VALIDATION_ERROR(HttpStatus.UNPROCESSABLE_CONTENT, "VALIDATION_ERROR", "입력값 검증에 실패했습니다."),
 
+    // 공유 링크(Share Link) 도메인 에러.
+    // 존재하지 않거나 더 이상 공개할 수 없는 짧은 링크를 외부에 동일한 404로 노출한다.
+    SHARE_LINK_NOT_FOUND(HttpStatus.NOT_FOUND, "SHARE_LINK_NOT_FOUND", "공유 링크를 찾을 수 없습니다."),
+
     // 회원(Member) 도메인 에러.
     // 회원 식별, 재가입 제한, 탈퇴 상태, 계좌 등록 요건처럼 사용자 계정 상태와 직접 연결된 오류를 다룬다.
     EMAIL_DOMAIN_RESTRICTED(HttpStatus.FORBIDDEN, "EMAIL_DOMAIN_RESTRICTED", "성결대학교 이메일(@sungkyul.ac.kr)만 사용 가능합니다."),
