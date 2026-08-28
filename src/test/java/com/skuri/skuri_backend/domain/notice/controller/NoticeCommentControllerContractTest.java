@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -72,6 +73,7 @@ class NoticeCommentControllerContractTest {
                 .andExpect(jsonPath("$.data.id").value("notice-comment-1"))
                 .andExpect(jsonPath("$.data.content").value("수정된 댓글"))
                 .andExpect(jsonPath("$.data.isAnonymous").value(true))
+                .andExpect(jsonPath("$.data.authorProfileImage").value(nullValue()))
                 .andExpect(jsonPath("$.data.likeCount").value(5))
                 .andExpect(jsonPath("$.data.isLiked").value(true));
     }
