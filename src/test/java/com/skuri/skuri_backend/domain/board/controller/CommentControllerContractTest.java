@@ -72,6 +72,7 @@ class CommentControllerContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value("comment-1"))
                 .andExpect(jsonPath("$.data.isAnonymous").value(true))
+                .andExpect(jsonPath("$.data.isAuthorAdmin").value(false))
                 .andExpect(jsonPath("$.data.likeCount").value(3))
                 .andExpect(jsonPath("$.data.isLiked").value(true));
     }
@@ -203,6 +204,7 @@ class CommentControllerContractTest {
                 null,
                 "익명1",
                 null,
+                false,
                 true,
                 1,
                 true,

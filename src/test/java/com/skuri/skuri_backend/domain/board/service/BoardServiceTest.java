@@ -265,6 +265,8 @@ class BoardServiceTest {
         Comment anonymousComment = comment("comment-2", post, null, "member-3", true, 1);
         Member namedAuthor = memberWithProfileImage("member-2", "https://example.com/current-member-2.jpg");
         Member anonymousAuthor = memberWithProfileImage("member-3", "https://example.com/current-member-3.jpg");
+        ReflectionTestUtils.setField(namedAuthor, "isAdmin", true);
+        ReflectionTestUtils.setField(anonymousAuthor, "isAdmin", true);
 
         when(postRepository.findByIdAndDeletedFalseAndHiddenFalse("post-1")).thenReturn(Optional.of(post));
         when(commentRepository.findByPostIdOrderByCreatedAtAsc("post-1"))
@@ -274,7 +276,9 @@ class BoardServiceTest {
         List<CommentResponse> responses = boardService.getComments("member-1", "post-1");
 
         assertEquals("https://example.com/current-member-2.jpg", responses.get(0).authorProfileImage());
+        assertTrue(responses.get(0).isAuthorAdmin());
         assertNull(responses.get(1).authorProfileImage());
+        assertFalse(responses.get(1).isAuthorAdmin());
         verify(memberRepository).findAllActiveByIdIn(any());
     }
 
@@ -542,6 +546,7 @@ class BoardServiceTest {
     void getPosts_작성시스냅샷대신_현재프로필이미지를반환한다() {
         PostSummaryProjection projection = summaryProjection("post-1", 0);
         Member author = memberWithProfileImage("author-post-1", "https://example.com/current-profile.jpg");
+        ReflectionTestUtils.setField(author, "isAdmin", true);
 
         when(postRepository.searchSummaries(any(), any(), any(), any()))
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(projection)));
@@ -554,6 +559,7 @@ class BoardServiceTest {
         var response = boardService.getPosts("member-1", PostCategory.GENERAL, null, null, "latest", 0, 20);
 
         assertEquals("https://example.com/current-profile.jpg", response.getContent().get(0).authorProfileImage());
+        assertTrue(response.getContent().get(0).isAuthorAdmin());
         verify(memberRepository).findAllActiveByIdIn(any());
     }
 
@@ -561,6 +567,7 @@ class BoardServiceTest {
     void getPostDetail_작성시스냅샷대신_현재프로필이미지를반환한다() {
         Post post = post("post-1", "author-1");
         Member author = memberWithProfileImage("author-1", "https://example.com/current-profile.jpg");
+        ReflectionTestUtils.setField(author, "isAdmin", true);
 
         when(postRepository.incrementViewCount("post-1")).thenReturn(1);
         when(postRepository.findActiveDetailById("post-1")).thenReturn(Optional.of(post));
@@ -573,6 +580,7 @@ class BoardServiceTest {
         PostDetailResponse response = boardService.getPostDetail("member-1", "post-1");
 
         assertEquals("https://example.com/current-profile.jpg", response.authorProfileImage());
+        assertTrue(response.isAuthorAdmin());
         verify(memberRepository).findAllActiveByIdIn(any());
     }
 

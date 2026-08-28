@@ -59,6 +59,7 @@ class MemberBoardControllerContractTest {
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content[0].id").value("post-1"))
+                .andExpect(jsonPath("$.data.content[0].isAuthorAdmin").value(true))
                 .andExpect(jsonPath("$.data.content[0].isLiked").value(true))
                 .andExpect(jsonPath("$.data.content[0].isCommentedByMe").value(true))
                 .andExpect(jsonPath("$.data.content[0].thumbnailUrl").value("https://example.com/post-1-thumb.jpg"));
@@ -110,6 +111,7 @@ class MemberBoardControllerContractTest {
                 "firebase-uid",
                 "홍길동",
                 "https://example.com/profile.jpg",
+                true,
                 false,
                 PostCategory.GENERAL,
                 10,

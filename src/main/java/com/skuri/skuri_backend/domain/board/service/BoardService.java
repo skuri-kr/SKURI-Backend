@@ -414,7 +414,7 @@ public class BoardService {
                 .toList();
         Map<String, String> thumbnailUrlsByPostId = resolvePostSummaryThumbnailUrls(postIds);
         PostSummaryPersonalization personalization = resolvePostSummaryPersonalization(memberId, postIds);
-        Map<String, String> currentProfileImagesByAuthorId = resolveCurrentAuthorProfileImages(
+        Map<String, CurrentAuthorProfile> currentAuthorsById = resolveCurrentAuthors(
                 postPage.getContent().stream().map(PostSummaryProjection::getAuthorId).toList()
         );
 
@@ -424,7 +424,7 @@ public class BoardService {
                 personalization.likedPostIds.contains(post.getId()),
                 personalization.bookmarkedPostIds.contains(post.getId()),
                 personalization.commentedPostIds.contains(post.getId()),
-                currentProfileImagesByAuthorId
+                currentAuthorsById
         )));
     }
 
@@ -467,14 +467,14 @@ public class BoardService {
             boolean isLiked,
             boolean isBookmarked,
             boolean isCommentedByMe,
-            Map<String, String> currentProfileImagesByAuthorId
+            Map<String, CurrentAuthorProfile> currentAuthorsById
     ) {
         AuthorView authorView = resolveAuthorView(
                 post.isAnonymous(),
                 false,
                 post.getAuthorId(),
                 post.getAuthorName(),
-                currentProfileImagesByAuthorId.get(post.getAuthorId()),
+                currentAuthorsById.get(post.getAuthorId()),
                 null
         );
 
@@ -485,6 +485,7 @@ public class BoardService {
                 authorView.authorId,
                 authorView.authorName,
                 authorView.authorProfileImage,
+                authorView.authorAdmin,
                 post.isAnonymous(),
                 post.getCategory(),
                 post.getViewCount(),
@@ -507,7 +508,7 @@ public class BoardService {
                 post.isDeleted(),
                 post.getAuthorId(),
                 post.getAuthorName(),
-                resolveCurrentAuthorProfileImage(post.getAuthorId()),
+                resolveCurrentAuthor(post.getAuthorId()),
                 null
         );
 
@@ -522,6 +523,7 @@ public class BoardService {
                 authorView.authorId,
                 authorView.authorName,
                 authorView.authorProfileImage,
+                authorView.authorAdmin,
                 post.isAnonymous(),
                 post.getCategory(),
                 post.getViewCount(),
@@ -586,7 +588,7 @@ public class BoardService {
             String postAuthorId,
             Set<String> likedCommentIds
     ) {
-        Map<String, String> currentProfileImagesByAuthorId = resolveCurrentAuthorProfileImages(
+        Map<String, CurrentAuthorProfile> currentAuthorsById = resolveCurrentAuthors(
                 comments.stream().map(Comment::getAuthorId).toList()
         );
         Map<String, List<Comment>> childrenByParent = new LinkedHashMap<>();
@@ -610,7 +612,7 @@ public class BoardService {
                     postAuthorId,
                     likedCommentIds,
                     childrenByParent,
-                    currentProfileImagesByAuthorId
+                    currentAuthorsById
             );
         }
         return flattened;
@@ -624,7 +626,7 @@ public class BoardService {
             String postAuthorId,
             Set<String> likedCommentIds,
             Map<String, List<Comment>> childrenByParent,
-            Map<String, String> currentProfileImagesByAuthorId
+            Map<String, CurrentAuthorProfile> currentAuthorsById
     ) {
         flattened.add(toCommentResponse(
                 comment,
@@ -632,7 +634,7 @@ public class BoardService {
                 postAuthorId,
                 depth,
                 likedCommentIds.contains(comment.getId()),
-                currentProfileImagesByAuthorId
+                currentAuthorsById
         ));
         for (Comment child : childrenByParent.getOrDefault(comment.getId(), List.of())) {
             appendCommentTree(
@@ -643,7 +645,7 @@ public class BoardService {
                     postAuthorId,
                     likedCommentIds,
                     childrenByParent,
-                    currentProfileImagesByAuthorId
+                    currentAuthorsById
             );
         }
     }
@@ -671,7 +673,7 @@ public class BoardService {
                 postAuthorId,
                 depth,
                 isLiked,
-                resolveCurrentAuthorProfileImages(Collections.singletonList(comment.getAuthorId()))
+                resolveCurrentAuthors(Collections.singletonList(comment.getAuthorId()))
         );
     }
 
@@ -681,7 +683,7 @@ public class BoardService {
             String postAuthorId,
             int depth,
             boolean isLiked,
-            Map<String, String> currentProfileImagesByAuthorId
+            Map<String, CurrentAuthorProfile> currentAuthorsById
     ) {
         boolean masked = comment.isDeleted() || comment.isHidden();
         AuthorView authorView = resolveAuthorView(
@@ -689,7 +691,7 @@ public class BoardService {
                 masked,
                 comment.getAuthorId(),
                 comment.getAuthorName(),
-                currentProfileImagesByAuthorId.get(comment.getAuthorId()),
+                currentAuthorsById.get(comment.getAuthorId()),
                 comment.getAnonymousOrder()
         );
 
@@ -701,6 +703,7 @@ public class BoardService {
                 authorView.authorId,
                 authorView.authorName,
                 authorView.authorProfileImage,
+                authorView.authorAdmin,
                 !masked && comment.isAnonymous(),
                 masked ? null : comment.getAnonymousOrder(),
                 !masked && comment.isAuthor(memberId),
@@ -731,14 +734,14 @@ public class BoardService {
         return commentLikeRepository.existsById_UserIdAndId_CommentId(memberId, commentId);
     }
 
-    private String resolveCurrentAuthorProfileImage(String authorId) {
+    private CurrentAuthorProfile resolveCurrentAuthor(String authorId) {
         if (authorId == null || authorId.isBlank()) {
             return null;
         }
-        return resolveCurrentAuthorProfileImages(List.of(authorId)).get(authorId);
+        return resolveCurrentAuthors(List.of(authorId)).get(authorId);
     }
 
-    private Map<String, String> resolveCurrentAuthorProfileImages(List<String> authorIds) {
+    private Map<String, CurrentAuthorProfile> resolveCurrentAuthors(List<String> authorIds) {
         Set<String> activeAuthorIds = authorIds.stream()
                 .filter(authorId -> authorId != null && !authorId.isBlank())
                 .collect(Collectors.toSet());
@@ -746,11 +749,14 @@ public class BoardService {
             return Map.of();
         }
 
-        Map<String, String> profileImagesByAuthorId = new HashMap<>();
+        Map<String, CurrentAuthorProfile> currentAuthorsById = new HashMap<>();
         memberRepository.findAllActiveByIdIn(activeAuthorIds).forEach(member ->
-                profileImagesByAuthorId.put(member.getId(), member.getPhotoUrl())
+                currentAuthorsById.put(
+                        member.getId(),
+                        new CurrentAuthorProfile(member.getPhotoUrl(), member.isAdmin())
+                )
         );
-        return profileImagesByAuthorId;
+        return currentAuthorsById;
     }
 
     private AuthorView resolveAuthorView(
@@ -758,23 +764,28 @@ public class BoardService {
             boolean deleted,
             String authorId,
             String authorName,
-            String authorProfileImage,
+            CurrentAuthorProfile currentAuthor,
             Integer anonymousOrder
     ) {
         if (deleted) {
-            return new AuthorView(null, null, null);
+            return new AuthorView(null, null, null, false);
         }
 
         if (MemberWithdrawalSanitizer.isWithdrawnAuthorId(authorId)) {
-            return new AuthorView(null, authorName, null);
+            return new AuthorView(null, authorName, null, false);
         }
 
         if (!anonymous) {
-            return new AuthorView(authorId, authorName, authorProfileImage);
+            return new AuthorView(
+                    authorId,
+                    authorName,
+                    currentAuthor == null ? null : currentAuthor.photoUrl(),
+                    currentAuthor != null && currentAuthor.isAdmin()
+            );
         }
 
         String displayName = anonymousOrder == null ? "익명" : "익명" + anonymousOrder;
-        return new AuthorView(null, displayName, null);
+        return new AuthorView(null, displayName, null, false);
     }
 
     private String toPreview(String content) {
@@ -905,15 +916,20 @@ public class BoardService {
         }
     }
 
+    private record CurrentAuthorProfile(String photoUrl, boolean isAdmin) {
+    }
+
     private static final class AuthorView {
         private final String authorId;
         private final String authorName;
         private final String authorProfileImage;
+        private final boolean authorAdmin;
 
-        private AuthorView(String authorId, String authorName, String authorProfileImage) {
+        private AuthorView(String authorId, String authorName, String authorProfileImage, boolean authorAdmin) {
             this.authorId = authorId;
             this.authorName = authorName;
             this.authorProfileImage = authorProfileImage;
+            this.authorAdmin = authorAdmin;
         }
     }
 }

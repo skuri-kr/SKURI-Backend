@@ -19,6 +19,8 @@ public record CommentResponse(
         String authorName,
         @Schema(description = "작성자 프로필 이미지", nullable = true, example = "https://cdn.skuri.app/profiles/user-1.png")
         String authorProfileImage,
+        @Schema(description = "작성자가 현재 운영자인지 여부", example = "false")
+        boolean isAuthorAdmin,
         @Schema(description = "익명 여부", example = "false")
         boolean isAnonymous,
         @Schema(description = "익명 순번", nullable = true, example = "2")
