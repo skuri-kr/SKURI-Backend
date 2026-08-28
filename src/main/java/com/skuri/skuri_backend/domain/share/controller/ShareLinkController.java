@@ -14,6 +14,7 @@ import com.skuri.skuri_backend.infra.openapi.OpenApiBoardExamples;
 import com.skuri.skuri_backend.infra.openapi.OpenApiNoticeExamples;
 import com.skuri.skuri_backend.infra.openapi.OpenApiShareExamples;
 import com.skuri.skuri_backend.infra.openapi.OpenApiShareSchemas;
+import com.skuri.skuri_backend.infra.openapi.OpenApiSupportExamples;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -75,7 +76,9 @@ public class ShareLinkController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패",
                     content = @Content(schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "공유 링크 없음",
-                    content = @Content(schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiShareExamples.ERROR_NOT_FOUND)))
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiShareExamples.ERROR_NOT_FOUND))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "공유 코드 형식 검증 실패",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION)))
     })
     public ResponseEntity<ApiResponse<ShareLinkResolveResponse>> resolve(
             @PathVariable String resourceType,
@@ -90,7 +93,9 @@ public class ShareLinkController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
                     content = @Content(schema = @Schema(implementation = OpenApiShareSchemas.NoticeSharePreviewApiResponse.class), examples = @ExampleObject(value = OpenApiShareExamples.SUCCESS_NOTICE_PREVIEW))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "공유 링크 없음",
-                    content = @Content(schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiShareExamples.ERROR_NOT_FOUND)))
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiShareExamples.ERROR_NOT_FOUND))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "공유 코드 형식 검증 실패",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION)))
     })
     public ResponseEntity<ApiResponse<NoticeSharePreviewResponse>> getNoticePreview(
             @PathVariable @Pattern(regexp = CODE_PATTERN) String code
@@ -104,7 +109,9 @@ public class ShareLinkController {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
                     content = @Content(schema = @Schema(implementation = OpenApiShareSchemas.BoardSharePreviewApiResponse.class), examples = @ExampleObject(value = OpenApiShareExamples.SUCCESS_BOARD_PREVIEW))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "공유 링크 없음",
-                    content = @Content(schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiShareExamples.ERROR_NOT_FOUND)))
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiShareExamples.ERROR_NOT_FOUND))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "공유 코드 형식 검증 실패",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiCommonExamples.ERROR_VALIDATION)))
     })
     public ResponseEntity<ApiResponse<BoardSharePreviewResponse>> getBoardPreview(
             @PathVariable @Pattern(regexp = CODE_PATTERN) String code
@@ -114,8 +121,12 @@ public class ShareLinkController {
 
     @GetMapping("/cafeteria/preview")
     @Operation(summary = "이번 주 학식 공개 미리보기", security = {})
-    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
-            content = @Content(schema = @Schema(implementation = OpenApiShareSchemas.CafeteriaSharePreviewApiResponse.class), examples = @ExampleObject(value = OpenApiShareExamples.SUCCESS_CAFETERIA_PREVIEW)))
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "조회 성공",
+                    content = @Content(schema = @Schema(implementation = OpenApiShareSchemas.CafeteriaSharePreviewApiResponse.class), examples = @ExampleObject(value = OpenApiShareExamples.SUCCESS_CAFETERIA_PREVIEW))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "이번 주 학식 없음",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(value = OpenApiSupportExamples.ERROR_CAFETERIA_MENU_NOT_FOUND)))
+    })
     public ResponseEntity<ApiResponse<CafeteriaSharePreviewResponse>> getCafeteriaPreview() {
         return ResponseEntity.ok(ApiResponse.success(shareLinkService.getCafeteriaPreview()));
     }
