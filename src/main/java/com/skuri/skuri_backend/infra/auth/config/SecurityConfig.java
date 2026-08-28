@@ -24,6 +24,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 @Configuration
@@ -61,7 +62,10 @@ public class SecurityConfig {
                             "/v1/app-versions/**",
                             "/v1/app-notices/**",
                             "/v1/legal-documents/**",
-                            "/v1/campus-banners/**"
+                            "/v1/campus-banners/**",
+                            "/v1/share-links/notice/*/preview",
+                            "/v1/share-links/board/*/preview",
+                            "/v1/share-links/cafeteria/preview"
                     ).permitAll();
                     authorize.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info").permitAll();
                     if (mediaStorageProperties.getProvider() == com.skuri.skuri_backend.infra.storage.StorageProviderType.LOCAL) {
@@ -93,11 +97,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(
-                Arrays.stream(apiAllowedOriginPatterns)
-                        .filter(value -> value != null && !value.isBlank())
-                        .toList()
-        );
+        LinkedHashSet<String> allowedOriginPatterns = new LinkedHashSet<>();
+        Arrays.stream(apiAllowedOriginPatterns)
+                .filter(value -> value != null && !value.isBlank())
+                .forEach(allowedOriginPatterns::add);
+        allowedOriginPatterns.add("https://link.skuri.kr");
+        allowedOriginPatterns.add("https://open.skuri.kr");
+        configuration.setAllowedOriginPatterns(List.copyOf(allowedOriginPatterns));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Location"));

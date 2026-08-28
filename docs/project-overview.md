@@ -67,6 +67,7 @@
 - [domain/notice](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/notice): 학교 공지, 댓글, 북마크
 - [domain/support](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/support): 문의/신고, 문의 첨부 이미지 메타데이터, 앱 버전, 법적 문서, 학식
 - [domain/board](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/board): 커뮤니티 게시판
+- [domain/share](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/share): 짧은 공유 코드, 앱 ID 해석, 제한된 공개 콘텐츠 미리보기
 - [domain/notification](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/notification): 인앱 알림 + 푸시
 - [domain/academic](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/domain/academic): 강의/시간표/학사 일정, 학기별 학과·학년·이수구분 필터 옵션과 category canonical 정규화. 공식 강의 학과는 `courses.department` 원본, 직접 입력 강의 학과는 `departments` master를 사용
 - [infra](/Users/jisung/skuri-backend/src/main/java/com/skuri/skuri_backend/infra): auth, storage, openapi, admin 지원
@@ -137,6 +138,8 @@
 - 공지는 크롤링 데이터 기반
 - 댓글, 좋아요, 북마크, 읽음 상태 제공
 - 게시판은 이미지 업로드와 익명/실명 정책을 함께 지원
+- 외부 공유는 `link.skuri.kr/{notice|board}/{8자리 코드}`를 사용하고, Share 도메인이 원본의 공개 가능 상태를 재확인한다.
+- 웹 미리보기는 원문 전체가 아니라 공지의 제한된 텍스트·이미지·표 블록 또는 게시물의 익명 안전 텍스트 projection만 사용한다.
 
 ---
 

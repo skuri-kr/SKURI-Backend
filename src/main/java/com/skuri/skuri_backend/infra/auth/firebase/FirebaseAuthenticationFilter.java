@@ -69,7 +69,13 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
                 || uri.startsWith("/v1/campus-banners/")
                 || "/v1/campus-banners".equals(uri)
                 || uri.startsWith("/v1/app-versions/")
+                || isPublicSharePreviewRoute(uri)
                 || localMediaPublicRoute;
+    }
+
+    private boolean isPublicSharePreviewRoute(String uri) {
+        return "/v1/share-links/cafeteria/preview".equals(uri)
+                || uri.matches("^/v1/share-links/(notice|board)/[^/]+/preview$");
     }
 
     @Override

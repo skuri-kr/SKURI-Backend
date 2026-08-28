@@ -1134,6 +1134,15 @@ SSE 운영 제약:
 
 각 단계에서 OpenAPI, ERD, 도메인 문서와 Contract·Service 테스트를 해당 런타임 PR에 함께 동기화한다. 변경량 때문에 같은 저장소 PR을 분리해야 하면 먼저 사용자 승인을 받는다.
 
+### Phase 15: Share Link 도메인
+
+- [x] `share_links` 범용 registry와 `(resource_type, resource_id)` 멱등 unique 계약
+- [x] NOTICE·BOARD 8자리 Base58 링크 발급 및 인증된 앱 resolve
+- [x] 공지 text/image/table 제한 projection, 게시물 익명 안전 projection, 이번 주 학식 공개 projection
+- [x] 긴 Base64 링크 비호환과 원본 삭제·숨김 시 `SHARE_LINK_NOT_FOUND` 마스킹
+- [x] OpenAPI·ERD·도메인 문서·Contract/Service 테스트 동기화
+- [ ] 운영 배포 후 `link.skuri.kr` 웹과 실제 콘텐츠 통합 smoke test
+
 #### 14-5. 제외 범위
 
 - URL 딥링크 친구 추가

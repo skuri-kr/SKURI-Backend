@@ -20,6 +20,7 @@ import com.skuri.skuri_backend.domain.member.controller.MemberController;
 import com.skuri.skuri_backend.domain.notification.controller.FcmTokenController;
 import com.skuri.skuri_backend.domain.notification.controller.NotificationController;
 import com.skuri.skuri_backend.domain.notification.controller.NotificationSseController;
+import com.skuri.skuri_backend.domain.share.controller.ShareLinkController;
 import com.skuri.skuri_backend.domain.notice.controller.NoticeAdminController;
 import com.skuri.skuri_backend.domain.notice.controller.NoticeCommentController;
 import com.skuri.skuri_backend.domain.notice.controller.MemberNoticeController;
@@ -90,7 +91,8 @@ class OpenApiResponseExamplesConventionTest {
             PartyController.class,
             PartyInvitationController.class,
             JoinRequestController.class,
-            PartySseController.class
+            PartySseController.class,
+            ShareLinkController.class
     );
 
     @Test

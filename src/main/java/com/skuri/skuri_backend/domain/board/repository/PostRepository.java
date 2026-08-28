@@ -123,6 +123,8 @@ public interface PostRepository extends JpaRepository<Post, String> {
 
     Optional<Post> findByIdAndDeletedFalseAndHiddenFalse(String postId);
 
+    boolean existsByIdAndDeletedFalseAndHiddenFalse(String postId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select p

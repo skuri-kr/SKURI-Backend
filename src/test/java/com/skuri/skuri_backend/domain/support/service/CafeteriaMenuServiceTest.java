@@ -37,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,6 +51,24 @@ class CafeteriaMenuServiceTest {
 
     @InjectMocks
     private CafeteriaMenuService cafeteriaMenuService;
+
+    @Test
+    void 공개미리보기조회는_반응집계쿼리를실행하지않는다() {
+        when(cafeteriaMenuRepository.findById("2026-W08")).thenReturn(Optional.of(CafeteriaMenu.create(
+                "2026-W08",
+                LocalDate.of(2026, 2, 16),
+                LocalDate.of(2026, 2, 20),
+                Map.of("2026-02-16", Map.of("rollNoodles", List.of("우동"))),
+                Map.of()
+        )));
+
+        CafeteriaMenuResponse response = cafeteriaMenuService.getCurrentWeekMenuWithoutReactions(
+                LocalDate.of(2026, 2, 16)
+        );
+
+        assertEquals("우동", response.menuEntries().get("2026-02-16").get("rollNoodles").getFirst().title());
+        verifyNoInteractions(cafeteriaMenuReactionRepository);
+    }
 
     @Test
     void createMenu_menuEntries만전달하면_menus를역생성하고관리자count는무시한다() {

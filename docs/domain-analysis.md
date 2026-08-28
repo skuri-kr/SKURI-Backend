@@ -1,6 +1,6 @@
 # Spring 백엔드 도메인 분석
 
-> 최종 수정일: 2026-08-25
+> 최종 수정일: 2026-08-28
 > 분석 기준: 레거시 Firestore/Cloud Functions 구조 + 현재 RN repository/transport 구조 + 현재 Spring 구현
 
 본 문서는 SKURI Taxi의 레거시 Firebase 구조와 현재 Spring Boot + MySQL 구현을 함께 대조해 정리한 **도메인 분석 결과**입니다.
@@ -67,6 +67,7 @@
 | 7 | **Academic** | Generic | 강의 정보, 시간표, 학사 일정 | Course, UserTimetable, AcademicSchedule |
 | 8 | **Support** | Generic | 문의/신고 접수, 앱 버전, 법적 문서, 학식 메뉴 | Inquiry, Report, AppVersion, LegalDocument, CafeteriaMenu |
 | 9 | **Friend** | Supporting | 친구 코드, 검색 허용, 요청, 상호 관계, 즐겨찾기, 친구 끊기, 차단 | FriendProfile, FriendCodeRegistry, FriendRequest, Friendship, FriendPreference, MemberBlock (관계 Core 구현) |
+| 10 | **Share** | Supporting | 공개 콘텐츠의 안정적 짧은 코드, 안전한 공개 projection, 앱 내부 원본 ID 해석 | ShareLink |
 | - | **Notification** | Infra | 도메인 이벤트 기반 알림 인박스 | UserNotification |
 
 ### 2.2 도메인 유형 정의
@@ -848,6 +849,22 @@ Hooks:
 ```
 
 ---
+
+### 3.10 Share (공유 링크)
+
+```
+책임: NOTICE/BOARD 원본 ID와 8자리 공개 코드를 안정적으로 연결하고,
+      각 소유 도메인의 정책에 맞는 제한된 공개 미리보기를 조립
+
+엔티티:
+  - ShareLink
+    - code, resourceType, resourceId, createdAt, updatedAt
+```
+
+- Share는 원본 본문·작성자 개인정보를 복제 저장하지 않는다. Notice·Board·Support가 원본 source of truth다.
+- 발급·앱 내부 해석은 인증된 사용자에게만 제공하고, 공개 웹이 소비하는 preview만 `permitAll`이다.
+- 공지 raw HTML을 그대로 전달하지 않고 text/image/table DTO로 제한하며, 게시물은 익명 안전 작성자명과 잘린 텍스트만 제공한다.
+- 코드는 비만료·멱등이며 기존 긴 링크와 deferred deep link는 지원하지 않는다.
 
 ## 4. 도메인 간 관계
 
@@ -1782,6 +1799,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
 ---
 
 > **문서 이력**
+> - 2026-08-28: Share supporting 도메인과 공개 projection 경계를 추가
 > - 2026-08-24: 친구 초대 보완 반영 — 파티장·참가자 초대 수락 경로 분리, 정원 도달 JoinRequest 만료, 파티원 조회·리더 강퇴 책임을 현재 런타임으로 동기화
 > - 2026-08-23: 예약어 닉네임을 유지한 미완료 회원의 최초 프로필 완료 전환 거부와 기존 완료 예약어 회원 grandfathering을 반영
 > - 2026-08-23: Phase 14 Academic 시간표 공유 협력을 런타임 상태로 동기화하고, TaxiParty·Chat 초대를 런타임 구현 단계로 전환
