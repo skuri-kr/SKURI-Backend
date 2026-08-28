@@ -183,7 +183,9 @@ public class NoticePreviewBlockExtractor {
                 return;
             }
 
-            List<Element> sourceRows = table.select("tr");
+            List<Element> sourceRows = table.select("tr").stream()
+                    .filter(row -> belongsToTable(row, table))
+                    .toList();
             List<SharePreviewBlockResponse.TableRow> rows = new ArrayList<>();
             boolean tableTruncated = sourceRows.size() > MAX_TABLE_ROWS;
 
@@ -230,6 +232,14 @@ public class NoticePreviewBlockExtractor {
             blocks.add(SharePreviewBlockResponse.table(List.copyOf(rows), tableTruncated));
             tableAdded = true;
             truncated |= tableTruncated;
+        }
+
+        private boolean belongsToTable(Element row, Element table) {
+            Element ancestor = row.parent();
+            while (ancestor != null && !"table".equals(ancestor.normalName())) {
+                ancestor = ancestor.parent();
+            }
+            return ancestor == table;
         }
 
         private static String resolveAllowedImageUrl(String rawSrc, String baseUrl) {
