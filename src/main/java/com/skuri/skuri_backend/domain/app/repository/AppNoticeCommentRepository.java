@@ -4,6 +4,7 @@ import com.skuri.skuri_backend.domain.app.entity.AppNoticeComment;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -31,6 +32,23 @@ public interface AppNoticeCommentRepository extends JpaRepository<AppNoticeComme
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from AppNoticeComment c where c.id = :commentId")
     Optional<AppNoticeComment> findByIdForUpdate(@Param("commentId") String commentId);
+
+    @Query("select c.appNotice.id from AppNoticeComment c where c.id = :commentId")
+    Optional<String> findAppNoticeIdById(@Param("commentId") String commentId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update AppNoticeComment c
+            set c.likeCount = case
+                when c.likeCount >= :amount then c.likeCount - :amount
+                else 0
+            end
+            where c.id = :commentId
+            """)
+    int decrementLikeCountAtomically(
+            @Param("commentId") String commentId,
+            @Param("amount") int amount
+    );
 
     Optional<AppNoticeComment> findByIdAndDeletedFalse(String commentId);
 

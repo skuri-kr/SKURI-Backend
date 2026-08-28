@@ -106,8 +106,8 @@ public class AppNoticeService {
 
     @Transactional
     public NoticeCommentResponse createComment(String memberId, String appNoticeId, CreateNoticeCommentRequest request) {
+        Member author = findMemberForUpdateOrThrow(memberId);
         AppNotice appNotice = findPublishedNoticeForUpdateOrThrow(appNoticeId);
-        Member author = findMemberOrThrow(memberId);
         AppNoticeComment parent = null;
         if (request.parentId() != null) {
             parent = appNoticeCommentRepository.findByIdAndAppNoticeId(request.parentId(), appNoticeId)
@@ -128,7 +128,7 @@ public class AppNoticeService {
 
     @Transactional
     public NoticeCommentResponse updateComment(String memberId, String commentId, UpdateNoticeCommentRequest request) {
-        AppNoticeComment comment = findCommentForWriteOrThrow(commentId);
+        AppNoticeComment comment = findCommentForAggregateWriteOrThrow(commentId);
         requireCommentAuthor(comment, memberId);
         boolean targetAnonymous = request.isAnonymous() != null ? request.isAnonymous() : comment.isAnonymous();
         AnonymousMetadata metadata = resolveUpdatedAnonymousMetadata(comment, memberId, request.isAnonymous());
@@ -138,15 +138,16 @@ public class AppNoticeService {
 
     @Transactional
     public void deleteComment(String memberId, String commentId) {
-        AppNoticeComment comment = findCommentForWriteOrThrow(commentId);
+        AppNoticeComment comment = findCommentForAggregateWriteOrThrow(commentId);
         requireCommentAuthor(comment, memberId);
-        AppNotice appNotice = findAppNoticeForUpdateOrThrow(comment.getAppNotice().getId());
+        AppNotice appNotice = comment.getAppNotice();
         comment.softDelete();
         appNotice.increaseCommentCount(-1);
     }
 
     @Transactional
     public NoticeLikeResponse likeNotice(String memberId, String appNoticeId) {
+        findMemberForUpdateOrThrow(memberId);
         AppNotice appNotice = findPublishedNoticeForUpdateOrThrow(appNoticeId);
         if (appNoticeLikeRepository.existsById_UserIdAndId_AppNoticeId(memberId, appNoticeId)) {
             return new NoticeLikeResponse(true, appNotice.getLikeCount());
@@ -168,7 +169,8 @@ public class AppNoticeService {
 
     @Transactional
     public NoticeCommentLikeResponse likeComment(String memberId, String commentId) {
-        AppNoticeComment comment = findCommentForWriteOrThrow(commentId);
+        findMemberForUpdateOrThrow(memberId);
+        AppNoticeComment comment = findCommentForAggregateWriteOrThrow(commentId);
         if (appNoticeCommentLikeRepository.existsById_UserIdAndId_CommentId(memberId, commentId)) {
             return new NoticeCommentLikeResponse(commentId, true, comment.getLikeCount());
         }
@@ -179,7 +181,7 @@ public class AppNoticeService {
 
     @Transactional
     public NoticeCommentLikeResponse unlikeComment(String memberId, String commentId) {
-        AppNoticeComment comment = findCommentForWriteOrThrow(commentId);
+        AppNoticeComment comment = findCommentForAggregateWriteOrThrow(commentId);
         appNoticeCommentLikeRepository.findById_UserIdAndId_CommentId(memberId, commentId).ifPresent(like -> {
             appNoticeCommentLikeRepository.delete(like);
             comment.increaseLikeCount(-1);
@@ -206,7 +208,10 @@ public class AppNoticeService {
                 request.imageUrls() == null ? null : normalizeImageUrls(request.imageUrls()), request.publishedAt()
         );
         if (request.actionUrl() != null) {
-            ActionFields action = normalizeAction(request.actionUrl(), request.actionLabel());
+            String actionLabel = trimToNull(request.actionUrl()) == null
+                    ? null
+                    : request.actionLabel() == null ? appNotice.getActionLabel() : request.actionLabel();
+            ActionFields action = normalizeAction(request.actionUrl(), actionLabel);
             appNotice.updateAction(action.url, action.label);
         } else if (request.actionLabel() != null) {
             if (appNotice.getActionUrl() == null) {
@@ -219,7 +224,7 @@ public class AppNoticeService {
 
     @Transactional
     public void deleteAppNotice(String appNoticeId) {
-        AppNotice appNotice = appNoticeRepository.findById(appNoticeId).orElseThrow(AppNoticeNotFoundException::new);
+        AppNotice appNotice = findAppNoticeForUpdateOrThrow(appNoticeId);
         List<AppNoticeComment> comments = appNoticeCommentRepository.findByAppNoticeIdOrderByCreatedAtAsc(appNoticeId);
         List<AppNoticeCommentLike> commentLikes = appNoticeCommentLikeRepository.findByAppNoticeId(appNoticeId);
         if (!commentLikes.isEmpty()) {
@@ -245,16 +250,20 @@ public class AppNoticeService {
         if (!commentLikes.isEmpty()) {
             Map<String, Integer> counts = new LinkedHashMap<>();
             commentLikes.forEach(like -> counts.merge(like.getId().getCommentId(), 1, Integer::sum));
-            appNoticeCommentRepository.findAllById(counts.keySet()).forEach(comment ->
-                    comment.increaseLikeCount(-counts.getOrDefault(comment.getId(), 0)));
+            counts.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(entry -> appNoticeCommentRepository.decrementLikeCountAtomically(
+                            entry.getKey(), entry.getValue()));
             appNoticeCommentLikeRepository.deleteAllInBatch(commentLikes);
         }
         List<AppNoticeLike> likes = appNoticeLikeRepository.findById_UserId(memberId);
         if (!likes.isEmpty()) {
             Map<String, Integer> counts = new LinkedHashMap<>();
             likes.forEach(like -> counts.merge(like.getId().getAppNoticeId(), 1, Integer::sum));
-            appNoticeRepository.findAllById(counts.keySet()).forEach(appNotice ->
-                    appNotice.increaseLikeCount(-counts.getOrDefault(appNotice.getId(), 0)));
+            counts.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(entry -> appNoticeRepository.decrementLikeCountAtomically(
+                            entry.getKey(), entry.getValue()));
             appNoticeLikeRepository.deleteAllInBatch(likes);
         }
         appNoticeReadStatusRepository.deleteById_UserId(memberId);
@@ -419,7 +428,10 @@ public class AppNoticeService {
         }
     }
 
-    private AppNoticeComment findCommentForWriteOrThrow(String commentId) {
+    private AppNoticeComment findCommentForAggregateWriteOrThrow(String commentId) {
+        String appNoticeId = appNoticeCommentRepository.findAppNoticeIdById(commentId)
+                .orElseThrow(AppNoticeCommentNotFoundException::new);
+        findAppNoticeForUpdateOrThrow(appNoticeId);
         AppNoticeComment comment = appNoticeCommentRepository.findByIdForUpdate(commentId)
                 .orElseThrow(AppNoticeCommentNotFoundException::new);
         if (comment.isDeleted()) throw new BusinessException(ErrorCode.COMMENT_ALREADY_DELETED);
@@ -441,8 +453,8 @@ public class AppNoticeService {
         return appNoticeRepository.findByIdForUpdate(appNoticeId).orElseThrow(AppNoticeNotFoundException::new);
     }
 
-    private Member findMemberOrThrow(String memberId) {
-        return memberRepository.findActiveById(memberId)
+    private Member findMemberForUpdateOrThrow(String memberId) {
+        return memberRepository.findActiveByIdForUpdate(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MEMBER_NOT_FOUND));
     }
 

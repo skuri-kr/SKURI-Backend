@@ -35,6 +35,20 @@ public interface AppNoticeRepository extends JpaRepository<AppNotice, String> {
     @Query("select a from AppNotice a where a.id = :appNoticeId")
     Optional<AppNotice> findByIdForUpdate(@Param("appNoticeId") String appNoticeId);
 
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update AppNotice a
+            set a.likeCount = case
+                when a.likeCount >= :amount then a.likeCount - :amount
+                else 0
+            end
+            where a.id = :appNoticeId
+            """)
+    int decrementLikeCountAtomically(
+            @Param("appNoticeId") String appNoticeId,
+            @Param("amount") int amount
+    );
+
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
             update AppNotice a
