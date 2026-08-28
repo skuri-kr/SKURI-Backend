@@ -3,8 +3,10 @@ package com.skuri.skuri_backend.domain.notification.service;
 import com.skuri.skuri_backend.domain.academic.entity.AcademicSchedule;
 import com.skuri.skuri_backend.domain.academic.repository.AcademicScheduleRepository;
 import com.skuri.skuri_backend.domain.app.entity.AppNotice;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticeComment;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticePriority;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeRepository;
+import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentRepository;
 import com.skuri.skuri_backend.domain.board.entity.Comment;
 import com.skuri.skuri_backend.domain.board.entity.Post;
 import com.skuri.skuri_backend.domain.board.repository.CommentRepository;
@@ -62,6 +64,7 @@ public class NotificationEventHandler {
     private final NoticeRepository noticeRepository;
     private final NoticeCommentRepository noticeCommentRepository;
     private final AppNoticeRepository appNoticeRepository;
+    private final AppNoticeCommentRepository appNoticeCommentRepository;
     private final AcademicScheduleRepository academicScheduleRepository;
     private final MemberRepository memberRepository;
     private final NotificationService notificationService;
@@ -83,6 +86,7 @@ public class NotificationEventHandler {
             case NotificationDomainEvent.NoticeCommentCreated created -> handleNoticeCommentCreated(created);
             case NotificationDomainEvent.NoticeCreated created -> handleNoticeCreated(created);
             case NotificationDomainEvent.AppNoticeCreated created -> handleAppNoticeCreated(created);
+            case NotificationDomainEvent.AppNoticeCommentCreated created -> handleAppNoticeCommentCreated(created);
             case NotificationDomainEvent.AcademicScheduleReminder reminder -> handleAcademicScheduleReminder(reminder);
             case NotificationDomainEvent.FriendRequestCreated created -> handleFriendRequestCreated(created);
             case NotificationDomainEvent.FriendRequestAccepted accepted -> handleFriendRequestAccepted(accepted);
@@ -479,6 +483,61 @@ public class NotificationEventHandler {
                 true,
                 true
         ));
+    }
+
+    private void handleAppNoticeCommentCreated(NotificationDomainEvent.AppNoticeCommentCreated event) {
+        AppNoticeComment comment = appNoticeCommentRepository.findById(event.commentId()).orElse(null);
+        if (comment == null || comment.isDeleted()) {
+            return;
+        }
+
+        AppNotice appNotice = comment.getAppNotice();
+        String actorId = comment.getUserId();
+        LinkedHashSet<String> adminRecipients = new LinkedHashSet<>(
+                memberRepository.findActiveAdminIdsExcluding(actorId)
+        );
+
+        if (comment.hasParent()) {
+            String parentAuthorId = comment.getParent().getUserId();
+            if (!parentAuthorId.equals(actorId)) {
+                Member parentAuthor = findActiveMember(parentAuthorId);
+                boolean parentIsAdminRecipient = adminRecipients.contains(parentAuthorId);
+                if (parentIsAdminRecipient || isCommentNotificationAllowed(parentAuthor)) {
+                    dispatch(NotificationDispatchRequest.of(
+                            NotificationType.COMMENT_CREATED,
+                            List.of(parentAuthorId),
+                            "내 댓글에 답글이 달렸어요",
+                            formatAppNoticeCommentMessage(appNotice, comment),
+                            NotificationData.ofAppNoticeComment(appNotice.getId(), comment.getId()),
+                            true,
+                            true
+                    ));
+                    adminRecipients.remove(parentAuthorId);
+                }
+            }
+        }
+
+        dispatch(NotificationDispatchRequest.of(
+                NotificationType.COMMENT_CREATED,
+                List.copyOf(adminRecipients),
+                comment.hasParent() ? "앱 공지에 새 답글이 달렸어요" : "앱 공지에 새 댓글이 달렸어요",
+                formatAppNoticeCommentMessage(appNotice, comment),
+                NotificationData.ofAppNoticeComment(appNotice.getId(), comment.getId()),
+                true,
+                true
+        ));
+    }
+
+    private String formatAppNoticeCommentMessage(AppNotice appNotice, AppNoticeComment comment) {
+        String title = preview(appNotice.getTitle(), 50);
+        String content = preview(comment.getContent(), 70);
+        if (title.isBlank()) {
+            return content;
+        }
+        if (content.isBlank()) {
+            return title;
+        }
+        return title + " · " + content;
     }
 
     private void handleAcademicScheduleReminder(NotificationDomainEvent.AcademicScheduleReminder event) {

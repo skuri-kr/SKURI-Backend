@@ -17,6 +17,11 @@ public final class OpenApiAppExamples {
                   "priority": "NORMAL",
                   "imageUrls": ["https://cdn.skuri.app/notices/update.png"],
                   "actionUrl": "https://skuri.app/update",
+                  "actionLabel": "업데이트 안내 보기",
+                  "viewCount": 42,
+                  "likeCount": 7,
+                  "commentCount": 3,
+                  "isLiked": false,
                   "publishedAt": "2026-02-01T00:00:00",
                   "createdAt": "2026-01-31T18:00:00",
                   "updatedAt": "2026-01-31T18:00:00"
@@ -36,6 +41,11 @@ public final class OpenApiAppExamples {
                 "priority": "HIGH",
                 "imageUrls": [],
                 "actionUrl": null,
+                "actionLabel": null,
+                "viewCount": 101,
+                "likeCount": 12,
+                "commentCount": 4,
+                "isLiked": true,
                 "publishedAt": "2026-02-20T00:00:00",
                 "createdAt": "2026-02-19T12:00:00",
                 "updatedAt": "2026-02-19T12:00:00"

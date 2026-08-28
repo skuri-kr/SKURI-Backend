@@ -2,9 +2,12 @@ package com.skuri.skuri_backend.domain.app.repository;
 
 import com.skuri.skuri_backend.domain.app.entity.AppNotice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Pageable;
+import jakarta.persistence.LockModeType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,6 +30,19 @@ public interface AppNoticeRepository extends JpaRepository<AppNotice, String> {
               and a.publishedAt <= :now
             """)
     Optional<AppNotice> findPublishedById(@Param("appNoticeId") String appNoticeId, @Param("now") LocalDateTime now);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select a from AppNotice a where a.id = :appNoticeId")
+    Optional<AppNotice> findByIdForUpdate(@Param("appNoticeId") String appNoticeId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update AppNotice a
+            set a.viewCount = a.viewCount + 1
+            where a.id = :appNoticeId
+              and a.publishedAt <= :now
+            """)
+    int incrementPublishedViewCount(@Param("appNoticeId") String appNoticeId, @Param("now") LocalDateTime now);
 
     @Query("""
             select a

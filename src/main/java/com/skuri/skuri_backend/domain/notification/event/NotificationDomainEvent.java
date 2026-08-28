@@ -16,6 +16,7 @@ public sealed interface NotificationDomainEvent permits
         NotificationDomainEvent.NoticeCommentCreated,
         NotificationDomainEvent.NoticeCreated,
         NotificationDomainEvent.AppNoticeCreated,
+        NotificationDomainEvent.AppNoticeCommentCreated,
         NotificationDomainEvent.AcademicScheduleReminder,
         NotificationDomainEvent.FriendRequestCreated,
         NotificationDomainEvent.FriendRequestAccepted,
@@ -57,6 +58,9 @@ public sealed interface NotificationDomainEvent permits
     }
 
     record AppNoticeCreated(String appNoticeId) implements NotificationDomainEvent {
+    }
+
+    record AppNoticeCommentCreated(String commentId) implements NotificationDomainEvent {
     }
 
     record AcademicScheduleReminder(String academicScheduleId, ReminderTiming timing) implements NotificationDomainEvent {

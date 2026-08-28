@@ -280,6 +280,11 @@ public class AdminAuditSnapshotFactory {
                 appNotice.getPriority(),
                 List.copyOf(appNotice.getImageUrls()),
                 appNotice.getActionUrl(),
+                appNotice.getActionLabel(),
+                appNotice.getViewCount(),
+                appNotice.getLikeCount(),
+                appNotice.getCommentCount(),
+                false,
                 appNotice.getPublishedAt(),
                 appNotice.getCreatedAt(),
                 appNotice.getUpdatedAt()

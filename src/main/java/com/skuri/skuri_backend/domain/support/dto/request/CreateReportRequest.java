@@ -12,7 +12,7 @@ public record CreateReportRequest(
         @Schema(
                 description = "신고 대상 타입",
                 example = "CHAT_MESSAGE",
-                allowableValues = {"POST", "COMMENT", "NOTICE_COMMENT", "MEMBER", "CHAT_MESSAGE", "CHAT_ROOM", "TAXI_PARTY"}
+                allowableValues = {"POST", "COMMENT", "NOTICE_COMMENT", "APP_NOTICE_COMMENT", "MEMBER", "CHAT_MESSAGE", "CHAT_ROOM", "TAXI_PARTY"}
         )
         ReportTargetType targetType,
 

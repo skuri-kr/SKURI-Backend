@@ -33,7 +33,12 @@ public record CreateAppNoticeRequest(
         List<String> imageUrls,
 
         @Schema(description = "행동 URL", nullable = true, example = "https://status.skuri.app")
+        @Size(max = 500, message = "actionUrl은 500자 이하여야 합니다.")
         String actionUrl,
+
+        @Size(max = 30, message = "actionLabel은 30자 이하여야 합니다.")
+        @Schema(description = "행동 버튼 문구", nullable = true, example = "점검 현황 보기")
+        String actionLabel,
 
         @NotNull(message = "publishedAt은 필수입니다.")
         @Schema(description = "게시 시각", example = "2026-02-20T00:00:00")
