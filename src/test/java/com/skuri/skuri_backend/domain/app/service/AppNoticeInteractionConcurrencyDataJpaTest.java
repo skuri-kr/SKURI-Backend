@@ -6,8 +6,10 @@ import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.domain.app.entity.AppNotice;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticeCategory;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticeComment;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticeCommentLike;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticeLike;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticePriority;
+import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentLikeRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeLikeRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeRepository;
@@ -55,6 +57,9 @@ class AppNoticeInteractionConcurrencyDataJpaTest {
 
     @Autowired
     private AppNoticeCommentRepository appNoticeCommentRepository;
+
+    @Autowired
+    private AppNoticeCommentLikeRepository appNoticeCommentLikeRepository;
 
     @Autowired
     private AppNoticeLikeRepository appNoticeLikeRepository;
@@ -163,6 +168,30 @@ class AppNoticeInteractionConcurrencyDataJpaTest {
         assertThat(appNoticeRepository.findById(fixture.noticeId()).orElseThrow().getLikeCount()).isZero();
     }
 
+    @Test
+    void 탈퇴와관리자공지삭제가경합해도_공지잠금후댓글정리순서로완료한다() throws Exception {
+        Fixture fixture = fixtureWithNoticeAndCommentLikes("withdraw-delete-notice");
+        CountDownLatch noticeLocked = new CountDownLatch(1);
+        CountDownLatch continueWithdrawal = new CountDownLatch(1);
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<?> withdrawal = executor.submit(() -> concurrentCommands.withdrawAfterNoticeLockAndPause(
+                    fixture.memberId(), fixture.noticeId(), noticeLocked, continueWithdrawal
+            ));
+            await(noticeLocked);
+            Future<?> deletion = executor.submit(() -> appNoticeService.deleteAppNotice(fixture.noticeId()));
+
+            continueWithdrawal.countDown();
+            withdrawal.get(5, TimeUnit.SECONDS);
+            deletion.get(5, TimeUnit.SECONDS);
+        }
+
+        assertThat(appNoticeRepository.findById(fixture.noticeId())).isEmpty();
+        assertThat(appNoticeCommentRepository.findById(fixture.commentId())).isEmpty();
+        assertThat(appNoticeLikeRepository.findById_UserId(fixture.memberId())).isEmpty();
+        assertThat(appNoticeCommentLikeRepository.findById_UserId(fixture.memberId())).isEmpty();
+    }
+
     private Fixture fixture(String suffix, boolean withComment, boolean withLike) {
         String memberId = "member-" + suffix;
         Member member = Member.create(
@@ -199,6 +228,37 @@ class AppNoticeInteractionConcurrencyDataJpaTest {
         return new Fixture(memberId, notice.getId(), commentId);
     }
 
+    private Fixture fixtureWithNoticeAndCommentLikes(String suffix) {
+        String memberId = "member-" + suffix;
+        Member member = Member.create(
+                memberId,
+                memberId + "@sungkyul.ac.kr",
+                "회원",
+                LocalDateTime.now()
+        );
+        memberRepository.saveAndFlush(member);
+
+        AppNotice notice = AppNotice.create(
+                "앱 공지",
+                "내용",
+                AppNoticeCategory.GENERAL,
+                AppNoticePriority.NORMAL,
+                List.of(),
+                null,
+                LocalDateTime.now().minusMinutes(1)
+        );
+        notice.increaseCommentCount(1);
+        notice.increaseLikeCount(1);
+        notice = appNoticeRepository.saveAndFlush(notice);
+
+        AppNoticeComment comment = appNoticeCommentRepository.saveAndFlush(AppNoticeComment.create(
+                notice, "author-" + suffix, "작성자", "댓글", false, null, null, null
+        ));
+        appNoticeLikeRepository.saveAndFlush(AppNoticeLike.create(notice, memberId));
+        appNoticeCommentLikeRepository.saveAndFlush(AppNoticeCommentLike.create(comment, memberId));
+        return new Fixture(memberId, notice.getId(), comment.getId());
+    }
+
     private static void await(CountDownLatch latch) {
         try {
             assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
@@ -215,10 +275,16 @@ class AppNoticeInteractionConcurrencyDataJpaTest {
     static class ConcurrentCommands {
 
         private final MemberRepository memberRepository;
+        private final AppNoticeRepository appNoticeRepository;
         private final AppNoticeService appNoticeService;
 
-        ConcurrentCommands(MemberRepository memberRepository, AppNoticeService appNoticeService) {
+        ConcurrentCommands(
+                MemberRepository memberRepository,
+                AppNoticeRepository appNoticeRepository,
+                AppNoticeService appNoticeService
+        ) {
             this.memberRepository = memberRepository;
+            this.appNoticeRepository = appNoticeRepository;
             this.appNoticeService = appNoticeService;
         }
 
@@ -260,6 +326,21 @@ class AppNoticeInteractionConcurrencyDataJpaTest {
             Member member = memberRepository.findActiveByIdForUpdate(memberId).orElseThrow();
             member.withdraw(LocalDateTime.now());
             memberLocked.countDown();
+            await(continueWithdrawal);
+            appNoticeService.handleMemberWithdrawal(memberId);
+        }
+
+        @Transactional
+        public void withdrawAfterNoticeLockAndPause(
+                String memberId,
+                String noticeId,
+                CountDownLatch noticeLocked,
+                CountDownLatch continueWithdrawal
+        ) {
+            Member member = memberRepository.findActiveByIdForUpdate(memberId).orElseThrow();
+            member.withdraw(LocalDateTime.now());
+            appNoticeRepository.findByIdForUpdate(noticeId).orElseThrow();
+            noticeLocked.countDown();
             await(continueWithdrawal);
             appNoticeService.handleMemberWithdrawal(memberId);
         }

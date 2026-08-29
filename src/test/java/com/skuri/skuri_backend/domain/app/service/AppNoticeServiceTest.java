@@ -2,6 +2,7 @@ package com.skuri.skuri_backend.domain.app.service;
 
 import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher;
 import com.skuri.skuri_backend.common.exception.BusinessException;
+import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.app.dto.request.CreateAppNoticeRequest;
 import com.skuri.skuri_backend.domain.app.dto.request.UpdateAppNoticeRequest;
 import com.skuri.skuri_backend.domain.app.dto.response.AppNoticeResponse;
@@ -24,6 +25,7 @@ import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.notice.dto.request.CreateNoticeCommentRequest;
 import com.skuri.skuri_backend.domain.notice.dto.request.UpdateNoticeCommentRequest;
 import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -49,6 +51,9 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AppNoticeServiceTest {
+
+    @Mock
+    private EntityManager entityManager;
 
     @Mock
     private AppNoticeRepository appNoticeRepository;
@@ -197,7 +202,8 @@ class AppNoticeServiceTest {
         appNoticeService.deleteAppNotice("app-notice-1");
 
         verify(appNoticeReadStatusRepository).deleteById_AppNoticeId("app-notice-1");
-        verify(appNoticeRepository).delete(appNotice);
+        verify(entityManager).clear();
+        verify(appNoticeRepository).deleteById("app-notice-1");
     }
 
     @Test
@@ -251,13 +257,41 @@ class AppNoticeServiceTest {
         when(appNoticeCommentRepository.findByUserId("member-1")).thenReturn(List.of());
         when(appNoticeCommentLikeRepository.findById_UserId("member-1")).thenReturn(List.of(commentLike));
         when(appNoticeLikeRepository.findById_UserId("member-1")).thenReturn(List.of(noticeLike));
+        when(appNoticeRepository.findByIdForUpdate("app-notice-1")).thenReturn(Optional.of(appNotice));
 
         appNoticeService.handleMemberWithdrawal("member-1");
 
+        var order = inOrder(appNoticeRepository, appNoticeCommentRepository);
+        order.verify(appNoticeRepository).findByIdForUpdate("app-notice-1");
+        order.verify(appNoticeCommentRepository).decrementLikeCountAtomically("app-comment-1", 1);
         verify(appNoticeCommentRepository).decrementLikeCountAtomically("app-comment-1", 1);
         verify(appNoticeRepository).decrementLikeCountAtomically("app-notice-1", 1);
         verify(appNoticeCommentLikeRepository).deleteAllInBatch(List.of(commentLike));
         verify(appNoticeLikeRepository).deleteAllInBatch(List.of(noticeLike));
+    }
+
+    @Test
+    void updateComment_비공개앱공지의기존댓글수정을거부한다() {
+        assertFuturePublishedCommentWriteRejected(() ->
+                appNoticeService.updateComment("member-1", "app-comment-1", new UpdateNoticeCommentRequest("수정 댓글")));
+    }
+
+    @Test
+    void deleteComment_비공개앱공지의기존댓글삭제를거부한다() {
+        assertFuturePublishedCommentWriteRejected(() ->
+                appNoticeService.deleteComment("member-1", "app-comment-1"));
+    }
+
+    @Test
+    void likeComment_비공개앱공지의기존댓글좋아요를거부한다() {
+        assertFuturePublishedCommentWriteRejected(() ->
+                appNoticeService.likeComment("member-1", "app-comment-1"));
+    }
+
+    @Test
+    void unlikeComment_비공개앱공지의기존댓글좋아요취소를거부한다() {
+        assertFuturePublishedCommentWriteRejected(() ->
+                appNoticeService.unlikeComment("member-1", "app-comment-1"));
     }
 
     @Test
@@ -327,6 +361,25 @@ class AppNoticeServiceTest {
                 .thenReturn(Optional.of("app-notice-1"));
         when(appNoticeRepository.findByIdForUpdate("app-notice-1")).thenReturn(Optional.of(appNotice));
         when(appNoticeCommentRepository.findByIdForUpdate("app-comment-1")).thenReturn(Optional.of(comment));
+    }
+
+    private void assertFuturePublishedCommentWriteRejected(CommentMutation mutation) {
+        AppNotice futureNotice = appNotice("app-notice-1");
+        futureNotice.update(null, null, null, null, null, LocalDateTime.now().plusMinutes(1));
+        when(memberRepository.findActiveByIdForUpdate("member-1")).thenReturn(Optional.of(member("member-1")));
+        when(appNoticeCommentRepository.findAppNoticeIdById("app-comment-1"))
+                .thenReturn(Optional.of("app-notice-1"));
+        when(appNoticeRepository.findByIdForUpdate("app-notice-1")).thenReturn(Optional.of(futureNotice));
+
+        BusinessException exception = assertThrows(BusinessException.class, mutation::run);
+
+        assertEquals(ErrorCode.APP_NOTICE_NOT_FOUND, exception.getErrorCode());
+        verify(appNoticeCommentRepository, never()).findByIdForUpdate("app-comment-1");
+    }
+
+    @FunctionalInterface
+    private interface CommentMutation {
+        void run();
     }
 
     private AppNoticeComment comment(AppNotice appNotice, String memberId, String commentId) {
