@@ -18,10 +18,16 @@ import com.skuri.skuri_backend.domain.app.repository.AppNoticeRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.MemberWithdrawalSanitizer;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.stereotype.Service;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -35,6 +41,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -47,7 +54,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         JpaAuditingConfig.class,
         AfterCommitApplicationEventPublisher.class,
         AppNoticeService.class,
-        AppNoticeInteractionConcurrencyDataJpaTest.ConcurrentCommands.class
+        AppNoticeInteractionConcurrencyDataJpaTest.ConcurrentCommands.class,
+        AppNoticeInteractionConcurrencyDataJpaTest.AppNoticeRepositoryLockAspectConfiguration.class
 })
 class AppNoticeInteractionConcurrencyDataJpaTest {
 
@@ -74,6 +82,9 @@ class AppNoticeInteractionConcurrencyDataJpaTest {
 
     @Autowired
     private ConcurrentCommands concurrentCommands;
+
+    @Autowired
+    private AppNoticeRepositoryLockBarrier appNoticeRepositoryLockBarrier;
 
     @Test
     void 댓글삭제가먼저회원잠금을잡으면_탈퇴는삭제상태를보존해익명화한다() throws Exception {
@@ -198,6 +209,39 @@ class AppNoticeInteractionConcurrencyDataJpaTest {
     }
 
     @Test
+    void 관리자공지삭제가먼저공지잠금을잡으면_탈퇴는이미삭제된연관데이터를건너뛴다() throws Exception {
+        Fixture fixture = fixtureWithNoticeAndCommentLikes("delete-before-withdrawal-lock");
+        CountDownLatch noticeLocked = new CountDownLatch(1);
+        CountDownLatch continueDeletion = new CountDownLatch(1);
+        CountDownLatch withdrawalLockAttempted = new CountDownLatch(1);
+        CountDownLatch continueWithdrawalLock = new CountDownLatch(1);
+
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            Future<?> deletion = executor.submit(() -> concurrentCommands.deleteAppNoticeAfterLockAndPause(
+                    fixture.noticeId(), noticeLocked, continueDeletion
+            ));
+            await(noticeLocked);
+
+            appNoticeRepositoryLockBarrier.delayNextLock(
+                    fixture.noticeId(), withdrawalLockAttempted, continueWithdrawalLock
+            );
+            Future<?> withdrawal = executor.submit(() -> concurrentCommands.withdraw(fixture.memberId()));
+            await(withdrawalLockAttempted);
+
+            continueDeletion.countDown();
+            deletion.get(5, TimeUnit.SECONDS);
+            continueWithdrawalLock.countDown();
+            withdrawal.get(5, TimeUnit.SECONDS);
+        }
+
+        assertThat(memberRepository.findById(fixture.memberId()).orElseThrow().isWithdrawn()).isTrue();
+        assertThat(appNoticeRepository.findById(fixture.noticeId())).isEmpty();
+        assertThat(appNoticeCommentRepository.findById(fixture.commentId())).isEmpty();
+        assertThat(appNoticeLikeRepository.findById_UserId(fixture.memberId())).isEmpty();
+        assertThat(appNoticeCommentLikeRepository.findById_UserId(fixture.memberId())).isEmpty();
+    }
+
+    @Test
     void 공지삭제는읽음상태를먼저DB에서제거한다() {
         Fixture fixture = fixture("delete-read-status", false, false);
         AppNotice notice = appNoticeRepository.findById(fixture.noticeId()).orElseThrow();
@@ -294,6 +338,61 @@ class AppNoticeInteractionConcurrencyDataJpaTest {
     private record Fixture(String memberId, String noticeId, String commentId) {
     }
 
+    @TestConfiguration(proxyBeanMethods = false)
+    @EnableAspectJAutoProxy
+    static class AppNoticeRepositoryLockAspectConfiguration {
+
+        @Bean
+        AppNoticeRepositoryLockBarrier appNoticeRepositoryLockBarrier() {
+            return new AppNoticeRepositoryLockBarrier();
+        }
+
+        @Bean
+        AppNoticeRepositoryLockAspect appNoticeRepositoryLockAspect(
+                AppNoticeRepositoryLockBarrier appNoticeRepositoryLockBarrier
+        ) {
+            return new AppNoticeRepositoryLockAspect(appNoticeRepositoryLockBarrier);
+        }
+    }
+
+    @Aspect
+    static class AppNoticeRepositoryLockAspect {
+
+        private final AppNoticeRepositoryLockBarrier barrier;
+
+        AppNoticeRepositoryLockAspect(AppNoticeRepositoryLockBarrier barrier) {
+            this.barrier = barrier;
+        }
+
+        @Around("execution(* com.skuri.skuri_backend.domain.app.repository.AppNoticeRepository.findByIdForUpdate(..)) && args(appNoticeId)")
+        Object lock(ProceedingJoinPoint joinPoint, String appNoticeId) throws Throwable {
+            barrier.awaitIfDelayed(appNoticeId);
+            return joinPoint.proceed();
+        }
+    }
+
+    static class AppNoticeRepositoryLockBarrier {
+
+        private final AtomicBoolean armed = new AtomicBoolean(false);
+        private volatile String appNoticeId;
+        private volatile CountDownLatch attempted;
+        private volatile CountDownLatch proceed;
+
+        void delayNextLock(String appNoticeId, CountDownLatch attempted, CountDownLatch proceed) {
+            this.appNoticeId = appNoticeId;
+            this.attempted = attempted;
+            this.proceed = proceed;
+            armed.set(true);
+        }
+
+        void awaitIfDelayed(String requestedAppNoticeId) {
+            if (requestedAppNoticeId.equals(appNoticeId) && armed.compareAndSet(true, false)) {
+                attempted.countDown();
+                await(proceed);
+            }
+        }
+    }
+
     @Service
     static class ConcurrentCommands {
 
@@ -366,6 +465,18 @@ class AppNoticeInteractionConcurrencyDataJpaTest {
             noticeLocked.countDown();
             await(continueWithdrawal);
             appNoticeService.handleMemberWithdrawal(memberId);
+        }
+
+        @Transactional
+        public void deleteAppNoticeAfterLockAndPause(
+                String noticeId,
+                CountDownLatch noticeLocked,
+                CountDownLatch continueDeletion
+        ) {
+            appNoticeRepository.findByIdForUpdate(noticeId).orElseThrow();
+            noticeLocked.countDown();
+            await(continueDeletion);
+            appNoticeService.deleteAppNotice(noticeId);
         }
 
         private void lockMemberAndPause(
