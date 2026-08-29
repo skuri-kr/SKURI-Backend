@@ -27,7 +27,7 @@ public record UpdateAppNoticeRequest(
         List<String> imageUrls,
 
         @Size(max = 500, message = "actionUrl은 500자 이하여야 합니다.")
-        @Schema(description = "행동 URL. 빈 문자열을 전달하면 URL과 버튼 문구를 제거합니다.", nullable = true, example = "https://status.skuri.app")
+        @Schema(description = "행동 URL. 유효한 HTTPS URL만 허용합니다. 빈 문자열을 전달하면 URL과 버튼 문구를 제거합니다.", nullable = true, example = "https://status.skuri.app")
         String actionUrl,
 
         @Size(max = 30, message = "actionLabel은 30자 이하여야 합니다.")

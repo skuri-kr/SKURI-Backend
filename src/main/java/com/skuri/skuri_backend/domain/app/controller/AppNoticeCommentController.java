@@ -9,6 +9,7 @@ import com.skuri.skuri_backend.infra.auth.firebase.AuthenticatedMember;
 import com.skuri.skuri_backend.infra.openapi.OpenApiAppExamples;
 import com.skuri.skuri_backend.infra.openapi.OpenApiCommonExamples;
 import com.skuri.skuri_backend.infra.openapi.OpenApiConfig;
+import com.skuri.skuri_backend.infra.openapi.OpenApiMemberExamples;
 import com.skuri.skuri_backend.infra.openapi.OpenApiNoticeSchemas;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -46,7 +47,11 @@ public class AppNoticeCommentController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "수정 성공", content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiNoticeSchemas.NoticeCommentApiResponse.class), examples = @ExampleObject(name = "default", value = OpenApiAppExamples.SUCCESS_APP_NOTICE_COMMENT_UPDATE))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "default", value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "작성자 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "not_app_notice_comment_author", value = OpenApiAppExamples.ERROR_NOT_APP_NOTICE_COMMENT_AUTHOR))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "접근 제한 또는 작성자 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                    @ExampleObject(name = "email_domain_restricted", value = OpenApiCommonExamples.ERROR_EMAIL_DOMAIN_RESTRICTED),
+                    @ExampleObject(name = "member_withdrawn", value = OpenApiMemberExamples.ERROR_MEMBER_WITHDRAWN),
+                    @ExampleObject(name = "not_app_notice_comment_author", value = OpenApiAppExamples.ERROR_NOT_APP_NOTICE_COMMENT_AUTHOR)
+            })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "앱 공지 또는 댓글 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
                     @ExampleObject(name = "app_notice_not_found", value = OpenApiAppExamples.ERROR_APP_NOTICE_NOT_FOUND),
                     @ExampleObject(name = "app_notice_comment_not_found", value = OpenApiAppExamples.ERROR_APP_NOTICE_COMMENT_NOT_FOUND)
@@ -69,7 +74,11 @@ public class AppNoticeCommentController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "삭제 성공", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "default", value = OpenApiCommonExamples.SUCCESS_NULL))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "default", value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "작성자 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "not_app_notice_comment_author", value = OpenApiAppExamples.ERROR_NOT_APP_NOTICE_COMMENT_AUTHOR))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "접근 제한 또는 작성자 아님", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                    @ExampleObject(name = "email_domain_restricted", value = OpenApiCommonExamples.ERROR_EMAIL_DOMAIN_RESTRICTED),
+                    @ExampleObject(name = "member_withdrawn", value = OpenApiMemberExamples.ERROR_MEMBER_WITHDRAWN),
+                    @ExampleObject(name = "not_app_notice_comment_author", value = OpenApiAppExamples.ERROR_NOT_APP_NOTICE_COMMENT_AUTHOR)
+            })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "앱 공지 또는 댓글 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
                     @ExampleObject(name = "app_notice_not_found", value = OpenApiAppExamples.ERROR_APP_NOTICE_NOT_FOUND),
                     @ExampleObject(name = "app_notice_comment_not_found", value = OpenApiAppExamples.ERROR_APP_NOTICE_COMMENT_NOT_FOUND)
@@ -89,6 +98,10 @@ public class AppNoticeCommentController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "좋아요 성공", content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiNoticeSchemas.NoticeCommentLikeApiResponse.class), examples = @ExampleObject(name = "default", value = OpenApiAppExamples.SUCCESS_APP_NOTICE_COMMENT_LIKE))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "default", value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "접근 제한", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                    @ExampleObject(name = "email_domain_restricted", value = OpenApiCommonExamples.ERROR_EMAIL_DOMAIN_RESTRICTED),
+                    @ExampleObject(name = "member_withdrawn", value = OpenApiMemberExamples.ERROR_MEMBER_WITHDRAWN)
+            })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "앱 공지 또는 댓글 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
                     @ExampleObject(name = "app_notice_not_found", value = OpenApiAppExamples.ERROR_APP_NOTICE_NOT_FOUND),
                     @ExampleObject(name = "app_notice_comment_not_found", value = OpenApiAppExamples.ERROR_APP_NOTICE_COMMENT_NOT_FOUND)
@@ -109,6 +122,10 @@ public class AppNoticeCommentController {
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "좋아요 취소 성공", content = @Content(mediaType = "application/json", schema = @Schema(implementation = OpenApiNoticeSchemas.NoticeCommentLikeApiResponse.class), examples = @ExampleObject(name = "default", value = OpenApiAppExamples.SUCCESS_APP_NOTICE_COMMENT_UNLIKE))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = @ExampleObject(name = "default", value = OpenApiCommonExamples.ERROR_UNAUTHORIZED))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "접근 제한", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
+                    @ExampleObject(name = "email_domain_restricted", value = OpenApiCommonExamples.ERROR_EMAIL_DOMAIN_RESTRICTED),
+                    @ExampleObject(name = "member_withdrawn", value = OpenApiMemberExamples.ERROR_MEMBER_WITHDRAWN)
+            })),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "앱 공지 또는 댓글 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ApiResponse.class), examples = {
                     @ExampleObject(name = "app_notice_not_found", value = OpenApiAppExamples.ERROR_APP_NOTICE_NOT_FOUND),
                     @ExampleObject(name = "app_notice_comment_not_found", value = OpenApiAppExamples.ERROR_APP_NOTICE_COMMENT_NOT_FOUND)

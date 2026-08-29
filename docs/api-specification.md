@@ -2970,6 +2970,7 @@ Authorization:Bearer <firebase_id_token>
 | `DELETE` | `/v1/app-notice-comments/{commentId}/like` | 댓글 좋아요 취소 |
 
 - 위 상호작용 API는 `publishedAt <= now()`인 앱 공지만 허용한다. 미래 게시 시각으로 전환된 공지의 기존 댓글 ID를 사용한 수정·삭제·좋아요도 `404 APP_NOTICE_NOT_FOUND`를 반환한다.
+- 위 상호작용 API는 인증이 필요하다. 허용 이메일 도메인이 아닌 토큰은 `403 EMAIL_DOMAIN_RESTRICTED`, 탈퇴 회원 토큰은 `403 MEMBER_WITHDRAWN`을 반환한다. 댓글 수정·삭제는 이와 별도로 작성자가 아니면 `403 NOT_APP_NOTICE_COMMENT_AUTHOR`를 반환한다.
 - 앱 공지 댓글 작성 시 작성자를 제외한 모든 활성 운영자(`members.is_admin = true`)에게 알림 설정과 무관하게 `COMMENT_CREATED` 인앱·푸시 알림을 생성한다.
 - 답글이면 부모 댓글 작성자에게도 기존 댓글 알림 설정을 적용한다. 부모 작성자가 운영자 대상에도 포함되면 답글 알림 하나만 보내 중복을 제거한다.
 - 알림 data는 `appNoticeId`, `commentId`를 포함한다.
