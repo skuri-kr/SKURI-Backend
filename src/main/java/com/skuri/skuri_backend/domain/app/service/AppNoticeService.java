@@ -31,6 +31,7 @@ import com.skuri.skuri_backend.domain.notice.dto.response.NoticeCommentLikeRespo
 import com.skuri.skuri_backend.domain.notice.dto.response.NoticeCommentResponse;
 import com.skuri.skuri_backend.domain.notice.dto.response.NoticeLikeResponse;
 import com.skuri.skuri_backend.domain.notification.event.NotificationDomainEvent;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -47,12 +48,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AppNoticeService {
 
+    private final EntityManager entityManager;
     private final AppNoticeRepository appNoticeRepository;
     private final AppNoticeReadStatusRepository appNoticeReadStatusRepository;
     private final AppNoticeLikeRepository appNoticeLikeRepository;
@@ -228,7 +231,7 @@ public class AppNoticeService {
 
     @Transactional
     public void deleteAppNotice(String appNoticeId) {
-        AppNotice appNotice = findAppNoticeForUpdateOrThrow(appNoticeId);
+        findAppNoticeForUpdateOrThrow(appNoticeId);
         List<AppNoticeComment> comments = appNoticeCommentRepository.findByAppNoticeIdOrderByCreatedAtAsc(appNoticeId);
         List<AppNoticeCommentLike> commentLikes = appNoticeCommentLikeRepository.findByAppNoticeId(appNoticeId);
         if (!commentLikes.isEmpty()) {
@@ -244,13 +247,18 @@ public class AppNoticeService {
             appNoticeLikeRepository.deleteAllInBatch(likes);
         }
         appNoticeReadStatusRepository.deleteById_AppNoticeId(appNoticeId);
-        appNoticeRepository.delete(appNotice);
+        entityManager.clear();
+        appNoticeRepository.deleteById(appNoticeId);
     }
 
     @Transactional
     public void handleMemberWithdrawal(String memberId) {
-        appNoticeCommentRepository.findByUserId(memberId).forEach(AppNoticeComment::anonymizeAuthor);
+        List<AppNoticeComment> authoredComments = appNoticeCommentRepository.findByUserId(memberId);
         List<AppNoticeCommentLike> commentLikes = appNoticeCommentLikeRepository.findById_UserId(memberId);
+        List<AppNoticeLike> likes = appNoticeLikeRepository.findById_UserId(memberId);
+        lockAffectedAppNotices(authoredComments, commentLikes, likes);
+
+        authoredComments.forEach(AppNoticeComment::anonymizeAuthor);
         if (!commentLikes.isEmpty()) {
             Map<String, Integer> counts = new LinkedHashMap<>();
             commentLikes.forEach(like -> counts.merge(like.getId().getCommentId(), 1, Integer::sum));
@@ -260,7 +268,6 @@ public class AppNoticeService {
                             entry.getKey(), entry.getValue()));
             appNoticeCommentLikeRepository.deleteAllInBatch(commentLikes);
         }
-        List<AppNoticeLike> likes = appNoticeLikeRepository.findById_UserId(memberId);
         if (!likes.isEmpty()) {
             Map<String, Integer> counts = new LinkedHashMap<>();
             likes.forEach(like -> counts.merge(like.getId().getAppNoticeId(), 1, Integer::sum));
@@ -435,11 +442,23 @@ public class AppNoticeService {
     private AppNoticeComment findCommentForAggregateWriteOrThrow(String commentId) {
         String appNoticeId = appNoticeCommentRepository.findAppNoticeIdById(commentId)
                 .orElseThrow(AppNoticeCommentNotFoundException::new);
-        findAppNoticeForUpdateOrThrow(appNoticeId);
+        findPublishedNoticeForUpdateOrThrow(appNoticeId);
         AppNoticeComment comment = appNoticeCommentRepository.findByIdForUpdate(commentId)
                 .orElseThrow(AppNoticeCommentNotFoundException::new);
         if (comment.isDeleted()) throw new BusinessException(ErrorCode.COMMENT_ALREADY_DELETED);
         return comment;
+    }
+
+    private void lockAffectedAppNotices(
+            List<AppNoticeComment> authoredComments,
+            List<AppNoticeCommentLike> commentLikes,
+            List<AppNoticeLike> likes
+    ) {
+        Set<String> appNoticeIds = new TreeSet<>();
+        authoredComments.forEach(comment -> appNoticeIds.add(comment.getAppNotice().getId()));
+        commentLikes.forEach(like -> appNoticeIds.add(like.getComment().getAppNotice().getId()));
+        likes.forEach(like -> appNoticeIds.add(like.getId().getAppNoticeId()));
+        appNoticeIds.forEach(appNoticeId -> appNoticeRepository.findByIdForUpdate(appNoticeId));
     }
 
     private AppNotice findPublishedNoticeOrThrow(String appNoticeId) {
