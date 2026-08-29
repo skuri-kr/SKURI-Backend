@@ -9,9 +9,11 @@ import com.skuri.skuri_backend.domain.app.entity.AppNoticeComment;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticeCommentLike;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticeLike;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticePriority;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticeReadStatus;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentLikeRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeLikeRepository;
+import com.skuri.skuri_backend.domain.app.repository.AppNoticeReadStatusRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeRepository;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.MemberWithdrawalSanitizer;
@@ -63,6 +65,9 @@ class AppNoticeInteractionConcurrencyDataJpaTest {
 
     @Autowired
     private AppNoticeLikeRepository appNoticeLikeRepository;
+
+    @Autowired
+    private AppNoticeReadStatusRepository appNoticeReadStatusRepository;
 
     @Autowired
     private AppNoticeService appNoticeService;
@@ -190,6 +195,24 @@ class AppNoticeInteractionConcurrencyDataJpaTest {
         assertThat(appNoticeCommentRepository.findById(fixture.commentId())).isEmpty();
         assertThat(appNoticeLikeRepository.findById_UserId(fixture.memberId())).isEmpty();
         assertThat(appNoticeCommentLikeRepository.findById_UserId(fixture.memberId())).isEmpty();
+    }
+
+    @Test
+    void 공지삭제는읽음상태를먼저DB에서제거한다() {
+        Fixture fixture = fixture("delete-read-status", false, false);
+        AppNotice notice = appNoticeRepository.findById(fixture.noticeId()).orElseThrow();
+        appNoticeReadStatusRepository.saveAndFlush(AppNoticeReadStatus.create(
+                notice,
+                fixture.memberId(),
+                LocalDateTime.now()
+        ));
+
+        appNoticeService.deleteAppNotice(fixture.noticeId());
+
+        assertThat(appNoticeRepository.findById(fixture.noticeId())).isEmpty();
+        assertThat(appNoticeReadStatusRepository.findById_UserIdAndId_AppNoticeId(
+                fixture.memberId(), fixture.noticeId()
+        )).isEmpty();
     }
 
     private Fixture fixture(String suffix, boolean withComment, boolean withLike) {

@@ -116,6 +116,19 @@ class AppNoticeServiceTest {
     }
 
     @Test
+    void createAppNotice_URL없는버튼문구는거부한다() {
+        CreateAppNoticeRequest request = new CreateAppNoticeRequest(
+                "제목", "본문", AppNoticeCategory.GENERAL, AppNoticePriority.NORMAL,
+                List.of(), null, "자세히 보기", LocalDateTime.now()
+        );
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> appNoticeService.createAppNotice(request));
+
+        assertEquals(ErrorCode.VALIDATION_ERROR, exception.getErrorCode());
+        assertEquals("actionLabel은 actionUrl과 함께 사용할 수 있습니다.", exception.getMessage());
+    }
+
+    @Test
     void createComment_댓글수를증가시키고알림이벤트를발행한다() {
         AppNotice appNotice = appNotice("app-notice-1");
         Member member = Member.create("member-1", "member-1@sungkyul.ac.kr", "회원", LocalDateTime.now());
