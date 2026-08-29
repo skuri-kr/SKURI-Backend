@@ -144,6 +144,45 @@ class BoardNoticeOpenApiSchemaIntegrationTest {
     }
 
     @Test
+    void app_notice_update_OpenAPI가_액션URL_HTTPS제약을노출한다() throws Exception {
+        JsonNode root = apiDocs();
+        JsonNode requestSchema = resolveSchema(
+                root,
+                root.path("paths")
+                        .path("/v1/admin/app-notices/{appNoticeId}")
+                        .path("patch")
+                        .path("requestBody")
+                        .path("content")
+                        .path("application/json")
+                        .path("schema")
+        );
+
+        assertTrue(requestSchema.path("properties").path("actionUrl").path("description").asText().contains("HTTPS"));
+    }
+
+    @Test
+    void app_notice_interaction_OpenAPI가_인증필터_403응답을노출한다() throws Exception {
+        JsonNode root = apiDocs();
+
+        assertForbiddenExamples(root, "/v1/app-notices/{appNoticeId}/comments", "get",
+                "email_domain_restricted", "member_withdrawn");
+        assertForbiddenExamples(root, "/v1/app-notices/{appNoticeId}/comments", "post",
+                "email_domain_restricted", "member_withdrawn");
+        assertForbiddenExamples(root, "/v1/app-notices/{appNoticeId}/like", "post",
+                "email_domain_restricted", "member_withdrawn");
+        assertForbiddenExamples(root, "/v1/app-notices/{appNoticeId}/like", "delete",
+                "email_domain_restricted", "member_withdrawn");
+        assertForbiddenExamples(root, "/v1/app-notice-comments/{commentId}", "patch",
+                "email_domain_restricted", "member_withdrawn", "not_app_notice_comment_author");
+        assertForbiddenExamples(root, "/v1/app-notice-comments/{commentId}", "delete",
+                "email_domain_restricted", "member_withdrawn", "not_app_notice_comment_author");
+        assertForbiddenExamples(root, "/v1/app-notice-comments/{commentId}/like", "post",
+                "email_domain_restricted", "member_withdrawn");
+        assertForbiddenExamples(root, "/v1/app-notice-comments/{commentId}/like", "delete",
+                "email_domain_restricted", "member_withdrawn");
+    }
+
+    @Test
     void app_notice_admin_update_OpenAPI_예시는_isLiked_false를노출한다() throws Exception {
         JsonNode example = apiDocs()
                 .path("paths")
@@ -188,6 +227,19 @@ class BoardNoticeOpenApiSchemaIntegrationTest {
                 .path("application/json")
                 .path("schema");
         return resolveSchema(root, schema);
+    }
+
+    private void assertForbiddenExamples(JsonNode root, String path, String method, String... expectedNames) {
+        JsonNode response = root.path("paths")
+                .path(path)
+                .path(method)
+                .path("responses")
+                .path("403");
+
+        assertTrue(response.isObject());
+        for (String expectedName : expectedNames) {
+            assertTrue(response.toString().contains(expectedName));
+        }
     }
 
     private JsonNode resolveSchema(JsonNode root, JsonNode schemaNode) {
