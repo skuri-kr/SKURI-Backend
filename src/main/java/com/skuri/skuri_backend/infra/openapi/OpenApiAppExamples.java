@@ -136,4 +136,10 @@ public final class OpenApiAppExamples {
 
     public static final String ERROR_APP_NOTICE_COMMENT_ALREADY_DELETED =
             "{\"success\":false,\"message\":\"이미 삭제된 댓글입니다.\",\"errorCode\":\"COMMENT_ALREADY_DELETED\",\"timestamp\":\"2026-03-06T12:00:00\"}";
+
+    public static final String ERROR_VALIDATION_APP_NOTICE_ACTION_LABEL_REQUIRES_URL =
+            "{\"success\":false,\"message\":\"actionLabel은 actionUrl과 함께 사용할 수 있습니다.\",\"errorCode\":\"VALIDATION_ERROR\",\"timestamp\":\"2026-03-06T12:00:00\"}";
+
+    public static final String ERROR_VALIDATION_APP_NOTICE_ACTION_URL_HTTPS =
+            "{\"success\":false,\"message\":\"actionUrl은 유효한 HTTPS URL이어야 합니다.\",\"errorCode\":\"VALIDATION_ERROR\",\"timestamp\":\"2026-03-06T12:00:00\"}";
 }
