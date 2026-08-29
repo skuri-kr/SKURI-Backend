@@ -19,6 +19,16 @@ public interface MemberRepository extends JpaRepository<Member, String>, MemberR
 
     long countByIsAdminTrue();
 
+    @Query("""
+            select m.id
+            from Member m
+            where m.isAdmin = true
+              and m.status = com.skuri.skuri_backend.domain.member.entity.MemberStatus.ACTIVE
+              and m.id <> :excludedId
+            order by m.id asc
+            """)
+    List<String> findActiveAdminIdsExcluding(@Param("excludedId") String excludedId);
+
     long countByJoinedAtGreaterThanEqualAndJoinedAtLessThan(
             LocalDateTime start,
             LocalDateTime endExclusive

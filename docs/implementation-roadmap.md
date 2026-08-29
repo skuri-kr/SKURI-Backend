@@ -194,7 +194,7 @@ com.skuri.skuri_backend
 | 1 | Firebase 초기화 | `infra/auth/config/FirebaseConfig.java` | Firebase Admin SDK 초기화 (`@Bean FirebaseApp`) |
 | 2 | Token 검증 | `infra/auth/firebase/FirebaseTokenVerifier.java` | `FirebaseAuth.verifyIdToken()` 래핑 |
 | 3 | 인증 필터 | `infra/auth/firebase/FirebaseAuthenticationFilter.java` | `OncePerRequestFilter` — ID Token 추출, 검증, SecurityContext 설정 |
-| 4 | Security 설정 | `infra/auth/config/SecurityConfig.java` | 필터 체인 (`/v1/app-versions/**`, `/v1/app-notices/**`, `/v1/legal-documents/**` permitAll, 나머지 인증 필수) |
+| 4 | Security 설정 | `infra/auth/config/SecurityConfig.java` | 필터 체인 (`GET /v1/app-versions/**`, `GET /v1/app-notices`, `GET /v1/app-notices/{id}`, `/v1/legal-documents/**` permitAll, 앱 공지 상호작용 등 나머지 인증 필수) |
 | 5 | OpenAPI 설정 | `infra/openapi/OpenApiConfig.java` | 전역 API 메타데이터, Bearer 보안 스키마, GroupedOpenApi 설정 |
 | 6 | Emulator 가드 | `infra/auth/config/FirebaseAuthEnvironmentGuard.java` | `local-emulator` 전용 허용 + emulator host 오염 차단 |
 
@@ -493,6 +493,9 @@ SSE 운영 제약:
 | `NoticeBookmark` | `notice_bookmarks` | 공지 북마크 |
 | `AppNotice` | `app_notices` | 앱 운영 공지 |
 | `AppNoticeReadStatus` | `app_notice_read_status` | 앱 공지 읽음 상태 |
+| `AppNoticeLike` | `app_notice_likes` | 앱 공지 좋아요 |
+| `AppNoticeComment` | `app_notice_comments` | 앱 공지 댓글/답글 |
+| `AppNoticeCommentLike` | `app_notice_comment_likes` | 앱 공지 댓글 좋아요 |
 
 #### 5-2. 핵심 구현
 
@@ -530,6 +533,10 @@ SSE 운영 제약:
 | `GET` | `/v1/members/me/notice-bookmarks` | 내가 북마크한 공지 목록 |
 | `GET` | `/v1/app-notices` | 앱 공지 목록 (**Public**) |
 | `GET` | `/v1/app-notices/{id}` | 앱 공지 상세 |
+| `POST/DELETE` | `/v1/app-notices/{id}/like` | 앱 공지 좋아요 등록/취소 |
+| `GET/POST` | `/v1/app-notices/{id}/comments` | 앱 공지 댓글 목록/작성 |
+| `PATCH/DELETE` | `/v1/app-notice-comments/{id}` | 앱 공지 댓글 수정/삭제 |
+| `POST/DELETE` | `/v1/app-notice-comments/{id}/like` | 앱 공지 댓글 좋아요 등록/취소 |
 | `GET` | `/v1/members/me/app-notices/unread-count` | 미읽음 앱 공지 수 |
 | `POST` | `/v1/members/me/app-notices/{appNoticeId}/read` | 앱 공지 읽음 처리 |
 | `POST` | `/v1/admin/app-notices` | 앱 공지 생성 (관리자) |
@@ -671,10 +678,11 @@ SSE 운영 제약:
 | `CafeteriaMenu` | `cafeteria_menus` | 학식 메뉴 |
 
 `Report` 기준 enum:
-- `targetType`: `POST`, `COMMENT`, `NOTICE_COMMENT`, `MEMBER`, `CHAT_MESSAGE`, `CHAT_ROOM`, `TAXI_PARTY`
+- `targetType`: `POST`, `COMMENT`, `NOTICE_COMMENT`, `APP_NOTICE_COMMENT`, `MEMBER`, `CHAT_MESSAGE`, `CHAT_ROOM`, `TAXI_PARTY`
 - `status`: `PENDING`, `REVIEWING`, `ACTIONED`, `REJECTED`
 - duplicate policy: `reporterId + targetType + targetId` 전 상태 기준 재신고 금지
 - `NOTICE_COMMENT.targetAuthorId = noticeComment.userId`, 삭제 댓글은 `NOTICE_COMMENT_NOT_FOUND`
+- `APP_NOTICE_COMMENT.targetAuthorId = appNoticeComment.userId`, 삭제 댓글은 `APP_NOTICE_COMMENT_NOT_FOUND`
 - `CHAT_MESSAGE.targetAuthorId = message.senderId`
 - `CHAT_MESSAGE` 신고는 삭제/수정 전 운영 검토를 위해 접수 시점 `targetSnapshot` JSON 증거를 보존한다.
 - `CHAT_ROOM.targetAuthorId = chatRoom.createdBy` (seed/public 방처럼 creator가 없으면 `null` 허용, `PARTY` 타입 방은 제외)

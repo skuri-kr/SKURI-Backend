@@ -60,7 +60,8 @@ public class SecurityConfig {
                     authorize.requestMatchers(
                             HttpMethod.GET,
                             "/v1/app-versions/**",
-                            "/v1/app-notices/**",
+                            "/v1/app-notices",
+                            "/v1/app-notices/*",
                             "/v1/legal-documents/**",
                             "/v1/campus-banners/**",
                             "/v1/share-links/notice/*/preview",

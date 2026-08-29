@@ -7,6 +7,8 @@ import com.skuri.skuri_backend.domain.board.exception.CommentNotFoundException;
 import com.skuri.skuri_backend.domain.board.exception.PostNotFoundException;
 import com.skuri.skuri_backend.domain.board.repository.CommentRepository;
 import com.skuri.skuri_backend.domain.board.repository.PostRepository;
+import com.skuri.skuri_backend.domain.app.exception.AppNoticeCommentNotFoundException;
+import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentRepository;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoom;
 import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.entity.ChatMessage;
@@ -54,6 +56,7 @@ public class ReportService {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final NoticeCommentRepository noticeCommentRepository;
+    private final AppNoticeCommentRepository appNoticeCommentRepository;
     private final MemberRepository memberRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
@@ -121,6 +124,9 @@ public class ReportService {
                     .getAuthorId());
             case NOTICE_COMMENT -> new ReportTarget(noticeCommentRepository.findByIdAndDeletedFalse(targetId)
                     .orElseThrow(NoticeCommentNotFoundException::new)
+                    .getUserId());
+            case APP_NOTICE_COMMENT -> new ReportTarget(appNoticeCommentRepository.findByIdAndDeletedFalse(targetId)
+                    .orElseThrow(AppNoticeCommentNotFoundException::new)
                     .getUserId());
             case MEMBER -> new ReportTarget(memberRepository.findById(targetId)
                     .orElseThrow(MemberNotFoundException::new)

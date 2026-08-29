@@ -67,6 +67,10 @@ public record NotificationData(
         return new NotificationData(null, null, null, null, null, null, appNoticeId, null, null, null, null);
     }
 
+    public static NotificationData ofAppNoticeComment(String appNoticeId, String commentId) {
+        return new NotificationData(null, null, null, null, commentId, null, appNoticeId, null, null, null, null);
+    }
+
     public static NotificationData ofAcademicSchedule(String academicScheduleId) {
         return new NotificationData(null, null, null, null, null, null, null, academicScheduleId, null, null, null);
     }

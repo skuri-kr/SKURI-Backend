@@ -80,7 +80,11 @@ public class AppNoticeAdminController {
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(name = "bean_validation", value = OpenApiCommonExamples.ERROR_VALIDATION)
+                            examples = {
+                                    @ExampleObject(name = "bean_validation", value = OpenApiCommonExamples.ERROR_VALIDATION),
+                                    @ExampleObject(name = "action_label_requires_url", value = OpenApiAppExamples.ERROR_VALIDATION_APP_NOTICE_ACTION_LABEL_REQUIRES_URL),
+                                    @ExampleObject(name = "action_url_requires_https", value = OpenApiAppExamples.ERROR_VALIDATION_APP_NOTICE_ACTION_URL_HTTPS)
+                            }
                     )
             )
     })
@@ -162,7 +166,11 @@ public class AppNoticeAdminController {
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ApiResponse.class),
-                            examples = @ExampleObject(name = "bean_validation", value = OpenApiCommonExamples.ERROR_VALIDATION)
+                            examples = {
+                                    @ExampleObject(name = "bean_validation", value = OpenApiCommonExamples.ERROR_VALIDATION),
+                                    @ExampleObject(name = "action_label_requires_url", value = OpenApiAppExamples.ERROR_VALIDATION_APP_NOTICE_ACTION_LABEL_REQUIRES_URL),
+                                    @ExampleObject(name = "action_url_requires_https", value = OpenApiAppExamples.ERROR_VALIDATION_APP_NOTICE_ACTION_URL_HTTPS)
+                            }
                     )
             )
     })

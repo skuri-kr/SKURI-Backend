@@ -10,6 +10,7 @@ import com.skuri.skuri_backend.infra.auth.config.ApiAccessDeniedHandler;
 import com.skuri.skuri_backend.infra.auth.config.ApiAuthenticationEntryPoint;
 import com.skuri.skuri_backend.infra.auth.config.SecurityConfig;
 import com.skuri.skuri_backend.infra.auth.firebase.FirebaseAuthenticationFilter;
+import com.skuri.skuri_backend.infra.auth.firebase.FirebaseTokenClaims;
 import com.skuri.skuri_backend.infra.auth.firebase.FirebaseTokenVerifier;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -54,12 +58,51 @@ class AppNoticeControllerContractTest {
     }
 
     @Test
+    void getAppNotices_잘못된Bearer가있어도_토큰을검증하지않는완전공개조회다() throws Exception {
+        when(appNoticeService.getPublishedNotices()).thenReturn(List.of(appNoticeResponse()));
+
+        mockMvc.perform(get("/v1/app-notices")
+                        .header(AUTHORIZATION, "Bearer invalid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value("app-notice-1"));
+
+        verifyNoInteractions(firebaseTokenVerifier);
+    }
+
+    @Test
     void getAppNotice_비인증정상요청_200() throws Exception {
         when(appNoticeService.getPublishedNotice("app-notice-1")).thenReturn(appNoticeResponse());
 
         mockMvc.perform(get("/v1/app-notices/app-notice-1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.id").value("app-notice-1"));
+    }
+
+    @Test
+    void getAppNotice_인증토큰이있으면_사용자별좋아요상태를조회한다() throws Exception {
+        when(firebaseTokenVerifier.verify("valid-token")).thenReturn(new FirebaseTokenClaims(
+                "firebase-uid", "user@sungkyul.ac.kr", "google.com", "provider-id", "홍길동", null
+        ));
+        when(appNoticeService.getPublishedNotice("firebase-uid", "app-notice-1"))
+                .thenReturn(appNoticeResponse());
+
+        mockMvc.perform(get("/v1/app-notices/app-notice-1")
+                        .header(AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value("app-notice-1"));
+    }
+
+    @Test
+    void getAppNotice_잘못된선택인증토큰이면_401() throws Exception {
+        when(firebaseTokenVerifier.verify("invalid-token"))
+                .thenThrow(new BusinessException(ErrorCode.UNAUTHORIZED));
+
+        mockMvc.perform(get("/v1/app-notices/app-notice-1")
+                        .header(AUTHORIZATION, "Bearer invalid-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("UNAUTHORIZED"));
+
+        verify(firebaseTokenVerifier).verify("invalid-token");
     }
 
     @Test

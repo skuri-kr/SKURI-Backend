@@ -9,6 +9,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -114,6 +115,99 @@ class BoardNoticeOpenApiSchemaIntegrationTest {
         assertTrue(commentDataSchema.path("properties").has("updatedAt"));
     }
 
+    @Test
+    void app_notice_detail_OpenAPI가_익명과선택인증_오류응답을노출한다() throws Exception {
+        JsonNode operation = apiDocs().path("paths").path("/v1/app-notices/{appNoticeId}").path("get");
+
+        assertTrue(operation.path("security").toString().contains("firebase-id-token"));
+        assertTrue(operation.path("responses").has("401"));
+        assertTrue(operation.path("responses").has("403"));
+        assertTrue(operation.path("responses").path("403").toString().contains("withdrawn_member"));
+    }
+
+    @Test
+    void app_notice_create_OpenAPI가_액션필드제약을노출한다() throws Exception {
+        JsonNode root = apiDocs();
+        JsonNode requestSchema = resolveSchema(
+                root,
+                root.path("paths")
+                        .path("/v1/admin/app-notices")
+                        .path("post")
+                        .path("requestBody")
+                        .path("content")
+                        .path("application/json")
+                        .path("schema")
+        );
+
+        assertTrue(requestSchema.path("properties").path("actionUrl").path("description").asText().contains("HTTPS"));
+        assertTrue(requestSchema.path("properties").path("actionLabel").path("description").asText().contains("actionUrl"));
+    }
+
+    @Test
+    void app_notice_update_OpenAPI가_액션URL_HTTPS제약을노출한다() throws Exception {
+        JsonNode root = apiDocs();
+        JsonNode requestSchema = resolveSchema(
+                root,
+                root.path("paths")
+                        .path("/v1/admin/app-notices/{appNoticeId}")
+                        .path("patch")
+                        .path("requestBody")
+                        .path("content")
+                        .path("application/json")
+                        .path("schema")
+        );
+
+        assertTrue(requestSchema.path("properties").path("actionUrl").path("description").asText().contains("HTTPS"));
+    }
+
+    @Test
+    void app_notice_interaction_OpenAPI가_인증필터_403응답을노출한다() throws Exception {
+        JsonNode root = apiDocs();
+
+        assertForbiddenExamples(root, "/v1/app-notices/{appNoticeId}/comments", "get",
+                "email_domain_restricted", "member_withdrawn");
+        assertForbiddenExamples(root, "/v1/app-notices/{appNoticeId}/comments", "post",
+                "email_domain_restricted", "member_withdrawn");
+        assertForbiddenExamples(root, "/v1/app-notices/{appNoticeId}/like", "post",
+                "email_domain_restricted", "member_withdrawn");
+        assertForbiddenExamples(root, "/v1/app-notices/{appNoticeId}/like", "delete",
+                "email_domain_restricted", "member_withdrawn");
+        assertForbiddenExamples(root, "/v1/app-notice-comments/{commentId}", "patch",
+                "email_domain_restricted", "member_withdrawn", "not_app_notice_comment_author");
+        assertForbiddenExamples(root, "/v1/app-notice-comments/{commentId}", "delete",
+                "email_domain_restricted", "member_withdrawn", "not_app_notice_comment_author");
+        assertForbiddenExamples(root, "/v1/app-notice-comments/{commentId}/like", "post",
+                "email_domain_restricted", "member_withdrawn");
+        assertForbiddenExamples(root, "/v1/app-notice-comments/{commentId}/like", "delete",
+                "email_domain_restricted", "member_withdrawn");
+    }
+
+    @Test
+    void app_notice_admin_update_OpenAPI_예시는_isLiked_false를노출한다() throws Exception {
+        JsonNode example = apiDocs()
+                .path("paths")
+                .path("/v1/admin/app-notices/{appNoticeId}")
+                .path("patch")
+                .path("responses")
+                .path("200")
+                .path("content")
+                .path("application/json")
+                .path("examples")
+                .path("default")
+                .path("value");
+
+        assertTrue(example.path("data").path("isLiked").isBoolean());
+        assertFalse(example.path("data").path("isLiked").asBoolean());
+    }
+
+    @Test
+    void report_OpenAPI가_앱공지댓글요청과404예시를노출한다() throws Exception {
+        JsonNode operation = apiDocs().path("paths").path("/v1/reports").path("post");
+
+        assertTrue(operation.path("requestBody").toString().contains("app_notice_comment_report"));
+        assertTrue(operation.path("responses").path("404").toString().contains("app_notice_comment_not_found"));
+    }
+
     private JsonNode apiDocs() throws Exception {
         String responseBody = mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
@@ -133,6 +227,19 @@ class BoardNoticeOpenApiSchemaIntegrationTest {
                 .path("application/json")
                 .path("schema");
         return resolveSchema(root, schema);
+    }
+
+    private void assertForbiddenExamples(JsonNode root, String path, String method, String... expectedNames) {
+        JsonNode response = root.path("paths")
+                .path(path)
+                .path(method)
+                .path("responses")
+                .path("403");
+
+        assertTrue(response.isObject());
+        for (String expectedName : expectedNames) {
+            assertTrue(response.toString().contains(expectedName));
+        }
     }
 
     private JsonNode resolveSchema(JsonNode root, JsonNode schemaNode) {

@@ -51,6 +51,18 @@ public class AppNotice extends BaseTimeEntity {
     @Column(name = "action_url", length = 500)
     private String actionUrl;
 
+    @Column(name = "action_label", length = 30)
+    private String actionLabel;
+
+    @Column(name = "view_count", nullable = false)
+    private int viewCount;
+
+    @Column(name = "like_count", nullable = false)
+    private int likeCount;
+
+    @Column(name = "comment_count", nullable = false)
+    private int commentCount;
+
     @Column(name = "published_at", nullable = false)
     private LocalDateTime publishedAt;
 
@@ -61,6 +73,7 @@ public class AppNotice extends BaseTimeEntity {
             AppNoticePriority priority,
             List<String> imageUrls,
             String actionUrl,
+            String actionLabel,
             LocalDateTime publishedAt
     ) {
         this.title = title;
@@ -69,7 +82,24 @@ public class AppNotice extends BaseTimeEntity {
         this.priority = priority;
         this.imageUrls = new ArrayList<>(imageUrls == null ? List.of() : imageUrls);
         this.actionUrl = actionUrl;
+        this.actionLabel = actionLabel;
         this.publishedAt = publishedAt;
+        this.viewCount = 0;
+        this.likeCount = 0;
+        this.commentCount = 0;
+    }
+
+    public static AppNotice create(
+            String title,
+            String content,
+            AppNoticeCategory category,
+            AppNoticePriority priority,
+            List<String> imageUrls,
+            String actionUrl,
+            String actionLabel,
+            LocalDateTime publishedAt
+    ) {
+        return new AppNotice(title, content, category, priority, imageUrls, actionUrl, actionLabel, publishedAt);
     }
 
     public static AppNotice create(
@@ -81,7 +111,7 @@ public class AppNotice extends BaseTimeEntity {
             String actionUrl,
             LocalDateTime publishedAt
     ) {
-        return new AppNotice(title, content, category, priority, imageUrls, actionUrl, publishedAt);
+        return create(title, content, category, priority, imageUrls, actionUrl, null, publishedAt);
     }
 
     public void update(
@@ -90,7 +120,6 @@ public class AppNotice extends BaseTimeEntity {
             AppNoticeCategory category,
             AppNoticePriority priority,
             List<String> imageUrls,
-            String actionUrl,
             LocalDateTime publishedAt
     ) {
         if (title != null) {
@@ -108,11 +137,25 @@ public class AppNotice extends BaseTimeEntity {
         if (imageUrls != null) {
             this.imageUrls = new ArrayList<>(imageUrls);
         }
-        if (actionUrl != null) {
-            this.actionUrl = actionUrl;
-        }
         if (publishedAt != null) {
             this.publishedAt = publishedAt;
         }
+    }
+
+    public void updateAction(String actionUrl, String actionLabel) {
+        this.actionUrl = actionUrl;
+        this.actionLabel = actionLabel;
+    }
+
+    public void incrementViewCount() {
+        this.viewCount += 1;
+    }
+
+    public void increaseLikeCount(int delta) {
+        this.likeCount = Math.max(0, this.likeCount + delta);
+    }
+
+    public void increaseCommentCount(int delta) {
+        this.commentCount = Math.max(0, this.commentCount + delta);
     }
 }

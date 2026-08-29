@@ -59,18 +59,27 @@ public class FirebaseAuthenticationFilter extends OncePerRequestFilter {
             return false;
         }
         String uri = request.getRequestURI();
+        if (uri.equals("/v1/app-notices")) {
+            return true;
+        }
+        if (uri.startsWith("/v1/app-notices/")) {
+            return isPublicAppNoticeReadRoute(uri)
+                    && !StringUtils.hasText(request.getHeader(HttpHeaders.AUTHORIZATION));
+        }
         String mediaUrlPrefix = mediaStorageProperties.normalizedUrlPrefix();
         boolean localMediaPublicRoute = mediaStorageProperties.getProvider() == com.skuri.skuri_backend.infra.storage.StorageProviderType.LOCAL
                 && (uri.equals(mediaUrlPrefix) || uri.startsWith(mediaUrlPrefix + "/"));
-        return uri.startsWith("/v1/app-notices/")
-                || "/v1/app-notices".equals(uri)
-                || uri.startsWith("/v1/legal-documents/")
+        return uri.startsWith("/v1/legal-documents/")
                 || "/v1/legal-documents".equals(uri)
                 || uri.startsWith("/v1/campus-banners/")
                 || "/v1/campus-banners".equals(uri)
                 || uri.startsWith("/v1/app-versions/")
                 || isPublicSharePreviewRoute(uri)
                 || localMediaPublicRoute;
+    }
+
+    private boolean isPublicAppNoticeReadRoute(String uri) {
+        return uri.matches("^/v1/app-notices/[^/]+$");
     }
 
     private boolean isPublicSharePreviewRoute(String uri) {

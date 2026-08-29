@@ -56,7 +56,7 @@ public class MemberLifecycleService {
         taxiPartyService.handleMemberWithdrawal(memberId);
         chatService.removeMemberFromAllChatRooms(memberId);
         boardService.handleMemberWithdrawal(memberId);
-        appNoticeService.deleteAllReadStatusesByUserId(memberId);
+        appNoticeService.handleMemberWithdrawal(memberId);
         noticeService.handleMemberWithdrawal(memberId);
         notificationService.deleteAllByUserId(memberId);
         fcmTokenService.deleteAllByUserId(memberId);

@@ -17,6 +17,8 @@ import com.skuri.skuri_backend.domain.image.storage.StorageRepository;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.domain.notice.entity.NoticeComment;
 import com.skuri.skuri_backend.domain.notice.repository.NoticeCommentRepository;
+import com.skuri.skuri_backend.domain.app.entity.AppNoticeComment;
+import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentRepository;
 import com.skuri.skuri_backend.domain.support.dto.request.CreateReportRequest;
 import com.skuri.skuri_backend.domain.support.dto.request.UpdateReportStatusRequest;
 import com.skuri.skuri_backend.domain.support.dto.response.AdminReportResponse;
@@ -62,6 +64,9 @@ class ReportServiceTest {
 
     @Mock
     private NoticeCommentRepository noticeCommentRepository;
+
+    @Mock
+    private AppNoticeCommentRepository appNoticeCommentRepository;
 
     @Mock
     private MemberRepository memberRepository;
@@ -193,6 +198,30 @@ class ReportServiceTest {
         assertEquals("notice-comment-1", captor.getValue().getTargetId());
         assertEquals("author-1", captor.getValue().getTargetAuthorId());
         assertEquals("ABUSE", captor.getValue().getCategory());
+    }
+
+    @Test
+    void createReport_앱공지댓글_작성자를대상작성자로저장한다() {
+        ArgumentCaptor<Report> captor = ArgumentCaptor.forClass(Report.class);
+        AppNoticeComment comment = mock(AppNoticeComment.class);
+        when(reportRepository.existsByReporterIdAndTargetTypeAndTargetId(
+                "user-1", ReportTargetType.APP_NOTICE_COMMENT, "app-comment-1"
+        )).thenReturn(false);
+        when(appNoticeCommentRepository.findByIdAndDeletedFalse("app-comment-1"))
+                .thenReturn(Optional.of(comment));
+        when(comment.getUserId()).thenReturn("author-1");
+        when(reportRepository.saveAndFlush(captor.capture()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        reportService.createReport("user-1", new CreateReportRequest(
+                ReportTargetType.APP_NOTICE_COMMENT,
+                "app-comment-1",
+                "abuse",
+                "부적절한 앱 공지 댓글입니다."
+        ));
+
+        assertEquals(ReportTargetType.APP_NOTICE_COMMENT, captor.getValue().getTargetType());
+        assertEquals("author-1", captor.getValue().getTargetAuthorId());
     }
 
     @Test

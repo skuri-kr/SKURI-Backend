@@ -2,6 +2,8 @@ package com.skuri.skuri_backend.infra.openapi;
 
 import com.skuri.skuri_backend.domain.app.controller.AppNoticeController;
 import com.skuri.skuri_backend.domain.app.controller.AppNoticeAdminController;
+import com.skuri.skuri_backend.domain.app.controller.AppNoticeCommentController;
+import com.skuri.skuri_backend.domain.app.controller.AppNoticeInteractionController;
 import com.skuri.skuri_backend.domain.app.controller.MemberAppNoticeController;
 import com.skuri.skuri_backend.domain.academic.controller.AcademicScheduleAdminController;
 import com.skuri.skuri_backend.domain.academic.controller.CourseAdminController;
@@ -40,6 +42,7 @@ import com.skuri.skuri_backend.domain.taxiparty.controller.PartyController;
 import com.skuri.skuri_backend.domain.taxiparty.controller.PartyInvitationController;
 import com.skuri.skuri_backend.domain.taxiparty.controller.PartySseController;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import org.junit.jupiter.api.Test;
@@ -59,6 +62,8 @@ class OpenApiResponseExamplesConventionTest {
             AdminDashboardController.class,
             AppNoticeController.class,
             AppNoticeAdminController.class,
+            AppNoticeInteractionController.class,
+            AppNoticeCommentController.class,
             MemberAppNoticeController.class,
             AcademicScheduleAdminController.class,
             CourseAdminController.class,
@@ -113,6 +118,35 @@ class OpenApiResponseExamplesConventionTest {
         );
     }
 
+    @Test
+    void 앱공지의실제비즈니스오류는OpenAPI예시로분리한다() {
+        assertResponseExampleNames(
+                AppNoticeAdminController.class,
+                "createAppNotice",
+                "422",
+                "bean_validation",
+                "action_label_requires_url",
+                "action_url_requires_https"
+        );
+        assertResponseExampleNames(
+                AppNoticeAdminController.class,
+                "updateAppNotice",
+                "422",
+                "bean_validation",
+                "action_label_requires_url",
+                "action_url_requires_https"
+        );
+        for (String methodName : List.of("update", "delete", "like", "unlike")) {
+            assertResponseExampleNames(
+                    AppNoticeCommentController.class,
+                    methodName,
+                    "404",
+                    "app_notice_not_found",
+                    "app_notice_comment_not_found"
+            );
+        }
+    }
+
     private static List<ApiResponse> resolveApiResponses(Method method) {
         List<ApiResponse> responses = new ArrayList<>();
 
@@ -127,6 +161,32 @@ class OpenApiResponseExamplesConventionTest {
         }
 
         return responses;
+    }
+
+    private static void assertResponseExampleNames(
+            Class<?> controllerClass,
+            String methodName,
+            String responseCode,
+            String... expectedNames
+    ) {
+        ApiResponse response = Arrays.stream(controllerClass.getDeclaredMethods())
+                .filter(method -> method.getName().equals(methodName))
+                .flatMap(method -> resolveApiResponses(method).stream())
+                .filter(apiResponse -> apiResponse.responseCode().equals(responseCode))
+                .findFirst()
+                .orElseThrow();
+        List<String> actualNames = Arrays.stream(response.content())
+                .flatMap(content -> Arrays.stream(content.examples()))
+                .map(ExampleObject::name)
+                .toList();
+
+        for (String expectedName : expectedNames) {
+            assertTrue(
+                    actualNames.contains(expectedName),
+                    () -> controllerClass.getSimpleName() + "#" + methodName + " [" + responseCode
+                            + "]에 " + expectedName + " 예시가 없습니다."
+            );
+        }
     }
 
     private static void validateApiResponse(

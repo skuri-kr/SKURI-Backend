@@ -608,7 +608,12 @@ Hooks:
     - id, title, content
     - category (UPDATE, MAINTENANCE, EVENT, GENERAL)
     - priority (HIGH, NORMAL, LOW)
-    - imageUrls[], actionUrl, publishedAt
+    - imageUrls[], actionUrl(HTTPS only), actionLabel, publishedAt
+    - viewCount, likeCount, commentCount
+  - AppNoticeComment / AppNoticeLike / AppNoticeCommentLike
+    - 학교 공지와 동일한 익명 댓글·답글·좋아요·soft delete 정책
+    - 댓글 작성자는 제외하고 모든 활성 운영자에게 알림 설정과 무관하게 인앱·푸시 알림
+    - 답글의 부모 작성자 알림은 운영자 알림과 중복 제거
 
 조회/응답 정책:
   - 내 북마크 공지: GET /v1/members/me/notice-bookmarks
@@ -759,9 +764,10 @@ Hooks:
     - 요청에서 attachments 생략/null은 허용하고 서버에서 빈 배열로 정규화
     - 응답은 항상 `attachments: []` 형태를 유지하며 null을 반환하지 않음
   - Report
-    - id, targetType (POST, COMMENT, NOTICE_COMMENT, MEMBER, CHAT_MESSAGE, CHAT_ROOM, TAXI_PARTY)
+    - id, targetType (POST, COMMENT, NOTICE_COMMENT, APP_NOTICE_COMMENT, MEMBER, CHAT_MESSAGE, CHAT_ROOM, TAXI_PARTY)
     - targetId, targetAuthorId, category, reason
     - `NOTICE_COMMENT.targetAuthorId = noticeComment.userId`, 삭제 댓글은 신고 대상에서 제외
+    - `APP_NOTICE_COMMENT.targetAuthorId = appNoticeComment.userId`, 삭제 댓글은 신고 대상에서 제외
     - `CHAT_MESSAGE.targetAuthorId = message.senderId`
     - `CHAT_MESSAGE` 신고는 접수 시점 원문/이미지 URL/계좌 payload/수정시각을 `targetSnapshot` JSON으로 보존한다.
     - `CHAT_ROOM.targetAuthorId = chatRoom.createdBy` (creator가 없는 seed/public 방은 null 허용, `PARTY` 타입 방은 제외)
@@ -1756,7 +1762,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
   - [x] Member 도메인 구현
     - [x] Firebase ID Token 검증 필터/인증 컨텍스트 구성 (서버 토큰 발급 없음)
     - [x] `members.isAdmin` 기반 `ROLE_ADMIN` authority 부여 + `@PreAuthorize("hasRole('ADMIN')")` 적용
-    - [x] 공개 API(`GET /v1/app-versions/**`, `GET /v1/app-notices/**`, `GET /v1/legal-documents/**`, `GET /v3/api-docs/**`, `GET /swagger-ui/**`, `GET /scalar/**`) permitAll
+    - [x] 공개 API(`GET /v1/app-versions/**`, `GET /v1/app-notices`, `GET /v1/app-notices/{appNoticeId}`, `GET /v1/legal-documents/**`, `GET /v3/api-docs/**`, `GET /swagger-ui/**`, `GET /scalar/**`) permitAll
     - [x] 보호 API 미인증 요청 401, 이메일 도메인 불일치 403, 관리자 API 비권한 요청 `403 ADMIN_REQUIRED`
 
 - [ ] **Phase 2: 핵심 비즈니스**
