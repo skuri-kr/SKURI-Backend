@@ -256,7 +256,19 @@ public class AppNoticeService {
         List<AppNoticeComment> authoredComments = appNoticeCommentRepository.findByUserId(memberId);
         List<AppNoticeCommentLike> commentLikes = appNoticeCommentLikeRepository.findById_UserId(memberId);
         List<AppNoticeLike> likes = appNoticeLikeRepository.findById_UserId(memberId);
-        lockAffectedAppNotices(authoredComments, commentLikes, likes);
+        Set<String> lockedAppNoticeIds = lockAffectedAppNotices(authoredComments, commentLikes, likes);
+
+        // 관리자 삭제가 먼저 끝난 공지의 엔티티는 잠금 전 조회 결과에만 남아 있을 수 있다.
+        // 잠금 후 다시 조회해 실제로 남아 있는 공지의 연관 데이터만 정리한다.
+        authoredComments = appNoticeCommentRepository.findByUserId(memberId).stream()
+                .filter(comment -> lockedAppNoticeIds.contains(comment.getAppNotice().getId()))
+                .toList();
+        commentLikes = appNoticeCommentLikeRepository.findById_UserId(memberId).stream()
+                .filter(like -> lockedAppNoticeIds.contains(like.getComment().getAppNotice().getId()))
+                .toList();
+        likes = appNoticeLikeRepository.findById_UserId(memberId).stream()
+                .filter(like -> lockedAppNoticeIds.contains(like.getId().getAppNoticeId()))
+                .toList();
 
         authoredComments.forEach(AppNoticeComment::anonymizeAuthor);
         if (!commentLikes.isEmpty()) {
@@ -449,7 +461,7 @@ public class AppNoticeService {
         return comment;
     }
 
-    private void lockAffectedAppNotices(
+    private Set<String> lockAffectedAppNotices(
             List<AppNoticeComment> authoredComments,
             List<AppNoticeCommentLike> commentLikes,
             List<AppNoticeLike> likes
@@ -458,7 +470,10 @@ public class AppNoticeService {
         authoredComments.forEach(comment -> appNoticeIds.add(comment.getAppNotice().getId()));
         commentLikes.forEach(like -> appNoticeIds.add(like.getComment().getAppNotice().getId()));
         likes.forEach(like -> appNoticeIds.add(like.getId().getAppNoticeId()));
-        appNoticeIds.forEach(appNoticeId -> appNoticeRepository.findByIdForUpdate(appNoticeId));
+        Set<String> lockedAppNoticeIds = new TreeSet<>();
+        appNoticeIds.forEach(appNoticeId -> appNoticeRepository.findByIdForUpdate(appNoticeId)
+                .ifPresent(ignored -> lockedAppNoticeIds.add(appNoticeId)));
+        return lockedAppNoticeIds;
     }
 
     private AppNotice findPublishedNoticeOrThrow(String appNoticeId) {
