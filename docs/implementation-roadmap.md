@@ -682,6 +682,7 @@ SSE 운영 제약:
 - `status`: `PENDING`, `REVIEWING`, `ACTIONED`, `REJECTED`
 - duplicate policy: `reporterId + targetType + targetId` 전 상태 기준 재신고 금지
 - `NOTICE_COMMENT.targetAuthorId = noticeComment.userId`, 삭제 댓글은 `NOTICE_COMMENT_NOT_FOUND`
+- `APP_NOTICE_COMMENT.targetAuthorId = appNoticeComment.userId`, 삭제 댓글은 `APP_NOTICE_COMMENT_NOT_FOUND`
 - `CHAT_MESSAGE.targetAuthorId = message.senderId`
 - `CHAT_MESSAGE` 신고는 삭제/수정 전 운영 검토를 위해 접수 시점 `targetSnapshot` JSON 증거를 보존한다.
 - `CHAT_ROOM.targetAuthorId = chatRoom.createdBy` (seed/public 방처럼 creator가 없으면 `null` 허용, `PARTY` 타입 방은 제외)

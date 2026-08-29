@@ -767,6 +767,7 @@ Hooks:
     - id, targetType (POST, COMMENT, NOTICE_COMMENT, APP_NOTICE_COMMENT, MEMBER, CHAT_MESSAGE, CHAT_ROOM, TAXI_PARTY)
     - targetId, targetAuthorId, category, reason
     - `NOTICE_COMMENT.targetAuthorId = noticeComment.userId`, 삭제 댓글은 신고 대상에서 제외
+    - `APP_NOTICE_COMMENT.targetAuthorId = appNoticeComment.userId`, 삭제 댓글은 신고 대상에서 제외
     - `CHAT_MESSAGE.targetAuthorId = message.senderId`
     - `CHAT_MESSAGE` 신고는 접수 시점 원문/이미지 URL/계좌 payload/수정시각을 `targetSnapshot` JSON으로 보존한다.
     - `CHAT_ROOM.targetAuthorId = chatRoom.createdBy` (creator가 없는 seed/public 방은 null 허용, `PARTY` 타입 방은 제외)
