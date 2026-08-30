@@ -40,6 +40,10 @@ public class LegalDocumentAdMobPolicyMigration {
     private static final String EFFECTIVE_DATE_PREFIX = "시행일:";
     private static final String SUPPLEMENTARY_PROVISIONS_SECTION_ID =
             "supplementary-provisions";
+    private static final Pattern EFFECTIVE_DATE_BANNER_PATTERN = Pattern.compile(
+            "^시행일:\\s*\\d{4}년\\s*\\d{1,2}월\\s*\\d{1,2}일"
+                    + "(?:\\s*·\\s*최종 수정:\\s*\\d{4}년\\s*\\d{1,2}월\\s*\\d{1,2}일)?"
+    );
     private static final Pattern EFFECTIVE_DATE_PATTERN =
             Pattern.compile("\\d{4}\\.\\d{2}\\.\\d{2}\\.(?=부터 시행됩니다\\.)");
 
@@ -119,9 +123,10 @@ public class LegalDocumentAdMobPolicyMigration {
         List<LegalDocumentBannerLine> updatedLines = new ArrayList<>();
         boolean effectiveDateFound = false;
         for (LegalDocumentBannerLine existingLine : existingLines) {
-            if (existingLine.text().startsWith(EFFECTIVE_DATE_PREFIX)) {
+            Matcher matcher = EFFECTIVE_DATE_BANNER_PATTERN.matcher(existingLine.text());
+            if (existingLine.text().startsWith(EFFECTIVE_DATE_PREFIX) && matcher.find()) {
                 updatedLines.add(new LegalDocumentBannerLine(
-                        EFFECTIVE_DATE_LINE,
+                        matcher.replaceFirst(Matcher.quoteReplacement(EFFECTIVE_DATE_LINE)),
                         existingLine.tone()
                 ));
                 effectiveDateFound = true;
