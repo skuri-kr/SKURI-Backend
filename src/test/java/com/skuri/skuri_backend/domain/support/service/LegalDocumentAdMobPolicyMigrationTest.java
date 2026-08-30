@@ -69,6 +69,28 @@ class LegalDocumentAdMobPolicyMigrationTest {
         assertTrue(terms.getSections().stream().anyMatch(section -> "article-18".equals(section.id())));
         assertTrue(privacy.getSections().stream().anyMatch(section -> "article-23".equals(section.id())));
         assertEquals(
+                List.of(
+                        "기존 부칙",
+                        "제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다."
+                ),
+                terms.getSections().stream()
+                        .filter(section -> "supplementary-provisions".equals(section.id()))
+                        .findFirst()
+                        .orElseThrow()
+                        .paragraphs()
+        );
+        assertEquals(
+                List.of(
+                        "기존 부칙",
+                        "제1조 본 방침은 2026.08.30.부터 시행됩니다."
+                ),
+                privacy.getSections().stream()
+                        .filter(section -> "supplementary-provisions".equals(section.id()))
+                        .findFirst()
+                        .orElseThrow()
+                        .paragraphs()
+        );
+        assertEquals(
                 "supplementary-provisions",
                 privacy.getSections().get(privacy.getSections().size() - 1).id()
         );
@@ -84,7 +106,7 @@ class LegalDocumentAdMobPolicyMigrationTest {
                         section("supplementary-provisions", "기존 부칙")
                 ),
                 LegalDocumentSeedMigration.termsOfUseSections(),
-                Set.of("article-11", "article-18", "supplementary-provisions")
+                Set.of("article-11", "article-18")
         );
 
         assertEquals(
@@ -102,7 +124,7 @@ class LegalDocumentAdMobPolicyMigrationTest {
                         section("supplementary-provisions", "기존 부칙")
                 ),
                 LegalDocumentSeedMigration.privacyPolicySections(),
-                Set.of("article-23", "supplementary-provisions")
+                Set.of("article-23")
         );
 
         assertEquals(
@@ -164,6 +186,76 @@ class LegalDocumentAdMobPolicyMigrationTest {
                         defaultLine
                 ),
                 updated
+        );
+    }
+
+    @Test
+    void replaceSupplementaryEffectiveDate_관리자문단과제목을보존하고_시행일만교체한다() {
+        List<LegalDocumentSection> updated =
+                LegalDocumentAdMobPolicyMigration.replaceSupplementaryEffectiveDate(
+                        List.of(
+                                section("article-01", "기존 1조"),
+                                new LegalDocumentSection(
+                                        "supplementary-provisions",
+                                        List.of(
+                                                "관리자가 추가한 안내",
+                                                "제1조(시행일) 본 약관은 2025.03.01.부터 시행됩니다.",
+                                                "관리자가 추가한 후속 문단"
+                                        ),
+                                        "관리자 부칙 제목"
+                                )
+                        ),
+                        LegalDocumentSeedMigration.termsOfUseSections()
+                );
+
+        LegalDocumentSection supplementary = updated.get(1);
+        assertEquals("관리자 부칙 제목", supplementary.title());
+        assertEquals(
+                List.of(
+                        "관리자가 추가한 안내",
+                        "제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다.",
+                        "관리자가 추가한 후속 문단"
+                ),
+                supplementary.paragraphs()
+        );
+    }
+
+    @Test
+    void replaceSupplementaryEffectiveDate_시행일문단이없으면_관리자문단뒤에추가한다() {
+        List<LegalDocumentSection> updated =
+                LegalDocumentAdMobPolicyMigration.replaceSupplementaryEffectiveDate(
+                        List.of(new LegalDocumentSection(
+                                "supplementary-provisions",
+                                List.of("관리자가 추가한 개인정보 안내"),
+                                "부칙"
+                        )),
+                        LegalDocumentSeedMigration.privacyPolicySections()
+                );
+
+        assertEquals(
+                List.of(
+                        "관리자가 추가한 개인정보 안내",
+                        "제1조 본 방침은 2026.08.30.부터 시행됩니다."
+                ),
+                updated.get(0).paragraphs()
+        );
+    }
+
+    @Test
+    void replaceSupplementaryEffectiveDate_부칙이없으면_정규부칙을끝에추가한다() {
+        List<LegalDocumentSection> updated =
+                LegalDocumentAdMobPolicyMigration.replaceSupplementaryEffectiveDate(
+                        List.of(section("article-01", "기존 1조")),
+                        LegalDocumentSeedMigration.termsOfUseSections()
+                );
+
+        assertEquals(
+                List.of("article-01", "supplementary-provisions"),
+                updated.stream().map(LegalDocumentSection::id).toList()
+        );
+        assertEquals(
+                List.of("제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다."),
+                updated.get(1).paragraphs()
         );
     }
 
