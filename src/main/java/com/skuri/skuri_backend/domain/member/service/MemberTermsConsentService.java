@@ -26,8 +26,11 @@ public class MemberTermsConsentService {
             String termsVersion,
             boolean requiredForProfileCompletion
     ) {
-        if (termsAccepted == null && !requiredForProfileCompletion) {
-            return;
+        if (termsAccepted == null && termsVersion == null) {
+            if (!requiredForProfileCompletion || hasCurrentConsent(member.getId())) {
+                return;
+            }
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, CONSENT_REQUIRED_MESSAGE);
         }
         if (!Boolean.TRUE.equals(termsAccepted)
                 || !TermsConsentPolicy.CURRENT_VERSION.equals(termsVersion)) {
