@@ -139,12 +139,7 @@ public class MemberService {
                 throw new BusinessException(ErrorCode.NICKNAME_ALREADY_EXISTS);
             }
         }
-        memberTermsConsentService.recordIfRequested(
-                member,
-                request.termsAccepted(),
-                request.termsVersion(),
-                profileCompletedNow
-        );
+        memberTermsConsentService.recordForProfileCompletion(member, profileCompletedNow);
         if (request.department() != null && !normalizeNullable(previousDepartment).equals(normalizeNullable(member.getDepartment()))) {
             chatService.removeMemberFromDepartmentChatRooms(memberId);
         }

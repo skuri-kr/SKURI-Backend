@@ -17,9 +17,9 @@ import java.time.LocalDateTime;
 @Component
 @Profile("!test")
 @RequiredArgsConstructor
-public class MemberTermsConsentEmailBackfillMigration {
+public class MemberTermsConsentSignupBackfillMigration {
 
-    static final String MIGRATION_KEY = "member-terms-consent-email-backfill-20260830";
+    static final String MIGRATION_KEY = "member-terms-consent-signup-backfill-20260830-v2";
 
     private final MemberTermsConsentRepository memberTermsConsentRepository;
     private final SeedMigrationRepository seedMigrationRepository;
@@ -27,29 +27,35 @@ public class MemberTermsConsentEmailBackfillMigration {
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void migrate() {
-        if (!acquireMigrationMarker()) {
+        LocalDateTime backfillAt = LocalDateTime.now();
+        if (!acquireMigrationMarker(backfillAt)) {
             return;
         }
 
-        int insertedCount = memberTermsConsentRepository.backfillEmailConsents(
+        int normalizedCount = memberTermsConsentRepository.normalizeCurrentVersionConsents(
                 TermsConsentPolicy.CURRENT_VERSION,
-                TermsConsentPolicy.EMAIL_CONSENT_MEMBER_JOINED_AT_CUTOFF
+                backfillAt
+        );
+        int affectedCount = memberTermsConsentRepository.backfillAllMemberSignupConsents(
+                TermsConsentPolicy.CURRENT_VERSION,
+                backfillAt
         );
         log.info(
-                "기존 회원 이용약관 이메일 동의 backfill 완료: version={}, joinedAtCutoff={}, inserted={}건",
+                "기존 전체 회원 이용약관 SIGNUP 동의 backfill 완료: version={}, acceptedAt={}, normalized={}건, affected={}건",
                 TermsConsentPolicy.CURRENT_VERSION,
-                TermsConsentPolicy.EMAIL_CONSENT_MEMBER_JOINED_AT_CUTOFF,
-                insertedCount
+                backfillAt,
+                normalizedCount,
+                affectedCount
         );
     }
 
-    private boolean acquireMigrationMarker() {
+    private boolean acquireMigrationMarker(LocalDateTime backfillAt) {
         boolean acquired = seedMigrationRepository.insertIfAbsent(
                 MIGRATION_KEY,
-                LocalDateTime.now()
+                backfillAt
         ) == 1;
         if (!acquired) {
-            log.info("기존 회원 이용약관 이메일 동의 backfill 건너뜀: 이미 적용됨");
+            log.info("기존 전체 회원 이용약관 SIGNUP 동의 backfill 건너뜀: 이미 적용됨");
         }
         return acquired;
     }

@@ -44,7 +44,7 @@ public class MemberTermsConsent extends BaseTimeEntity {
     @Column(nullable = false, length = 24)
     private MemberTermsConsentSource source;
 
-    @Column(name = "accepted_at")
+    @Column(name = "accepted_at", nullable = false)
     private LocalDateTime acceptedAt;
 
 }

@@ -31,13 +31,34 @@ public interface MemberTermsConsentRepository extends JpaRepository<MemberTermsC
                 current_timestamp,
                 current_timestamp
             )
-            on duplicate key update id = id
+            on duplicate key update
+                source = 'SIGNUP',
+                accepted_at = case
+                    when accepted_at is null or accepted_at > values(accepted_at)
+                        then values(accepted_at)
+                    else accepted_at
+                end,
+                updated_at = current_timestamp
             """, nativeQuery = true)
-    int insertSignupConsentIfAbsent(
+    int upsertSignupConsent(
             @Param("id") String id,
             @Param("memberId") String memberId,
             @Param("termsVersion") String termsVersion,
             @Param("acceptedAt") LocalDateTime acceptedAt
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            update member_terms_consents
+            set source = 'SIGNUP',
+                accepted_at = coalesce(accepted_at, :backfillAt),
+                updated_at = current_timestamp
+            where terms_version = :termsVersion
+              and (source <> 'SIGNUP' or accepted_at is null)
+            """, nativeQuery = true)
+    int normalizeCurrentVersionConsents(
+            @Param("termsVersion") String termsVersion,
+            @Param("backfillAt") LocalDateTime backfillAt
     );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -55,23 +76,22 @@ public interface MemberTermsConsentRepository extends JpaRepository<MemberTermsC
                 uuid(),
                 m.id,
                 :termsVersion,
-                'EMAIL_BACKFILL',
-                null,
+                'SIGNUP',
+                :backfillAt,
                 current_timestamp,
                 current_timestamp
             from members m
-            where m.status = 'ACTIVE'
-              and m.joined_at <= :joinedAtCutoff
-              and not exists (
-                  select 1
-                  from member_terms_consents c
-                  where c.member_id = m.id
-                    and c.terms_version = :termsVersion
-              )
-            on duplicate key update id = id
+            on duplicate key update
+                source = 'SIGNUP',
+                accepted_at = case
+                    when accepted_at is null or accepted_at > values(accepted_at)
+                        then values(accepted_at)
+                    else accepted_at
+                end,
+                updated_at = current_timestamp
             """, nativeQuery = true)
-    int backfillEmailConsents(
+    int backfillAllMemberSignupConsents(
             @Param("termsVersion") String termsVersion,
-            @Param("joinedAtCutoff") LocalDateTime joinedAtCutoff
+            @Param("backfillAt") LocalDateTime backfillAt
     );
 }

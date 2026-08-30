@@ -23,21 +23,6 @@ public record UpdateMemberProfileRequest(
                 nullable = true
         )
         @Size(max = 500, message = "photoUrl은 500자 이하여야 합니다.")
-        String photoUrl,
-
-        @Schema(description = "광고 국외이전 조항을 포함한 현재 이용약관 동의 여부", example = "true", nullable = true)
-        Boolean termsAccepted,
-
-        @Schema(description = "동의한 이용약관 버전", example = "2026-08-30", nullable = true)
-        @Size(max = 32, message = "termsVersion은 32자 이하여야 합니다.")
-        String termsVersion
+        String photoUrl
 ) {
-    public UpdateMemberProfileRequest(
-            String nickname,
-            String studentId,
-            String department,
-            String photoUrl
-    ) {
-        this(nickname, studentId, department, photoUrl, null, null);
-    }
 }
