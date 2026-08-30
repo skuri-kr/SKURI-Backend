@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class MemberTermsConsentServiceTest {
@@ -52,6 +53,10 @@ class MemberTermsConsentServiceTest {
     @Test
     void recordIfRequested_프로필완료에동의가없으면_검증예외() {
         Member member = Member.create("member-1", "user@sungkyul.ac.kr", "사용자", LocalDateTime.now());
+        when(memberTermsConsentRepository.existsByMember_IdAndTermsVersion(
+                member.getId(),
+                TermsConsentPolicy.CURRENT_VERSION
+        )).thenReturn(false);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
@@ -62,6 +67,28 @@ class MemberTermsConsentServiceTest {
         assertEquals(
                 "현재 이용약관에 동의해야 프로필 설정을 완료할 수 있습니다.",
                 exception.getMessage()
+        );
+        verify(memberTermsConsentRepository, never()).insertSignupConsentIfAbsent(
+                anyString(),
+                anyString(),
+                anyString(),
+                any(LocalDateTime.class)
+        );
+    }
+
+    @Test
+    void recordIfRequested_프로필완료시현재동의가저장돼있으면_동의필드생략을허용한다() {
+        Member member = Member.create("member-1", "user@sungkyul.ac.kr", "사용자", LocalDateTime.now());
+        when(memberTermsConsentRepository.existsByMember_IdAndTermsVersion(
+                member.getId(),
+                TermsConsentPolicy.CURRENT_VERSION
+        )).thenReturn(true);
+
+        memberTermsConsentService.recordIfRequested(member, null, null, true);
+
+        verify(memberTermsConsentRepository).existsByMember_IdAndTermsVersion(
+                member.getId(),
+                TermsConsentPolicy.CURRENT_VERSION
         );
         verify(memberTermsConsentRepository, never()).insertSignupConsentIfAbsent(
                 anyString(),
