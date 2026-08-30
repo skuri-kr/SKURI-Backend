@@ -182,10 +182,8 @@ public class LegalDocumentAdMobPolicyMigration {
         String canonicalDate = extractEffectiveDate(canonicalEffectiveDate);
         for (String existingParagraph : existingParagraphs) {
             if (hasRecognizedEffectiveDate(existingParagraph)) {
-                if (!effectiveDateFound) {
-                    updatedParagraphs.add(EFFECTIVE_DATE_PATTERN.matcher(existingParagraph)
-                            .replaceFirst(Matcher.quoteReplacement(canonicalDate)));
-                }
+                updatedParagraphs.add(EFFECTIVE_DATE_PATTERN.matcher(existingParagraph)
+                        .replaceFirst(Matcher.quoteReplacement(canonicalDate)));
                 effectiveDateFound = true;
             } else {
                 updatedParagraphs.add(existingParagraph);
