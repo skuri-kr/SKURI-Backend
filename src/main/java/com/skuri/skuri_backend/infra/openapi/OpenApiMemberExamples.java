@@ -458,6 +458,8 @@ public final class OpenApiMemberExamples {
             "{\"success\":false,\"message\":\"이미 사용 중인 닉네임입니다.\",\"errorCode\":\"NICKNAME_ALREADY_EXISTS\",\"timestamp\":\"2026-08-21T12:00:00\"}";
     public static final String ERROR_NICKNAME_RESERVED =
             "{\"success\":false,\"message\":\"사용할 수 없는 닉네임입니다.\",\"errorCode\":\"NICKNAME_RESERVED\",\"timestamp\":\"2026-08-21T12:00:00\"}";
+    public static final String ERROR_TERMS_CONSENT_REQUIRED =
+            "{\"success\":false,\"message\":\"현재 이용약관에 동의해야 프로필 설정을 완료할 수 있습니다.\",\"errorCode\":\"VALIDATION_ERROR\",\"timestamp\":\"2026-08-30T12:00:00\"}";
     public static final String ERROR_MEMBER_WITHDRAWN =
             "{\"success\":false,\"message\":\"탈퇴한 회원은 서비스에 접근할 수 없습니다.\",\"errorCode\":\"MEMBER_WITHDRAWN\",\"timestamp\":\"2026-03-09T12:00:00\"}";
     public static final String ERROR_MEMBER_WITHDRAWAL_NOT_ALLOWED =
