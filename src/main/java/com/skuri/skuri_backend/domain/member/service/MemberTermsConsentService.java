@@ -3,14 +3,13 @@ package com.skuri.skuri_backend.domain.member.service;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.member.entity.Member;
-import com.skuri.skuri_backend.domain.member.entity.MemberTermsConsent;
 import com.skuri.skuri_backend.domain.member.policy.TermsConsentPolicy;
 import com.skuri.skuri_backend.domain.member.repository.MemberTermsConsentRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -34,21 +33,12 @@ public class MemberTermsConsentService {
                 || !TermsConsentPolicy.CURRENT_VERSION.equals(termsVersion)) {
             throw new BusinessException(ErrorCode.VALIDATION_ERROR, CONSENT_REQUIRED_MESSAGE);
         }
-        if (hasCurrentConsent(member.getId())) {
-            return;
-        }
-
-        try {
-            memberTermsConsentRepository.saveAndFlush(MemberTermsConsent.acceptAtSignup(
-                    member,
-                    TermsConsentPolicy.CURRENT_VERSION,
-                    LocalDateTime.now()
-            ));
-        } catch (DataIntegrityViolationException exception) {
-            if (!hasCurrentConsent(member.getId())) {
-                throw exception;
-            }
-        }
+        memberTermsConsentRepository.insertSignupConsentIfAbsent(
+                UUID.randomUUID().toString(),
+                member.getId(),
+                TermsConsentPolicy.CURRENT_VERSION,
+                LocalDateTime.now()
+        );
     }
 
     public boolean hasCurrentConsent(String memberId) {

@@ -12,6 +12,34 @@ public interface MemberTermsConsentRepository extends JpaRepository<MemberTermsC
 
     boolean existsByMember_IdAndTermsVersion(String memberId, String termsVersion);
 
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            insert into member_terms_consents (
+                id,
+                member_id,
+                terms_version,
+                source,
+                accepted_at,
+                created_at,
+                updated_at
+            ) values (
+                :id,
+                :memberId,
+                :termsVersion,
+                'SIGNUP',
+                :acceptedAt,
+                current_timestamp,
+                current_timestamp
+            )
+            on duplicate key update id = id
+            """, nativeQuery = true)
+    int insertSignupConsentIfAbsent(
+            @Param("id") String id,
+            @Param("memberId") String memberId,
+            @Param("termsVersion") String termsVersion,
+            @Param("acceptedAt") LocalDateTime acceptedAt
+    );
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """
             insert into member_terms_consents (

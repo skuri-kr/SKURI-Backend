@@ -16,7 +16,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Getter
 @Entity
@@ -48,31 +47,4 @@ public class MemberTermsConsent extends BaseTimeEntity {
     @Column(name = "accepted_at")
     private LocalDateTime acceptedAt;
 
-    private MemberTermsConsent(
-            String id,
-            Member member,
-            String termsVersion,
-            MemberTermsConsentSource source,
-            LocalDateTime acceptedAt
-    ) {
-        this.id = id;
-        this.member = member;
-        this.termsVersion = termsVersion;
-        this.source = source;
-        this.acceptedAt = acceptedAt;
-    }
-
-    public static MemberTermsConsent acceptAtSignup(
-            Member member,
-            String termsVersion,
-            LocalDateTime acceptedAt
-    ) {
-        return new MemberTermsConsent(
-                UUID.randomUUID().toString(),
-                member,
-                termsVersion,
-                MemberTermsConsentSource.SIGNUP,
-                acceptedAt
-        );
-    }
 }
