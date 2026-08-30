@@ -3,12 +3,10 @@ package com.skuri.skuri_backend.domain.member.service;
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.member.entity.Member;
-import com.skuri.skuri_backend.domain.member.entity.MemberTermsConsent;
 import com.skuri.skuri_backend.domain.member.policy.TermsConsentPolicy;
 import com.skuri.skuri_backend.domain.member.repository.MemberTermsConsentRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -17,11 +15,11 @@ import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class MemberTermsConsentServiceTest {
@@ -35,10 +33,6 @@ class MemberTermsConsentServiceTest {
     @Test
     void recordIfRequested_현재약관동의면_SIGNUP출처로기록한다() {
         Member member = Member.create("member-1", "user@sungkyul.ac.kr", "사용자", LocalDateTime.now());
-        when(memberTermsConsentRepository.existsByMember_IdAndTermsVersion(
-                member.getId(),
-                TermsConsentPolicy.CURRENT_VERSION
-        )).thenReturn(false, true);
 
         memberTermsConsentService.recordIfRequested(
                 member,
@@ -47,12 +41,12 @@ class MemberTermsConsentServiceTest {
                 true
         );
 
-        ArgumentCaptor<MemberTermsConsent> captor = ArgumentCaptor.forClass(MemberTermsConsent.class);
-        verify(memberTermsConsentRepository).saveAndFlush(captor.capture());
-        assertEquals(member, captor.getValue().getMember());
-        assertEquals(TermsConsentPolicy.CURRENT_VERSION, captor.getValue().getTermsVersion());
-        assertEquals("SIGNUP", captor.getValue().getSource().name());
-        assertTrue(captor.getValue().getAcceptedAt() != null);
+        verify(memberTermsConsentRepository).insertSignupConsentIfAbsent(
+                anyString(),
+                eq(member.getId()),
+                eq(TermsConsentPolicy.CURRENT_VERSION),
+                any(LocalDateTime.class)
+        );
     }
 
     @Test
@@ -65,7 +59,16 @@ class MemberTermsConsentServiceTest {
         );
 
         assertEquals(ErrorCode.VALIDATION_ERROR, exception.getErrorCode());
-        verify(memberTermsConsentRepository, never()).saveAndFlush(any());
+        assertEquals(
+                "현재 이용약관에 동의해야 프로필 설정을 완료할 수 있습니다.",
+                exception.getMessage()
+        );
+        verify(memberTermsConsentRepository, never()).insertSignupConsentIfAbsent(
+                anyString(),
+                anyString(),
+                anyString(),
+                any(LocalDateTime.class)
+        );
     }
 
     @Test
@@ -74,6 +77,11 @@ class MemberTermsConsentServiceTest {
 
         memberTermsConsentService.recordIfRequested(member, null, null, false);
 
-        verify(memberTermsConsentRepository, never()).saveAndFlush(any());
+        verify(memberTermsConsentRepository, never()).insertSignupConsentIfAbsent(
+                anyString(),
+                anyString(),
+                anyString(),
+                any(LocalDateTime.class)
+        );
     }
 }
