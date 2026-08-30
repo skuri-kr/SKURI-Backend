@@ -53,7 +53,7 @@ public class LegalDocumentSeedMigration {
                 "SKURI 이용약관",
                 LegalDocumentBannerTone.GREEN,
                 List.of(new LegalDocumentBannerLine(
-                        "시행일: 2025년 3월 1일 · 최종 수정: 2025년 3월 1일",
+                        "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
                         LegalDocumentBannerLineTone.PRIMARY
                 )),
                 parseSections(TERMS_OF_USE_RAW_TEXT),
@@ -74,7 +74,7 @@ public class LegalDocumentSeedMigration {
                                 LegalDocumentBannerLineTone.PRIMARY
                         ),
                         new LegalDocumentBannerLine(
-                                "시행일: 2025년 3월 1일 · 최종 수정: 2025년 3월 1일",
+                                "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
                                 LegalDocumentBannerLineTone.SECONDARY
                         )
                 ),
@@ -129,7 +129,15 @@ public class LegalDocumentSeedMigration {
         return 1;
     }
 
-    private List<LegalDocumentSection> parseSections(String rawText) {
+    static List<LegalDocumentSection> termsOfUseSections() {
+        return parseSections(TERMS_OF_USE_RAW_TEXT);
+    }
+
+    static List<LegalDocumentSection> privacyPolicySections() {
+        return parseSections(PRIVACY_POLICY_RAW_TEXT);
+    }
+
+    private static List<LegalDocumentSection> parseSections(String rawText) {
         List<LegalDocumentSection> sections = new ArrayList<>();
         String currentTitle = null;
         List<String> currentParagraphs = new ArrayList<>();
@@ -159,11 +167,11 @@ public class LegalDocumentSeedMigration {
         return sections;
     }
 
-    private boolean isSectionHeading(String line) {
+    private static boolean isSectionHeading(String line) {
         return "부칙".equals(line) || SECTION_HEADING_PATTERN.matcher(line).matches();
     }
 
-    private String sectionId(String title, int sectionIndex) {
+    private static String sectionId(String title, int sectionIndex) {
         if ("부칙".equals(title)) {
             return "supplementary-provisions";
         }
@@ -235,7 +243,18 @@ public class LegalDocumentSeedMigration {
 
             회사는 관련 법규 및 개인정보처리방침을 적용합니다. 외부 링크 페이지에는 회사의 방침이 적용되지 않습니다.
 
-            회사는 서비스 제공을 위하여 이메일, 이름, 학교명, 기기식별정보(ADID/IDFA) 등을 수집할 수 있습니다. 위치정보는 이용자의 단말기 내에서 가까운 파티 정렬 등 기능에만 일시적으로 활용되며, 서버에 저장되거나 제3자에게 제공되지 않습니다. 또한, 광고 게재를 위해 Google AdMob 등 제3자의 광고 네트워크 SDK가 동작할 수 있으며, 이 과정에서 광고 식별자(ADID/IDFA) 및 일부 단말 정보가 자동으로 처리될 수 있습니다. 회사는 광고 목적의 위치정보를 직접 수집·저장하지 않습니다.
+            회사는 서비스 제공을 위하여 이메일, 이름, 학교명, 기기식별정보 등을 처리할 수 있습니다. 위치정보는 이용자의 단말기 내에서 가까운 파티 정렬 등 기능에만 일시적으로 활용되며 회사 서버에 저장되거나 다른 이용자에게 제공되지 않습니다.
+
+            회사는 서비스 운영을 위해 Google LLC 및 그 계열사가 제공하는 Google AdMob을 이용합니다. 회원은 가입 과정에서 본 약관에 동의함으로써 다음 광고 관련 개인정보 처리와 국외이전에 동의합니다.
+
+            가. 이전 항목: IP 주소로부터 추정되는 일반적 위치, 앱 정보, 광고 식별자(ADID/IDFA) 및 그 밖의 기기 식별자, 앱·광고 상호작용과 광고 노출 정보, 오류·진단·성능 정보
+            나. 이전받는 자: Google LLC 및 Google 계열사(문의: https://support.google.com/policies/contact/general_privacy_form)
+            다. 이전 국가: 미국, 싱가포르, 일본, 대만, 칠레, 우루과이, 아일랜드, 네덜란드, 벨기에, 덴마크, 핀란드, 독일 등 Google이 데이터센터를 운영하는 국가
+            라. 이전 시점 및 방법: Google Mobile Ads SDK가 초기화되거나 광고를 요청·표시하는 때 암호화된 네트워크 통신으로 이전
+            마. 이용 목적: 광고 제공 및 개인 최적화, 광고 효과 측정·분석, 서비스 개선, 보안과 부정 이용 방지
+            바. 보유·이용기간: Google 개인정보처리방침 및 데이터 보관 정책에 따르며, 광고 서버 로그의 IP 주소 일부는 9개월 후, 쿠키 정보는 18개월 후 익명화될 수 있습니다. 법적 의무, 보안 및 부정 이용 방지를 위해 필요한 정보는 더 오래 보관될 수 있습니다.
+
+            실제 처리 범위는 이용자의 기기 설정, 지역별 동의 선택, Google 정책 및 SDK 버전에 따라 달라질 수 있습니다. iOS 광고 추적 허용 여부는 운영체제의 개인정보 보호 및 보안 설정에서 별도로 관리됩니다.
 
             제12조(이용자의 의무)
 
@@ -301,9 +320,9 @@ public class LegalDocumentSeedMigration {
 
             제18조(정보의 제공 및 광고의 게재)
 
-            회사는 필요 정보 및 광고를 제공할 수 있으며, 이용자는 수신을 거부할 수 있습니다.
+            회사는 서비스 운영을 위해 Google AdMob 등 제3자 광고 네트워크를 통한 배너 광고를 게재할 수 있습니다. 본 조의 광고 게재는 전자우편·푸시 알림 등 광고성 정보의 전송과 구분됩니다.
 
-            회사는 Google AdMob 등 제3자의 광고 네트워크를 통해 광고를 게재할 수 있으며, 이 과정에서 광고 식별자(ADID/IDFA) 및 일부 단말 정보가 자동으로 처리될 수 있습니다. 단, 회사는 광고 목적의 위치정보를 직접 수집하거나 저장하지 않습니다.
+            EEA·영국·스위스 및 관련 미국 주 등 별도 개인정보 선택권이 필요한 지역에서는 Google의 개인정보 메시지를 제공하며, 해당 지역 이용자는 앱 설정에 표시되는 광고 개인정보 설정에서 선택을 다시 확인하거나 변경할 수 있습니다. 회사는 광고 목적의 정밀 위치정보를 직접 수집하거나 저장하지 않습니다.
 
             제19조(권리의 귀속)
 
@@ -329,7 +348,7 @@ public class LegalDocumentSeedMigration {
 
             부칙
 
-            제1조(시행일) 본 약관은 2025.10.29.부터 시행됩니다.
+            제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다.
             """;
 
     private static final String PRIVACY_POLICY_RAW_TEXT = """
@@ -518,8 +537,25 @@ public class LegalDocumentSeedMigration {
 
             가. 중앙행정심판위원회 : (국번없이) 110 (www.simpan.go.kr)
 
+            제23조(Google AdMob 광고 관련 개인정보 처리 및 국외이전)
+
+            회사는 서비스 운영을 위해 Google LLC 및 그 계열사가 제공하는 Google AdMob을 이용하여 배너 광고를 게재합니다.
+
+            가. 처리·이전 항목: IP 주소로부터 추정되는 일반적 위치, 앱 정보, 광고 식별자(ADID/IDFA) 및 그 밖의 기기 식별자, 앱·광고 상호작용과 광고 노출 정보, 오류·진단·성능 정보
+            나. 개인정보를 이전받는 자: Google LLC 및 Google 계열사(문의: https://support.google.com/policies/contact/general_privacy_form)
+            다. 이전 국가: 미국, 싱가포르, 일본, 대만, 칠레, 우루과이, 아일랜드, 네덜란드, 벨기에, 덴마크, 핀란드, 독일 등 Google이 데이터센터를 운영하는 국가
+            라. 이전 시점 및 방법: Google Mobile Ads SDK가 초기화되거나 광고를 요청·표시하는 때 암호화된 네트워크 통신으로 이전
+            마. 처리·이전 목적: 광고 제공 및 개인 최적화, 광고 효과 측정·분석, 서비스 개선, 보안과 부정 이용 방지
+            바. 보유·이용기간: Google 개인정보처리방침 및 데이터 보관 정책에 따르며, 광고 서버 로그의 IP 주소 일부는 9개월 후, 쿠키 정보는 18개월 후 익명화될 수 있습니다. 법적 의무, 보안 및 부정 이용 방지를 위해 필요한 정보는 더 오래 보관될 수 있습니다.
+
+            회원은 광고 관련 국외이전 내용을 포함한 이용약관에 동의하는 방식으로 위 처리에 동의합니다. 동의하지 않으면 회원가입을 완료할 수 없습니다. 실제 처리 범위는 이용자의 기기 설정, 지역별 동의 선택, Google 정책 및 SDK 버전에 따라 달라질 수 있습니다.
+
+            EEA·영국·스위스 및 관련 미국 주 등 별도 개인정보 선택권이 필요한 지역에서는 Google의 개인정보 메시지를 제공합니다. 해당 지역에서 광고 개인정보 설정이 필요한 경우 앱 설정 메뉴에 동의 철회 및 선택 변경 진입점이 표시됩니다. iOS 광고 추적 허용 여부는 운영체제의 개인정보 보호 및 보안 설정에서도 변경할 수 있습니다.
+
+            Google의 구체적인 개인정보 처리 방식과 국외이전은 Google 개인정보처리방침(https://policies.google.com/privacy), Google 서비스 사용 앱 정보 처리 안내(https://policies.google.com/technologies/partner-sites), 광고 데이터 국외이전 안내(https://business.safety.google/adsdatatransfers/)에서 확인할 수 있습니다.
+
             부칙
 
-            제1조 본 방침은 2025.10.29.부터 시행됩니다.
+            제1조 본 방침은 2026.08.30.부터 시행됩니다.
             """;
 }
