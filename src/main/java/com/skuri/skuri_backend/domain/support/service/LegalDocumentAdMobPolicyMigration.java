@@ -35,11 +35,13 @@ public class LegalDocumentAdMobPolicyMigration {
             "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일";
 
     private static final String EFFECTIVE_DATE_PREFIX = "시행일:";
+    private static final String SUPPLEMENTARY_PROVISIONS_SECTION_ID =
+            "supplementary-provisions";
 
     private static final Set<String> TERMS_SECTION_IDS =
-            Set.of("article-11", "article-18", "supplementary-provisions");
+            Set.of("article-11", "article-18");
     private static final Set<String> PRIVACY_SECTION_IDS =
-            Set.of("article-23", "supplementary-provisions");
+            Set.of("article-23");
 
     private final LegalDocumentRepository legalDocumentRepository;
     private final SeedMigrationRepository seedMigrationRepository;
@@ -90,7 +92,14 @@ public class LegalDocumentAdMobPolicyMigration {
                         document.getBannerLines(),
                         defaultEffectiveDateLine
                 ),
-                replaceSections(document.getSections(), canonicalSections, replacedSectionIds),
+                replaceSupplementaryEffectiveDate(
+                        replaceSections(
+                                document.getSections(),
+                                canonicalSections,
+                                replacedSectionIds
+                        ),
+                        canonicalSections
+                ),
                 document.getFooterLines(),
                 document.isActive()
         );
@@ -120,6 +129,72 @@ public class LegalDocumentAdMobPolicyMigration {
             updatedLines.add(defaultEffectiveDateLine);
         }
         return List.copyOf(updatedLines);
+    }
+
+    static List<LegalDocumentSection> replaceSupplementaryEffectiveDate(
+            List<LegalDocumentSection> existingSections,
+            List<LegalDocumentSection> canonicalSections
+    ) {
+        LegalDocumentSection canonicalSupplementary = canonicalSections.stream()
+                .filter(section -> SUPPLEMENTARY_PROVISIONS_SECTION_ID.equals(section.id()))
+                .findFirst()
+                .orElseThrow();
+        String canonicalEffectiveDate = canonicalSupplementary.paragraphs().stream()
+                .filter(LegalDocumentAdMobPolicyMigration::isEffectiveDateParagraph)
+                .findFirst()
+                .orElseThrow();
+
+        List<LegalDocumentSection> updatedSections = new ArrayList<>();
+        boolean supplementaryFound = false;
+        for (LegalDocumentSection existingSection : existingSections) {
+            if (SUPPLEMENTARY_PROVISIONS_SECTION_ID.equals(existingSection.id())) {
+                updatedSections.add(new LegalDocumentSection(
+                        existingSection.id(),
+                        replaceEffectiveDateParagraphs(
+                                existingSection.paragraphs(),
+                                canonicalEffectiveDate
+                        ),
+                        existingSection.title()
+                ));
+                supplementaryFound = true;
+            } else {
+                updatedSections.add(existingSection);
+            }
+        }
+
+        if (!supplementaryFound) {
+            updatedSections.add(canonicalSupplementary);
+        }
+        return List.copyOf(updatedSections);
+    }
+
+    private static List<String> replaceEffectiveDateParagraphs(
+            List<String> existingParagraphs,
+            String canonicalEffectiveDate
+    ) {
+        List<String> updatedParagraphs = new ArrayList<>();
+        boolean effectiveDateFound = false;
+        for (String existingParagraph : existingParagraphs) {
+            if (isEffectiveDateParagraph(existingParagraph)) {
+                if (!effectiveDateFound) {
+                    updatedParagraphs.add(canonicalEffectiveDate);
+                }
+                effectiveDateFound = true;
+            } else {
+                updatedParagraphs.add(existingParagraph);
+            }
+        }
+
+        if (!effectiveDateFound) {
+            updatedParagraphs.add(canonicalEffectiveDate);
+        }
+        return List.copyOf(updatedParagraphs);
+    }
+
+    private static boolean isEffectiveDateParagraph(String paragraph) {
+        String normalized = paragraph.trim();
+        return normalized.startsWith("제1조(시행일)")
+                || (normalized.startsWith("제1조") && normalized.contains("시행"));
     }
 
     static List<LegalDocumentSection> replaceSections(
