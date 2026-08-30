@@ -134,6 +134,34 @@ class LegalDocumentAdMobPolicyMigrationTest {
     }
 
     @Test
+    void replaceSections_교체대상조항이중복돼도_정규조항한개만남긴다() {
+        List<LegalDocumentSection> merged = LegalDocumentAdMobPolicyMigration.replaceSections(
+                List.of(
+                        section("article-01", "기존 1조"),
+                        section("article-11", "오래된 11조 첫 번째"),
+                        section("article-11", "오래된 11조 두 번째"),
+                        section("article-18", "오래된 18조 첫 번째"),
+                        section("article-18", "오래된 18조 두 번째")
+                ),
+                LegalDocumentSeedMigration.termsOfUseSections(),
+                Set.of("article-11", "article-18")
+        );
+
+        assertEquals(1, merged.stream().filter(section -> "article-11".equals(section.id())).count());
+        assertEquals(1, merged.stream().filter(section -> "article-18".equals(section.id())).count());
+        assertEquals(
+                LegalDocumentSeedMigration.termsOfUseSections().stream()
+                        .filter(section -> "article-11".equals(section.id()))
+                        .findFirst()
+                        .orElseThrow(),
+                merged.stream()
+                        .filter(section -> "article-11".equals(section.id()))
+                        .findFirst()
+                        .orElseThrow()
+        );
+    }
+
+    @Test
     void replaceEffectiveDateBannerLines_시행일만교체하고_관리자문구와톤을보존한다() {
         List<LegalDocumentBannerLine> updated =
                 LegalDocumentAdMobPolicyMigration.replaceEffectiveDateBannerLines(
@@ -199,7 +227,7 @@ class LegalDocumentAdMobPolicyMigrationTest {
                                         "supplementary-provisions",
                                         List.of(
                                                 "관리자가 추가한 안내",
-                                                "제1조(시행일) 본 약관은 2025.03.01.부터 시행됩니다.",
+                                                "제1조(시행일) 본 약관은 2025.03.01.부터 시행됩니다. 별도 고지는 계속 유효합니다.",
                                                 "관리자가 추가한 후속 문단"
                                         ),
                                         "관리자 부칙 제목"
@@ -213,10 +241,31 @@ class LegalDocumentAdMobPolicyMigrationTest {
         assertEquals(
                 List.of(
                         "관리자가 추가한 안내",
-                        "제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다.",
+                        "제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다. 별도 고지는 계속 유효합니다.",
                         "관리자가 추가한 후속 문단"
                 ),
                 supplementary.paragraphs()
+        );
+    }
+
+    @Test
+    void replaceSupplementaryEffectiveDate_시행과경과조치문단은보존하고_정규시행일을추가한다() {
+        List<LegalDocumentSection> updated =
+                LegalDocumentAdMobPolicyMigration.replaceSupplementaryEffectiveDate(
+                        List.of(new LegalDocumentSection(
+                                "supplementary-provisions",
+                                List.of("제1조(시행 및 경과조치) 기존 처리에는 종전 약관을 시행합니다."),
+                                "부칙"
+                        )),
+                        LegalDocumentSeedMigration.termsOfUseSections()
+                );
+
+        assertEquals(
+                List.of(
+                        "제1조(시행 및 경과조치) 기존 처리에는 종전 약관을 시행합니다.",
+                        "제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다."
+                ),
+                updated.get(0).paragraphs()
         );
     }
 
