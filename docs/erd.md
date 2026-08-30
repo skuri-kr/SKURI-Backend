@@ -1,6 +1,6 @@
 # Spring 백엔드 ERD (Entity Relationship Diagram)
 
-> 최종 수정일: 2026-08-28
+> 최종 수정일: 2026-08-30
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -73,7 +73,18 @@ erDiagram
         datetime updated_at
     }
 
+    member_terms_consents {
+        varchar(36) id PK "UUID"
+        varchar(36) member_id FK "NOT NULL"
+        varchar(32) terms_version "NOT NULL"
+        varchar(24) source "SIGNUP"
+        datetime accepted_at "NOT NULL"
+        datetime created_at
+        datetime updated_at
+    }
+
     members ||--o{ linked_accounts : "has"
+    members ||--o{ member_terms_consents : "accepts"
 
     %% ===== TAXI PARTY 도메인 =====
     parties {
@@ -808,6 +819,7 @@ erDiagram
 | `departments` | 활성 여부/표시 순서를 가진 canonical 학과 master | ~30 |
 | `members` | 회원 기본 정보 | ~5,000 |
 | `linked_accounts` | 연결된 소셜 계정 | ~5,000 |
+| `member_terms_consents` | 이용약관 버전별 동의 이력 | 회원 수 × 약관 버전 수 |
 
 **departments 테이블 상세:**
 
@@ -874,6 +886,20 @@ erDiagram
 | photo_url | VARCHAR(500) | | provider 프로필 이미지 URL (`picture`, 비소셜 로그인은 `NULL`) |
 | created_at | DATETIME | NOT NULL | 생성일 |
 | updated_at | DATETIME | NOT NULL | 수정일 |
+
+**member_terms_consents 테이블 상세:**
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|------|------|---------|------|
+| id | VARCHAR(36) | PK | 동의 이력 UUID |
+| member_id | VARCHAR(36) | FK, NOT NULL | 회원 ID (`members.id`) |
+| terms_version | VARCHAR(32) | NOT NULL | 동의한 이용약관 버전 |
+| source | VARCHAR(24) | NOT NULL | `SIGNUP` |
+| accepted_at | DATETIME | NOT NULL | 신규 회원은 최초 프로필 완료 시각, 기존 회원 일괄 적재는 백필 실행 시각 |
+| created_at | DATETIME | NOT NULL | 동의 기록 생성 또는 백필 실행 시각 |
+| updated_at | DATETIME | NOT NULL | 수정일 |
+
+> `(member_id, terms_version)`을 유일 키로 사용합니다. 새 서버 최초 기동 시 캡처한 백필 시각까지 생성된 `members` 전체를 상태·프로필 완료 여부와 관계없이 현재 버전 `SIGNUP`으로 1회 적재하고, 동일한 백필 실행 시각을 `accepted_at`에 기록합니다. 기준 시각 이후 생성된 회원은 제외하며, 동시 가입 완료와 백필이 겹치면 더 이른 시각을 보존합니다.
 
 ### 2.2 TaxiParty 도메인
 
@@ -1268,6 +1294,7 @@ Taxi history 계약 메모:
 | 관계 | 테이블 A | 테이블 B | 유형 | 설명 |
 |------|---------|---------|------|------|
 | 회원-연결계정 | members | linked_accounts | 1:N | 회원은 여러 소셜 계정 연결 가능 |
+| 회원-이용약관 동의 | members | member_terms_consents | 1:N | 회원별·약관 버전별 동의 출처와 시각 관리 |
 | 파티-멤버 | parties | party_members | 1:N | 파티에 여러 멤버 참여 |
 | 파티-태그 | parties | party_tags | 1:N | 파티에 여러 태그 |
 | 파티-정산 | parties | member_settlements | 1:N | 파티 멤버별 정산 상태 |
@@ -1436,6 +1463,9 @@ CREATE INDEX idx_departments_active_order ON departments(active, display_order, 
 CREATE UNIQUE INDEX uk_linked_account_member_provider ON linked_accounts(member_id, provider);
 CREATE INDEX idx_linked_accounts_member ON linked_accounts(member_id);
 CREATE INDEX idx_linked_accounts_provider ON linked_accounts(provider, provider_id);
+
+-- member_terms_consents
+CREATE UNIQUE INDEX uk_member_terms_consents_member_version ON member_terms_consents(member_id, terms_version);
 ```
 
 ### 4.2 TaxiParty 도메인

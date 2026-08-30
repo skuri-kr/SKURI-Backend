@@ -17,6 +17,7 @@ import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.event.MemberLifecycleEvent;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.member.exception.WithdrawnMemberRejoinNotAllowedException;
+import com.skuri.skuri_backend.domain.member.policy.TermsConsentPolicy;
 import com.skuri.skuri_backend.domain.member.repository.LinkedAccountRepository;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.infra.auth.firebase.AuthenticatedMember;
@@ -66,6 +67,9 @@ class MemberServiceTest {
 
     @Mock
     private DepartmentService departmentService;
+
+    @Mock
+    private MemberTermsConsentService memberTermsConsentService;
 
     @Mock
     private AfterCommitApplicationEventPublisher eventPublisher;
@@ -228,6 +232,7 @@ class MemberServiceTest {
         Member member = Member.create("firebase-uid", "user@sungkyul.ac.kr", "기존실명", LocalDateTime.now());
         when(memberRepository.findActiveById("firebase-uid")).thenReturn(Optional.of(member));
         when(departmentService.normalizeSupported("컴퓨터공학과")).thenReturn("컴퓨터공학과");
+        when(memberTermsConsentService.hasCurrentConsent("firebase-uid")).thenReturn(true);
 
         MemberMeResponse response = memberService.updateMyProfile(
                 "firebase-uid",
@@ -236,7 +241,10 @@ class MemberServiceTest {
 
         assertEquals("새회원", response.nickname());
         assertEquals("새회원", member.getNicknameKey());
+        assertTrue(response.termsAccepted());
+        assertEquals(TermsConsentPolicy.CURRENT_VERSION, response.termsVersion());
         verify(memberRepository).saveAndFlush(member);
+        verify(memberTermsConsentService).recordForProfileCompletion(member, true);
         verify(eventPublisher).publish(new MemberLifecycleEvent.MemberProfileCompleted("firebase-uid"));
     }
 

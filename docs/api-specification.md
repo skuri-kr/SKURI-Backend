@@ -334,6 +334,8 @@ Spring 서버 처리:
         "scholarship": false
       }
     },
+    "termsAccepted": true,
+    "termsVersion": "2026-08-30",
     "joinedAt": "2024-03-01T00:00:00Z",
     "lastLogin": "2026-03-02T09:10:11Z"
   }
@@ -350,6 +352,8 @@ Spring 서버 처리:
 - `nickname`은 앞뒤 공백 제거와 Unicode NFC 정규화 후 저장합니다.
 - 공백 차이로 우회한 경우까지 포함해 `스쿠리 유저`, `운영자`를 포함한 닉네임은 `422 NICKNAME_RESERVED`로 거부합니다.
 - 프로필 미완료 회원이 현재 예약어 닉네임을 변경하지 않고 `studentId`·`department`만 채워 최초 프로필 완료를 시도해도 `422 NICKNAME_RESERVED`로 거부합니다. 이미 완료된 기존 예약어 닉네임 회원의 다른 프로필 필드 부분 수정은 허용합니다.
+- 최초 프로필 완료 요청이 성공하면 서버는 회원가입 화면의 통합 이용약관 동의가 완료된 것으로 간주하고 현재 버전 동의를 `SIGNUP` 출처로 자동 기록합니다.
+- 클라이언트는 프로필 수정 요청에 `termsAccepted`나 `termsVersion`을 보내지 않습니다. 응답의 `termsAccepted`/`termsVersion`은 서버에 저장된 현재 버전 동의 기록을 기준으로 반환합니다.
 - 신규·변경 닉네임은 ACTIVE 회원 사이에서만 고유해야 합니다. 중복이면 `409 NICKNAME_ALREADY_EXISTS`이며, 탈퇴 회원의 닉네임은 재사용할 수 있습니다.
 - 닉네임 고유 비교는 운영 MySQL `utf8mb4_unicode_ci` 규칙을 사용하므로 대소문자와 악센트 차이도 중복입니다. 예를 들어 `Jose`와 `José`를 함께 저장할 수 없습니다.
 - 기존 ACTIVE 회원의 중복 닉네임은 임의 변경하지 않습니다. 해당 회원이 닉네임을 변경할 때부터 신규 정책을 적용합니다.
@@ -372,6 +376,8 @@ Spring 서버 처리:
   "photoUrl": "https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg"
 }
 ```
+
+> 기존 회원 동의 백필: 새 서버가 처음 기동하며 캡처한 백필 시각까지 생성된 `members` 전체를 상태·프로필 완료 여부와 관계없이 현재 버전 `SIGNUP` 출처로 1회 적재합니다. `accepted_at`에는 백필 실행 시각을 동일하게 기록하며 `NULL`을 허용하지 않습니다. 기준 시각 이후 생성된 회원은 제외하고 최초 프로필 완료 시각을 `accepted_at`으로 기록합니다.
 
 #### GET /v1/departments
 활성 학과 목록 조회
@@ -3570,7 +3576,7 @@ Authorization:Bearer <firebase_id_token>
       "iconKey": "document",
       "lines": [
         {
-          "text": "시행일: 2025년 3월 1일 · 최종 수정: 2025년 3월 1일",
+          "text": "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
           "tone": "primary"
         }
       ],
@@ -5861,7 +5867,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
     "iconKey": "document",
     "lines": [
       {
-        "text": "시행일: 2025년 3월 1일 · 최종 수정: 2025년 3월 1일",
+        "text": "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
         "tone": "primary"
       }
     ],

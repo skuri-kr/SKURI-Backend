@@ -92,6 +92,8 @@ public final class OpenApiMemberExamples {
                     "event": false
                   }
                 },
+                "termsAccepted": true,
+                "termsVersion": "2026-08-30",
                 "joinedAt": "2026-03-02T18:37:21",
                 "lastLogin": "2026-03-04T10:00:00"
               }
@@ -133,6 +135,8 @@ public final class OpenApiMemberExamples {
                     "event": false
                   }
                 },
+                "termsAccepted": true,
+                "termsVersion": "2026-08-30",
                 "joinedAt": "2026-03-02T18:37:21",
                 "lastLogin": "2026-03-04T10:00:00"
               }
@@ -174,6 +178,8 @@ public final class OpenApiMemberExamples {
                     "event": false
                   }
                 },
+                "termsAccepted": true,
+                "termsVersion": "2026-08-30",
                 "joinedAt": "2026-03-02T18:37:21",
                 "lastLogin": "2026-03-04T10:00:00"
               }
@@ -215,6 +221,8 @@ public final class OpenApiMemberExamples {
                     "event": true
                   }
                 },
+                "termsAccepted": true,
+                "termsVersion": "2026-08-30",
                 "joinedAt": "2026-03-02T18:37:21",
                 "lastLogin": "2026-03-04T10:00:00"
               }

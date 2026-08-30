@@ -84,7 +84,7 @@
 ### 3.1 Member (회원)
 
 ```
-책임: 사용자 인증 후 프로필 관리, 계좌 정보, 알림 설정
+책임: 사용자 인증 후 프로필 관리, 계좌 정보, 알림 설정, 이용약관 버전별 동의 이력
 
 Firestore 컬렉션:
   - users/{uid}
@@ -110,6 +110,8 @@ Hooks:
     - noticeNotificationsDetail (카테고리별 상세 설정)
   - LinkedAccount
     - provider, providerId, email, providerDisplayName, photoURL
+  - MemberTermsConsent
+    - member, termsVersion, source(SIGNUP), acceptedAt(NOT NULL)
   - BankAccount
     - bankName, accountNumber, accountHolder, hideName
 
@@ -128,6 +130,8 @@ Hooks:
   - 신규·변경 닉네임은 trim·Unicode NFC 정규화 후 ACTIVE 회원 사이에서만 고유해야 하며, 운영 MySQL `utf8mb4_unicode_ci` 비교에 따라 대소문자·악센트 차이도 중복으로 취급한다. `스쿠리 유저`·`운영자` 포함 닉네임은 중간 공백 우회까지 차단한다. 탈퇴 시 고유 키를 해제해 재사용을 허용하고 기존 중복 닉네임은 임의 변경하지 않는다.
   - 회원 생성 시 `realname`은 provider 프로필 이름(`linked_accounts.provider_display_name`)으로 초기화
   - 회원 생성 시 `members.photo_url`은 `null`, 소셜 프로필 이미지(`picture`)는 `linked_accounts.photo_url`에만 저장
+  - 최초 프로필 완료 요청이 성공하면 광고 관련 개인정보 처리·국외이전 조항을 포함한 통합 이용약관 동의가 완료된 것으로 간주한다. 서버는 별도 동의 요청 필드를 검사하지 않고 현재 버전 `SIGNUP` 이력을 자동 기록한다.
+  - 약관 동의는 `member_terms_consents`에 회원·버전별 1건만 저장한다. 백필 기준 시각까지 생성된 기존 `members` 전체에는 실행 시각을, 이후 신규 회원에는 최초 프로필 완료 시각을 `acceptedAt`으로 기록하며 `NULL`을 허용하지 않는다.
   - `linked_accounts.provider`는 `GOOGLE`, `PASSWORD`, `UNKNOWN`을 사용
   - 소셜 로그인(`GOOGLE`)이 아닌 경우 `linked_accounts`는 `provider`를 제외한 provider 부가 컬럼을 `null`로 저장
   - `linked_accounts.providerId`는 provider 계정 식별자(예: `firebase.identities[<sign_in_provider>][0]`)를 저장하며, 비소셜 로그인에서는 `null`
@@ -1292,6 +1296,29 @@ public class LinkedAccount {
 
     // 소셜 계정 프로필 이미지 (비소셜 로그인은 null)
     private String photoUrl;
+}
+
+@Entity
+@Table(
+    name = "member_terms_consents",
+    uniqueConstraints = @UniqueConstraint(
+        name = "uk_member_terms_consents_member_version",
+        columnNames = {"member_id", "terms_version"}
+    )
+)
+public class MemberTermsConsent extends BaseTimeEntity {
+    @Id
+    private String id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    private Member member;
+
+    private String termsVersion;
+
+    @Enumerated(EnumType.STRING)
+    private MemberTermsConsentSource source; // SIGNUP
+
+    private LocalDateTime acceptedAt; // NOT NULL
 }
 ```
 

@@ -168,7 +168,10 @@ public class MemberController {
     }
 
     @PatchMapping("/me")
-    @Operation(summary = "내 프로필 수정", description = "nickname/studentId/department/photoUrl 필드를 부분 수정합니다.")
+    @Operation(
+            summary = "내 프로필 수정",
+            description = "nickname/studentId/department/photoUrl 필드를 부분 수정합니다. 최초 프로필 완료 시 서버가 현재 이용약관 SIGNUP 동의를 자동 기록합니다."
+    )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",

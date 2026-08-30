@@ -62,7 +62,7 @@ public record UpsertLegalDocumentRequest(
     @Schema(description = "법적 문서 배너 라인 요청")
     public record BannerLineRequest(
             @NotBlank(message = "banner.lines.text는 필수입니다.")
-            @Schema(description = "배너 문구", example = "시행일: 2025년 3월 1일 · 최종 수정: 2025년 3월 1일")
+            @Schema(description = "배너 문구", example = "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일")
             String text,
 
             @NotNull(message = "banner.lines.tone은 필수입니다.")

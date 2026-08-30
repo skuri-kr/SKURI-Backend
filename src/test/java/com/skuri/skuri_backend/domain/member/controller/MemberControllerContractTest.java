@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -135,7 +136,23 @@ class MemberControllerContractTest {
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.lastLogin").exists())
+                .andExpect(jsonPath("$.data.termsAccepted").value(true))
+                .andExpect(jsonPath("$.data.termsVersion").value("2026-08-30"))
                 .andExpect(jsonPath("$.data.notificationSetting.friendAndInvitationNotifications").value(true));
+    }
+
+    @Test
+    void getMembersMe_현재약관미동의_명시적상태반환() throws Exception {
+        mockValidToken();
+        when(memberService.getMyProfile("firebase-uid")).thenReturn(memberMeResponse(false));
+
+        mockMvc.perform(
+                        get("/v1/members/me")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.termsAccepted").value(false))
+                .andExpect(jsonPath("$.data.termsVersion").value(nullValue()));
     }
 
     @Test
@@ -505,6 +522,10 @@ class MemberControllerContractTest {
     }
 
     private MemberMeResponse memberMeResponse() {
+        return memberMeResponse(true);
+    }
+
+    private MemberMeResponse memberMeResponse(boolean termsAccepted) {
         return new MemberMeResponse(
                 "firebase-uid",
                 "user@sungkyul.ac.kr",
@@ -529,6 +550,8 @@ class MemberControllerContractTest {
                         false,
                         Map.of("news", true, "academy", true, "scholarship", false)
                 ),
+                termsAccepted,
+                termsAccepted ? "2026-08-30" : null,
                 LocalDateTime.now(),
                 LocalDateTime.now()
         );

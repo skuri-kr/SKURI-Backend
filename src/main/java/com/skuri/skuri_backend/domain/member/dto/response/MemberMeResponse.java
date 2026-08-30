@@ -30,6 +30,10 @@ public record MemberMeResponse(
         MemberBankAccountResponse bankAccount,
         @Schema(description = "알림 설정")
         MemberNotificationSettingResponse notificationSetting,
+        @Schema(description = "현재 이용약관 버전 동의 여부", example = "true")
+        boolean termsAccepted,
+        @Schema(description = "동의한 현재 이용약관 버전", example = "2026-08-30", nullable = true)
+        String termsVersion,
         @Schema(description = "가입 시각", example = "2026-03-02T18:37:21")
         LocalDateTime joinedAt,
         @Schema(description = "마지막 로그인 시각", example = "2026-03-02T19:00:00")

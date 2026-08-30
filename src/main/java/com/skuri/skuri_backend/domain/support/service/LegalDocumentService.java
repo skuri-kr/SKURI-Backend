@@ -48,7 +48,7 @@ public class LegalDocumentService {
     @Transactional
     public LegalDocumentAdminResponse upsertLegalDocument(String documentKey, UpsertLegalDocumentRequest request) {
         String normalizedKey = normalizeDocumentKey(documentKey);
-        LegalDocument legalDocument = legalDocumentRepository.findById(normalizedKey).orElse(null);
+        LegalDocument legalDocument = legalDocumentRepository.findByDocumentKeyForUpdate(normalizedKey).orElse(null);
         if (legalDocument == null) {
             legalDocument = legalDocumentRepository.saveAndFlush(LegalDocument.create(
                     normalizedKey,
@@ -80,7 +80,9 @@ public class LegalDocumentService {
 
     @Transactional
     public LegalDocumentDeleteResponse deleteLegalDocument(String documentKey) {
-        LegalDocument legalDocument = findLegalDocumentOrThrow(normalizeDocumentKey(documentKey));
+        LegalDocument legalDocument = legalDocumentRepository
+                .findByDocumentKeyForUpdate(normalizeDocumentKey(documentKey))
+                .orElseThrow(LegalDocumentNotFoundException::new);
         legalDocumentRepository.delete(legalDocument);
         return new LegalDocumentDeleteResponse(legalDocument.getDocumentKey());
     }

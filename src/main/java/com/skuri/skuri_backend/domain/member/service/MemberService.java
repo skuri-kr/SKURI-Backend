@@ -23,6 +23,7 @@ import com.skuri.skuri_backend.domain.member.entity.NotificationSetting;
 import com.skuri.skuri_backend.domain.member.event.MemberLifecycleEvent;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
 import com.skuri.skuri_backend.domain.member.exception.WithdrawnMemberRejoinNotAllowedException;
+import com.skuri.skuri_backend.domain.member.policy.TermsConsentPolicy;
 import com.skuri.skuri_backend.domain.member.repository.LinkedAccountRepository;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import com.skuri.skuri_backend.infra.auth.firebase.AuthenticatedMember;
@@ -48,6 +49,7 @@ public class MemberService {
     private final ChatService chatService;
     private final ProfileImageStorageService profileImageStorageService;
     private final DepartmentService departmentService;
+    private final MemberTermsConsentService memberTermsConsentService;
     private final AfterCommitApplicationEventPublisher eventPublisher;
 
     // Intentionally non-transactional: insert 충돌(DataIntegrityViolationException) 이후
@@ -129,6 +131,7 @@ public class MemberService {
                 normalizedDepartment,
                 request.photoUrl()
         );
+        boolean profileCompletedNow = !profileWasComplete && member.isProfileComplete();
         if (nicknameChanged) {
             try {
                 memberRepository.saveAndFlush(member);
@@ -136,10 +139,11 @@ public class MemberService {
                 throw new BusinessException(ErrorCode.NICKNAME_ALREADY_EXISTS);
             }
         }
+        memberTermsConsentService.recordForProfileCompletion(member, profileCompletedNow);
         if (request.department() != null && !normalizeNullable(previousDepartment).equals(normalizeNullable(member.getDepartment()))) {
             chatService.removeMemberFromDepartmentChatRooms(memberId);
         }
-        if (!profileWasComplete && member.isProfileComplete()) {
+        if (profileCompletedNow) {
             eventPublisher.publish(new MemberLifecycleEvent.MemberProfileCompleted(memberId));
         }
         return toMemberMeResponse(member);
@@ -315,6 +319,7 @@ public class MemberService {
     }
 
     private MemberMeResponse toMemberMeResponse(Member member) {
+        boolean termsAccepted = memberTermsConsentService.hasCurrentConsent(member.getId());
         return new MemberMeResponse(
                 member.getId(),
                 member.getEmail(),
@@ -326,6 +331,10 @@ public class MemberService {
                 member.isAdmin(),
                 toBankAccountResponse(member.getBankAccount()),
                 toNotificationSettingResponse(member.getNotificationSetting()),
+                termsAccepted,
+                termsAccepted
+                        ? TermsConsentPolicy.CURRENT_VERSION
+                        : null,
                 member.getJoinedAt(),
                 member.getLastLogin()
         );

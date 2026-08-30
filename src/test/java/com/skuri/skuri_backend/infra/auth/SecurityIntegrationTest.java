@@ -210,6 +210,8 @@ class SecurityIntegrationTest {
                                 false,
                                 Map.of("news", true)
                         ),
+                        true,
+                        "2026-08-30",
                         LocalDateTime.now(),
                         LocalDateTime.now()
                 ));

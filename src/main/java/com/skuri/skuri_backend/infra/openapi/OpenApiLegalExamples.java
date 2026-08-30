@@ -15,7 +15,7 @@ public final class OpenApiLegalExamples {
                   "iconKey": "document",
                   "lines": [
                     {
-                      "text": "시행일: 2025년 3월 1일 · 최종 수정: 2025년 3월 1일",
+                      "text": "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
                       "tone": "primary"
                     }
                   ],
@@ -73,7 +73,7 @@ public final class OpenApiLegalExamples {
                       "tone": "primary"
                     },
                     {
-                      "text": "시행일: 2025년 3월 1일 · 최종 수정: 2025년 3월 1일",
+                      "text": "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
                       "tone": "secondary"
                     }
                   ],
@@ -107,7 +107,7 @@ public final class OpenApiLegalExamples {
                 "iconKey": "document",
                 "lines": [
                   {
-                    "text": "시행일: 2025년 3월 1일 · 최종 수정: 2025년 3월 1일",
+                    "text": "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
                     "tone": "primary"
                   }
                 ],

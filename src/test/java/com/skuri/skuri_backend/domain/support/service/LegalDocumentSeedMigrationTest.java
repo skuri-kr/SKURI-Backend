@@ -7,8 +7,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.LocalDateTime;
+
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -29,8 +31,10 @@ class LegalDocumentSeedMigrationTest {
 
     @Test
     void seed_다른인스턴스가이미마커를선점했으면_건너뛴다() {
-        when(seedMigrationRepository.saveAndFlush(org.mockito.ArgumentMatchers.any()))
-                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+        when(seedMigrationRepository.insertIfAbsent(
+                any(String.class),
+                any(LocalDateTime.class)
+        )).thenReturn(0);
 
         legalDocumentSeedMigration.seed();
 
@@ -40,12 +44,19 @@ class LegalDocumentSeedMigrationTest {
 
     @Test
     void seed_최초실행이면_문서를적재하고_마커를기록한다() {
+        when(seedMigrationRepository.insertIfAbsent(
+                any(String.class),
+                any(LocalDateTime.class)
+        )).thenReturn(1);
         when(legalDocumentRepository.existsById("termsOfUse")).thenReturn(false);
         when(legalDocumentRepository.existsById("privacyPolicy")).thenReturn(false);
 
         legalDocumentSeedMigration.seed();
 
-        verify(seedMigrationRepository).saveAndFlush(org.mockito.ArgumentMatchers.any());
+        verify(seedMigrationRepository).insertIfAbsent(
+                any(String.class),
+                any(LocalDateTime.class)
+        );
         verify(legalDocumentRepository, times(2)).save(org.mockito.ArgumentMatchers.any());
     }
 }
