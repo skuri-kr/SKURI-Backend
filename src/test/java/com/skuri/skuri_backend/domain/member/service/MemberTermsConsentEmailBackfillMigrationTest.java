@@ -8,7 +8,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
+
+import java.time.LocalDateTime;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -29,6 +30,10 @@ class MemberTermsConsentEmailBackfillMigrationTest {
 
     @Test
     void migrate_최초실행이면_확인시점이전회원만백필한다() {
+        when(seedMigrationRepository.insertIfAbsent(
+                any(String.class),
+                any(LocalDateTime.class)
+        )).thenReturn(1);
         when(memberTermsConsentRepository.backfillEmailConsents(
                 TermsConsentPolicy.CURRENT_VERSION,
                 TermsConsentPolicy.EMAIL_CONSENT_MEMBER_JOINED_AT_CUTOFF
@@ -36,7 +41,10 @@ class MemberTermsConsentEmailBackfillMigrationTest {
 
         migration.migrate();
 
-        verify(seedMigrationRepository).saveAndFlush(any());
+        verify(seedMigrationRepository).insertIfAbsent(
+                any(String.class),
+                any(LocalDateTime.class)
+        );
         verify(memberTermsConsentRepository).backfillEmailConsents(
                 TermsConsentPolicy.CURRENT_VERSION,
                 TermsConsentPolicy.EMAIL_CONSENT_MEMBER_JOINED_AT_CUTOFF
@@ -45,8 +53,10 @@ class MemberTermsConsentEmailBackfillMigrationTest {
 
     @Test
     void migrate_이미적용된마커면_백필하지않는다() {
-        when(seedMigrationRepository.saveAndFlush(any()))
-                .thenThrow(new DataIntegrityViolationException("duplicate"));
+        when(seedMigrationRepository.insertIfAbsent(
+                any(String.class),
+                any(LocalDateTime.class)
+        )).thenReturn(0);
 
         migration.migrate();
 

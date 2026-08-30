@@ -12,12 +12,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -44,12 +46,22 @@ class LegalDocumentAdMobPolicyMigrationTest {
                 section("article-01", "기존 개인정보 처리방침"),
                 section("supplementary-provisions", "기존 부칙")
         ));
+        when(seedMigrationRepository.insertIfAbsent(
+                any(String.class),
+                any(LocalDateTime.class)
+        )).thenReturn(1, 0);
         when(legalDocumentRepository.findById("termsOfUse")).thenReturn(Optional.of(terms));
         when(legalDocumentRepository.findById("privacyPolicy")).thenReturn(Optional.of(privacy));
 
         migration.migrate();
+        migration.migrate();
 
-        verify(seedMigrationRepository).saveAndFlush(any());
+        verify(seedMigrationRepository, times(2)).insertIfAbsent(
+                any(String.class),
+                any(LocalDateTime.class)
+        );
+        verify(legalDocumentRepository).findById("termsOfUse");
+        verify(legalDocumentRepository).findById("privacyPolicy");
         assertEquals("기존 이용약관", terms.getSections().get(0).paragraphs().get(0));
         assertTrue(terms.getSections().stream().anyMatch(section -> "article-18".equals(section.id())));
         assertTrue(privacy.getSections().stream().anyMatch(section -> "article-23".equals(section.id())));
