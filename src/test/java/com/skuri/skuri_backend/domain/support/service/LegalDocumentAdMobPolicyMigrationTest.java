@@ -3,7 +3,9 @@ package com.skuri.skuri_backend.domain.support.service;
 import com.skuri.skuri_backend.common.seed.repository.SeedMigrationRepository;
 import com.skuri.skuri_backend.domain.support.entity.LegalDocument;
 import com.skuri.skuri_backend.domain.support.entity.LegalDocumentBannerIconKey;
+import com.skuri.skuri_backend.domain.support.entity.LegalDocumentBannerLineTone;
 import com.skuri.skuri_backend.domain.support.entity.LegalDocumentBannerTone;
+import com.skuri.skuri_backend.domain.support.model.LegalDocumentBannerLine;
 import com.skuri.skuri_backend.domain.support.model.LegalDocumentSection;
 import com.skuri.skuri_backend.domain.support.repository.LegalDocumentRepository;
 import org.junit.jupiter.api.Test;
@@ -109,6 +111,62 @@ class LegalDocumentAdMobPolicyMigrationTest {
         );
     }
 
+    @Test
+    void replaceEffectiveDateBannerLines_시행일만교체하고_관리자문구와톤을보존한다() {
+        List<LegalDocumentBannerLine> updated =
+                LegalDocumentAdMobPolicyMigration.replaceEffectiveDateBannerLines(
+                        List.of(
+                                bannerLine("관리자가 작성한 안내", LegalDocumentBannerLineTone.PRIMARY),
+                                bannerLine("시행일: 2025년 3월 1일", LegalDocumentBannerLineTone.SECONDARY),
+                                bannerLine("추가 안내 문구", LegalDocumentBannerLineTone.SECONDARY)
+                        ),
+                        bannerLine(
+                                LegalDocumentAdMobPolicyMigration.EFFECTIVE_DATE_LINE,
+                                LegalDocumentBannerLineTone.PRIMARY
+                        )
+                );
+
+        assertEquals(
+                List.of(
+                        bannerLine("관리자가 작성한 안내", LegalDocumentBannerLineTone.PRIMARY),
+                        bannerLine(
+                                LegalDocumentAdMobPolicyMigration.EFFECTIVE_DATE_LINE,
+                                LegalDocumentBannerLineTone.SECONDARY
+                        ),
+                        bannerLine("추가 안내 문구", LegalDocumentBannerLineTone.SECONDARY)
+                ),
+                updated
+        );
+    }
+
+    @Test
+    void replaceEffectiveDateBannerLines_시행일이없으면_기본문구를끝에추가한다() {
+        LegalDocumentBannerLine defaultLine = bannerLine(
+                LegalDocumentAdMobPolicyMigration.EFFECTIVE_DATE_LINE,
+                LegalDocumentBannerLineTone.SECONDARY
+        );
+
+        List<LegalDocumentBannerLine> updated =
+                LegalDocumentAdMobPolicyMigration.replaceEffectiveDateBannerLines(
+                        List.of(bannerLine(
+                                "관리자가 작성한 개인정보 안내",
+                                LegalDocumentBannerLineTone.PRIMARY
+                        )),
+                        defaultLine
+                );
+
+        assertEquals(
+                List.of(
+                        bannerLine(
+                                "관리자가 작성한 개인정보 안내",
+                                LegalDocumentBannerLineTone.PRIMARY
+                        ),
+                        defaultLine
+                ),
+                updated
+        );
+    }
+
     private LegalDocument document(String key, List<LegalDocumentSection> sections) {
         return LegalDocument.create(
                 key,
@@ -125,5 +183,12 @@ class LegalDocumentAdMobPolicyMigrationTest {
 
     private LegalDocumentSection section(String id, String paragraph) {
         return new LegalDocumentSection(id, List.of(paragraph), id);
+    }
+
+    private LegalDocumentBannerLine bannerLine(
+            String text,
+            LegalDocumentBannerLineTone tone
+    ) {
+        return new LegalDocumentBannerLine(text, tone);
     }
 }
