@@ -68,6 +68,7 @@ public interface MemberTermsConsentRepository extends JpaRepository<MemberTermsC
                   where c.member_id = m.id
                     and c.terms_version = :termsVersion
               )
+            on duplicate key update id = id
             """, nativeQuery = true)
     int backfillEmailConsents(
             @Param("termsVersion") String termsVersion,
