@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -68,6 +69,43 @@ class LegalDocumentAdMobPolicyMigrationTest {
         assertEquals(
                 "supplementary-provisions",
                 privacy.getSections().get(privacy.getSections().size() - 1).id()
+        );
+    }
+
+    @Test
+    void replaceSections_누락된정책조항을_정규순서에삽입한다() {
+        List<LegalDocumentSection> merged = LegalDocumentAdMobPolicyMigration.replaceSections(
+                List.of(
+                        section("article-01", "기존 1조"),
+                        section("article-12", "기존 12조"),
+                        section("article-18", "기존 18조"),
+                        section("supplementary-provisions", "기존 부칙")
+                ),
+                LegalDocumentSeedMigration.termsOfUseSections(),
+                Set.of("article-11", "article-18", "supplementary-provisions")
+        );
+
+        assertEquals(
+                List.of("article-01", "article-11", "article-12", "article-18", "supplementary-provisions"),
+                merged.stream().map(LegalDocumentSection::id).toList()
+        );
+    }
+
+    @Test
+    void replaceSections_누락된개인정보조항을_부칙앞에삽입한다() {
+        List<LegalDocumentSection> merged = LegalDocumentAdMobPolicyMigration.replaceSections(
+                List.of(
+                        section("article-01", "기존 1조"),
+                        section("article-22", "기존 22조"),
+                        section("supplementary-provisions", "기존 부칙")
+                ),
+                LegalDocumentSeedMigration.privacyPolicySections(),
+                Set.of("article-23", "supplementary-provisions")
+        );
+
+        assertEquals(
+                List.of("article-01", "article-22", "article-23", "supplementary-provisions"),
+                merged.stream().map(LegalDocumentSection::id).toList()
         );
     }
 
