@@ -195,9 +195,7 @@ class MemberControllerContractTest {
                                           "nickname": "새닉네임",
                                           "studentId": "20201234",
                                           "department": "컴퓨터공학과",
-                                          "photoUrl": "https://example.com/profile.jpg",
-                                          "termsAccepted": true,
-                                          "termsVersion": "2026-08-30"
+                                          "photoUrl": "https://example.com/profile.jpg"
                                         }
                                         """)
                 )
@@ -211,8 +209,6 @@ class MemberControllerContractTest {
                                 && "20201234".equals(request.studentId())
                                 && "컴퓨터공학과".equals(request.department())
                                 && "https://example.com/profile.jpg".equals(request.photoUrl())
-                                && Boolean.TRUE.equals(request.termsAccepted())
-                                && "2026-08-30".equals(request.termsVersion())
                 )
         );
     }

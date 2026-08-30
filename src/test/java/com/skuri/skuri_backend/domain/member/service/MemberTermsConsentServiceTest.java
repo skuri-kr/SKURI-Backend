@@ -1,7 +1,5 @@
 package com.skuri.skuri_backend.domain.member.service;
 
-import com.skuri.skuri_backend.common.exception.BusinessException;
-import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.policy.TermsConsentPolicy;
 import com.skuri.skuri_backend.domain.member.repository.MemberTermsConsentRepository;
@@ -13,14 +11,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class MemberTermsConsentServiceTest {
@@ -32,17 +27,12 @@ class MemberTermsConsentServiceTest {
     private MemberTermsConsentService memberTermsConsentService;
 
     @Test
-    void recordIfRequested_현재약관동의면_SIGNUP출처로기록한다() {
+    void recordForProfileCompletion_프로필이처음완료되면_SIGNUP동의를현재시각으로기록한다() {
         Member member = Member.create("member-1", "user@sungkyul.ac.kr", "사용자", LocalDateTime.now());
 
-        memberTermsConsentService.recordIfRequested(
-                member,
-                true,
-                TermsConsentPolicy.CURRENT_VERSION,
-                true
-        );
+        memberTermsConsentService.recordForProfileCompletion(member, true);
 
-        verify(memberTermsConsentRepository).insertSignupConsentIfAbsent(
+        verify(memberTermsConsentRepository).upsertSignupConsent(
                 anyString(),
                 eq(member.getId()),
                 eq(TermsConsentPolicy.CURRENT_VERSION),
@@ -51,60 +41,12 @@ class MemberTermsConsentServiceTest {
     }
 
     @Test
-    void recordIfRequested_프로필완료에동의가없으면_검증예외() {
-        Member member = Member.create("member-1", "user@sungkyul.ac.kr", "사용자", LocalDateTime.now());
-        when(memberTermsConsentRepository.existsByMember_IdAndTermsVersion(
-                member.getId(),
-                TermsConsentPolicy.CURRENT_VERSION
-        )).thenReturn(false);
-
-        BusinessException exception = assertThrows(
-                BusinessException.class,
-                () -> memberTermsConsentService.recordIfRequested(member, null, null, true)
-        );
-
-        assertEquals(ErrorCode.VALIDATION_ERROR, exception.getErrorCode());
-        assertEquals(
-                "현재 이용약관에 동의해야 프로필 설정을 완료할 수 있습니다.",
-                exception.getMessage()
-        );
-        verify(memberTermsConsentRepository, never()).insertSignupConsentIfAbsent(
-                anyString(),
-                anyString(),
-                anyString(),
-                any(LocalDateTime.class)
-        );
-    }
-
-    @Test
-    void recordIfRequested_프로필완료시현재동의가저장돼있으면_동의필드생략을허용한다() {
-        Member member = Member.create("member-1", "user@sungkyul.ac.kr", "사용자", LocalDateTime.now());
-        when(memberTermsConsentRepository.existsByMember_IdAndTermsVersion(
-                member.getId(),
-                TermsConsentPolicy.CURRENT_VERSION
-        )).thenReturn(true);
-
-        memberTermsConsentService.recordIfRequested(member, null, null, true);
-
-        verify(memberTermsConsentRepository).existsByMember_IdAndTermsVersion(
-                member.getId(),
-                TermsConsentPolicy.CURRENT_VERSION
-        );
-        verify(memberTermsConsentRepository, never()).insertSignupConsentIfAbsent(
-                anyString(),
-                anyString(),
-                anyString(),
-                any(LocalDateTime.class)
-        );
-    }
-
-    @Test
-    void recordIfRequested_기존프로필의동의필드생략은_변경하지않는다() {
+    void recordForProfileCompletion_프로필완료전환이아니면_동의행을변경하지않는다() {
         Member member = Member.create("member-1", "user@sungkyul.ac.kr", "사용자", LocalDateTime.now());
 
-        memberTermsConsentService.recordIfRequested(member, null, null, false);
+        memberTermsConsentService.recordForProfileCompletion(member, false);
 
-        verify(memberTermsConsentRepository, never()).insertSignupConsentIfAbsent(
+        verify(memberTermsConsentRepository, never()).upsertSignupConsent(
                 anyString(),
                 anyString(),
                 anyString(),

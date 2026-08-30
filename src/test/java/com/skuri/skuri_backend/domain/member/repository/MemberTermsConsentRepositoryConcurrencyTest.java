@@ -2,6 +2,8 @@ package com.skuri.skuri_backend.domain.member.repository;
 
 import com.skuri.skuri_backend.common.config.JpaAuditingConfig;
 import com.skuri.skuri_backend.domain.member.entity.Member;
+import com.skuri.skuri_backend.domain.member.entity.MemberTermsConsent;
+import com.skuri.skuri_backend.domain.member.entity.MemberTermsConsentSource;
 import com.skuri.skuri_backend.domain.member.policy.TermsConsentPolicy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import(JpaAuditingConfig.class)
 class MemberTermsConsentRepositoryConcurrencyTest {
 
+    private static final LocalDateTime SIGNUP_ACCEPTED_AT =
+            LocalDateTime.of(2026, 8, 30, 9, 0);
+    private static final LocalDateTime BACKFILL_AT =
+            LocalDateTime.of(2026, 8, 30, 12, 0);
+
     @Autowired
     private MemberRepository memberRepository;
 
@@ -50,12 +57,14 @@ class MemberTermsConsentRepositoryConcurrencyTest {
 
     @BeforeEach
     void setUp() {
-        memberRepository.saveAndFlush(Member.create(
+        Member member = Member.create(
                 "member-1",
                 "user@sungkyul.ac.kr",
                 "사용자",
-                TermsConsentPolicy.EMAIL_CONSENT_MEMBER_JOINED_AT_CUTOFF.minusDays(1)
-        ));
+                LocalDateTime.of(2026, 8, 1, 0, 0)
+        );
+        member.updateProfile("가입회원", "20261234", "컴퓨터공학과", null);
+        memberRepository.saveAndFlush(member);
     }
 
     @AfterEach
@@ -80,20 +89,53 @@ class MemberTermsConsentRepositoryConcurrencyTest {
             second.get(5, TimeUnit.SECONDS);
 
             assertThat(memberTermsConsentRepository.count()).isEqualTo(1);
+            assertSingleSignupConsentAt(SIGNUP_ACCEPTED_AT);
         } finally {
             executor.shutdownNow();
         }
     }
 
     @Test
-    void 가입동의와이메일백필을_별도트랜잭션에서동시저장해도_한건만저장한다() throws Exception {
+    void backfill_프로필상태와회원상태에관계없이_기존전체회원에동의를기록한다() {
+        Member incompleteMember = Member.create(
+                "member-2",
+                "incomplete@sungkyul.ac.kr",
+                "미완료회원",
+                LocalDateTime.of(2026, 8, 2, 0, 0)
+        );
+        Member withdrawnMember = Member.create(
+                "member-3",
+                "withdrawn@sungkyul.ac.kr",
+                "탈퇴회원",
+                LocalDateTime.of(2026, 8, 3, 0, 0)
+        );
+        withdrawnMember.withdraw(LocalDateTime.of(2026, 8, 20, 0, 0));
+        memberRepository.saveAllAndFlush(java.util.List.of(incompleteMember, withdrawnMember));
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                memberTermsConsentRepository.backfillAllMemberSignupConsents(
+                        TermsConsentPolicy.CURRENT_VERSION,
+                        BACKFILL_AT
+                )
+        );
+
+        assertThat(memberTermsConsentRepository.findAll())
+                .hasSize(3)
+                .allSatisfy(consent -> {
+                    assertThat(consent.getSource()).isEqualTo(MemberTermsConsentSource.SIGNUP);
+                    assertThat(consent.getAcceptedAt()).isEqualTo(BACKFILL_AT);
+                });
+    }
+
+    @Test
+    void 가입완료와백필을_별도트랜잭션에서동시저장해도_가입완료시각한건만보존한다() throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
 
         try {
             Future<?> signup = executor.submit(() -> insertSignupConsent(ready, start));
-            Future<?> backfill = executor.submit(() -> backfillEmailConsent(ready, start));
+            Future<?> backfill = executor.submit(() -> backfillSignupConsent(ready, start));
 
             assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
             start.countDown();
@@ -101,6 +143,7 @@ class MemberTermsConsentRepositoryConcurrencyTest {
             backfill.get(5, TimeUnit.SECONDS);
 
             assertThat(memberTermsConsentRepository.count()).isEqualTo(1);
+            assertSingleSignupConsentAt(SIGNUP_ACCEPTED_AT);
         } finally {
             executor.shutdownNow();
         }
@@ -110,24 +153,30 @@ class MemberTermsConsentRepositoryConcurrencyTest {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             ready.countDown();
             await(start);
-            memberTermsConsentRepository.insertSignupConsentIfAbsent(
+            memberTermsConsentRepository.upsertSignupConsent(
                     UUID.randomUUID().toString(),
                     "member-1",
                     TermsConsentPolicy.CURRENT_VERSION,
-                    LocalDateTime.now()
+                    SIGNUP_ACCEPTED_AT
             );
         });
     }
 
-    private void backfillEmailConsent(CountDownLatch ready, CountDownLatch start) {
+    private void backfillSignupConsent(CountDownLatch ready, CountDownLatch start) {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             ready.countDown();
             await(start);
-            memberTermsConsentRepository.backfillEmailConsents(
+            memberTermsConsentRepository.backfillAllMemberSignupConsents(
                     TermsConsentPolicy.CURRENT_VERSION,
-                    TermsConsentPolicy.EMAIL_CONSENT_MEMBER_JOINED_AT_CUTOFF
+                    BACKFILL_AT
             );
         });
+    }
+
+    private void assertSingleSignupConsentAt(LocalDateTime acceptedAt) {
+        MemberTermsConsent consent = memberTermsConsentRepository.findAll().getFirst();
+        assertThat(consent.getSource()).isEqualTo(MemberTermsConsentSource.SIGNUP);
+        assertThat(consent.getAcceptedAt()).isEqualTo(acceptedAt);
     }
 
     private static void await(CountDownLatch latch) {
