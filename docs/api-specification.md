@@ -3578,7 +3578,7 @@ Authorization:Bearer <firebase_id_token>
       "iconKey": "document",
       "lines": [
         {
-          "text": "시행일: 2025년 3월 1일 · 최종 수정: 2025년 3월 1일",
+          "text": "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
           "tone": "primary"
         }
       ],
@@ -5869,7 +5869,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
     "iconKey": "document",
     "lines": [
       {
-        "text": "시행일: 2025년 3월 1일 · 최종 수정: 2025년 3월 1일",
+        "text": "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
         "tone": "primary"
       }
     ],
