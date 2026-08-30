@@ -16,10 +16,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.skuri.skuri_backend.domain.support.entity.LegalDocumentBannerLineTone.PRIMARY;
 import static com.skuri.skuri_backend.domain.support.entity.LegalDocumentBannerLineTone.SECONDARY;
@@ -37,6 +40,8 @@ public class LegalDocumentAdMobPolicyMigration {
     private static final String EFFECTIVE_DATE_PREFIX = "시행일:";
     private static final String SUPPLEMENTARY_PROVISIONS_SECTION_ID =
             "supplementary-provisions";
+    private static final Pattern EFFECTIVE_DATE_PATTERN =
+            Pattern.compile("\\d{4}\\.\\d{2}\\.\\d{2}\\.(?=부터 시행됩니다\\.)");
 
     private static final Set<String> TERMS_SECTION_IDS =
             Set.of("article-11", "article-18");
@@ -140,7 +145,7 @@ public class LegalDocumentAdMobPolicyMigration {
                 .findFirst()
                 .orElseThrow();
         String canonicalEffectiveDate = canonicalSupplementary.paragraphs().stream()
-                .filter(LegalDocumentAdMobPolicyMigration::isEffectiveDateParagraph)
+                .filter(LegalDocumentAdMobPolicyMigration::hasRecognizedEffectiveDate)
                 .findFirst()
                 .orElseThrow();
 
@@ -174,10 +179,12 @@ public class LegalDocumentAdMobPolicyMigration {
     ) {
         List<String> updatedParagraphs = new ArrayList<>();
         boolean effectiveDateFound = false;
+        String canonicalDate = extractEffectiveDate(canonicalEffectiveDate);
         for (String existingParagraph : existingParagraphs) {
-            if (isEffectiveDateParagraph(existingParagraph)) {
+            if (hasRecognizedEffectiveDate(existingParagraph)) {
                 if (!effectiveDateFound) {
-                    updatedParagraphs.add(canonicalEffectiveDate);
+                    updatedParagraphs.add(EFFECTIVE_DATE_PATTERN.matcher(existingParagraph)
+                            .replaceFirst(Matcher.quoteReplacement(canonicalDate)));
                 }
                 effectiveDateFound = true;
             } else {
@@ -191,10 +198,19 @@ public class LegalDocumentAdMobPolicyMigration {
         return List.copyOf(updatedParagraphs);
     }
 
-    private static boolean isEffectiveDateParagraph(String paragraph) {
+    private static boolean hasRecognizedEffectiveDate(String paragraph) {
         String normalized = paragraph.trim();
-        return normalized.startsWith("제1조(시행일)")
-                || (normalized.startsWith("제1조") && normalized.contains("시행"));
+        boolean recognizedPrefix = normalized.startsWith("제1조(시행일)")
+                || normalized.startsWith("제1조 본 방침은");
+        return recognizedPrefix && EFFECTIVE_DATE_PATTERN.matcher(normalized).find();
+    }
+
+    private static String extractEffectiveDate(String paragraph) {
+        Matcher matcher = EFFECTIVE_DATE_PATTERN.matcher(paragraph);
+        if (!matcher.find()) {
+            throw new IllegalStateException("정규 부칙 시행일을 찾을 수 없습니다.");
+        }
+        return matcher.group();
     }
 
     static List<LegalDocumentSection> replaceSections(
@@ -212,16 +228,20 @@ public class LegalDocumentAdMobPolicyMigration {
                 .forEach(section -> canonicalById.put(section.id(), section));
 
         List<LegalDocumentSection> merged = new ArrayList<>();
+        Set<String> emittedReplacementIds = new HashSet<>();
         for (LegalDocumentSection existing : existingSections) {
             if (canonicalById.containsKey(existing.id())) {
-                merged.add(canonicalById.remove(existing.id()));
+                if (emittedReplacementIds.add(existing.id())) {
+                    merged.add(canonicalById.get(existing.id()));
+                }
             } else {
                 merged.add(existing);
             }
         }
 
         for (LegalDocumentSection canonical : canonicalSections) {
-            if (canonicalById.remove(canonical.id()) != null) {
+            if (canonicalById.containsKey(canonical.id())
+                    && emittedReplacementIds.add(canonical.id())) {
                 int insertionIndex = findCanonicalInsertionIndex(
                         merged,
                         canonicalOrderById,
