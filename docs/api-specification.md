@@ -334,6 +334,8 @@ Spring 서버 처리:
         "scholarship": false
       }
     },
+    "termsAccepted": true,
+    "termsVersion": "2026-08-30",
     "joinedAt": "2024-03-01T00:00:00Z",
     "lastLogin": "2026-03-02T09:10:11Z"
   }
@@ -350,6 +352,8 @@ Spring 서버 처리:
 - `nickname`은 앞뒤 공백 제거와 Unicode NFC 정규화 후 저장합니다.
 - 공백 차이로 우회한 경우까지 포함해 `스쿠리 유저`, `운영자`를 포함한 닉네임은 `422 NICKNAME_RESERVED`로 거부합니다.
 - 프로필 미완료 회원이 현재 예약어 닉네임을 변경하지 않고 `studentId`·`department`만 채워 최초 프로필 완료를 시도해도 `422 NICKNAME_RESERVED`로 거부합니다. 이미 완료된 기존 예약어 닉네임 회원의 다른 프로필 필드 부분 수정은 허용합니다.
+- 최초 프로필 완료 시 광고 관련 개인정보 처리·국외이전 조항을 포함한 현재 이용약관 동의가 필수입니다. `termsAccepted=true`와 현재 버전 `termsVersion=2026-08-30`을 함께 보내지 않으면 `422 VALIDATION_ERROR`를 반환합니다.
+- 이미 프로필을 완료한 회원의 일반 부분 수정은 약관 필드를 생략할 수 있습니다. 응답의 `termsAccepted`/`termsVersion`은 현재 약관 버전 동의 기록을 기준으로 반환합니다.
 - 신규·변경 닉네임은 ACTIVE 회원 사이에서만 고유해야 합니다. 중복이면 `409 NICKNAME_ALREADY_EXISTS`이며, 탈퇴 회원의 닉네임은 재사용할 수 있습니다.
 - 닉네임 고유 비교는 운영 MySQL `utf8mb4_unicode_ci` 규칙을 사용하므로 대소문자와 악센트 차이도 중복입니다. 예를 들어 `Jose`와 `José`를 함께 저장할 수 없습니다.
 - 기존 ACTIVE 회원의 중복 닉네임은 임의 변경하지 않습니다. 해당 회원이 닉네임을 변경할 때부터 신규 정책을 적용합니다.
@@ -369,9 +373,13 @@ Spring 서버 처리:
   "nickname": "새닉네임",
   "studentId": "20201234",
   "department": "컴퓨터공학과",
-  "photoUrl": "https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg"
+  "photoUrl": "https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg",
+  "termsAccepted": true,
+  "termsVersion": "2026-08-30"
 }
 ```
+
+> 기존 회원 이메일 동의 백필: `2026-08-30 10:13:09`(Asia/Seoul) 이전에 가입한 ACTIVE 회원 중 현재 버전 동의 기록이 없는 회원만 `EMAIL_BACKFILL` 출처로 1회 적재합니다. 실제 이메일 동의 시각을 임의 생성하지 않기 위해 `accepted_at`은 `null`, 백필 실행 시각은 공통 생성 시각 컬럼에 기록합니다.
 
 #### GET /v1/departments
 활성 학과 목록 조회

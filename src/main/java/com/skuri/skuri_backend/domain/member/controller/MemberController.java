@@ -168,7 +168,10 @@ public class MemberController {
     }
 
     @PatchMapping("/me")
-    @Operation(summary = "내 프로필 수정", description = "nickname/studentId/department/photoUrl 필드를 부분 수정합니다.")
+    @Operation(
+            summary = "내 프로필 수정",
+            description = "nickname/studentId/department/photoUrl 필드를 부분 수정합니다. 최초 프로필 완료 시 현재 이용약관 동의 정보가 필수입니다."
+    )
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
@@ -247,7 +250,7 @@ public class MemberController {
             content = @Content(
                     schema = @Schema(implementation = UpdateMemberProfileRequest.class),
                     examples = @ExampleObject(
-                            value = "{\"nickname\":\"성결친구\",\"studentId\":\"2023112233\",\"department\":\"컴퓨터공학과\",\"photoUrl\":\"https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg\"}"
+                            value = "{\"nickname\":\"성결친구\",\"studentId\":\"2023112233\",\"department\":\"컴퓨터공학과\",\"photoUrl\":\"https://cdn.skuri.app/uploads/profiles/dw9rPtuticbjnaYPkeiF3RGPpqk1/2026/04/06/photo.jpg\",\"termsAccepted\":true,\"termsVersion\":\"2026-08-30\"}"
                     )
             )
     )
