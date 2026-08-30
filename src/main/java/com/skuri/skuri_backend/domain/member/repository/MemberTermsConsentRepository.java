@@ -81,6 +81,7 @@ public interface MemberTermsConsentRepository extends JpaRepository<MemberTermsC
                 current_timestamp,
                 current_timestamp
             from members m
+            where m.created_at <= :backfillAt
             on duplicate key update
                 source = 'SIGNUP',
                 accepted_at = case
