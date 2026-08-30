@@ -147,6 +147,19 @@ class OpenApiResponseExamplesConventionTest {
         }
     }
 
+    @Test
+    void 프로필완료_이용약관미동의응답을OpenAPI예시로노출한다() {
+        assertResponseExampleNames(
+                MemberController.class,
+                "updateMyProfile",
+                "422",
+                "validation",
+                "photo_url_not_owned",
+                "nickname_reserved",
+                "terms_consent_required"
+        );
+    }
+
     private static List<ApiResponse> resolveApiResponses(Method method) {
         List<ApiResponse> responses = new ArrayList<>();
 
