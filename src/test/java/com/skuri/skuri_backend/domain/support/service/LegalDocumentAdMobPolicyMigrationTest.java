@@ -249,6 +249,32 @@ class LegalDocumentAdMobPolicyMigrationTest {
     }
 
     @Test
+    void replaceSupplementaryEffectiveDate_여러시행일문단의순서와추가문구를모두보존한다() {
+        List<LegalDocumentSection> updated =
+                LegalDocumentAdMobPolicyMigration.replaceSupplementaryEffectiveDate(
+                        List.of(new LegalDocumentSection(
+                                "supplementary-provisions",
+                                List.of(
+                                        "제1조(시행일) 본 약관은 2025.03.01.부터 시행됩니다. 최초 시행 안내입니다.",
+                                        "관리자가 추가한 중간 문단",
+                                        "제1조 본 방침은 2025.04.01.부터 시행됩니다. 개정 경과조치는 유지합니다."
+                                ),
+                                "관리자 부칙 제목"
+                        )),
+                        LegalDocumentSeedMigration.termsOfUseSections()
+                );
+
+        assertEquals(
+                List.of(
+                        "제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다. 최초 시행 안내입니다.",
+                        "관리자가 추가한 중간 문단",
+                        "제1조 본 방침은 2026.08.30.부터 시행됩니다. 개정 경과조치는 유지합니다."
+                ),
+                updated.get(0).paragraphs()
+        );
+    }
+
+    @Test
     void replaceSupplementaryEffectiveDate_시행과경과조치문단은보존하고_정규시행일을추가한다() {
         List<LegalDocumentSection> updated =
                 LegalDocumentAdMobPolicyMigration.replaceSupplementaryEffectiveDate(
