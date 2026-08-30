@@ -31,6 +31,10 @@ import static com.skuri.skuri_backend.domain.support.entity.LegalDocumentBannerL
 public class LegalDocumentAdMobPolicyMigration {
 
     static final String MIGRATION_KEY = "support-legal-documents-admob-policy-20260830";
+    static final String EFFECTIVE_DATE_LINE =
+            "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일";
+
+    private static final String EFFECTIVE_DATE_PREFIX = "시행일:";
 
     private static final Set<String> TERMS_SECTION_IDS =
             Set.of("article-11", "article-18", "supplementary-provisions");
@@ -52,25 +56,13 @@ public class LegalDocumentAdMobPolicyMigration {
                 LegalDocumentKey.TERMS_OF_USE,
                 LegalDocumentSeedMigration.termsOfUseSections(),
                 TERMS_SECTION_IDS,
-                List.of(new LegalDocumentBannerLine(
-                        "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
-                        PRIMARY
-                ))
+                new LegalDocumentBannerLine(EFFECTIVE_DATE_LINE, PRIMARY)
         );
         updatedCount += updateDocument(
                 LegalDocumentKey.PRIVACY_POLICY,
                 LegalDocumentSeedMigration.privacyPolicySections(),
                 PRIVACY_SECTION_IDS,
-                List.of(
-                        new LegalDocumentBannerLine(
-                                "SKURI는 이용자의 개인정보를 소중히 보호합니다.",
-                                PRIMARY
-                        ),
-                        new LegalDocumentBannerLine(
-                                "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
-                                SECONDARY
-                        )
-                )
+                new LegalDocumentBannerLine(EFFECTIVE_DATE_LINE, SECONDARY)
         );
 
         log.info("AdMob 이용약관·개인정보 처리방침 migration 완료: {}건 갱신", updatedCount);
@@ -80,7 +72,7 @@ public class LegalDocumentAdMobPolicyMigration {
             LegalDocumentKey documentKey,
             List<LegalDocumentSection> canonicalSections,
             Set<String> replacedSectionIds,
-            List<LegalDocumentBannerLine> bannerLines
+            LegalDocumentBannerLine defaultEffectiveDateLine
     ) {
         LegalDocument document = legalDocumentRepository
                 .findByDocumentKeyForUpdate(documentKey.value())
@@ -94,13 +86,40 @@ public class LegalDocumentAdMobPolicyMigration {
                 document.getBannerIconKey(),
                 document.getBannerTitle(),
                 document.getBannerTone(),
-                bannerLines,
+                replaceEffectiveDateBannerLines(
+                        document.getBannerLines(),
+                        defaultEffectiveDateLine
+                ),
                 replaceSections(document.getSections(), canonicalSections, replacedSectionIds),
                 document.getFooterLines(),
                 document.isActive()
         );
         legalDocumentRepository.save(document);
         return 1;
+    }
+
+    static List<LegalDocumentBannerLine> replaceEffectiveDateBannerLines(
+            List<LegalDocumentBannerLine> existingLines,
+            LegalDocumentBannerLine defaultEffectiveDateLine
+    ) {
+        List<LegalDocumentBannerLine> updatedLines = new ArrayList<>();
+        boolean effectiveDateFound = false;
+        for (LegalDocumentBannerLine existingLine : existingLines) {
+            if (existingLine.text().startsWith(EFFECTIVE_DATE_PREFIX)) {
+                updatedLines.add(new LegalDocumentBannerLine(
+                        EFFECTIVE_DATE_LINE,
+                        existingLine.tone()
+                ));
+                effectiveDateFound = true;
+            } else {
+                updatedLines.add(existingLine);
+            }
+        }
+
+        if (!effectiveDateFound) {
+            updatedLines.add(defaultEffectiveDateLine);
+        }
+        return List.copyOf(updatedLines);
     }
 
     static List<LegalDocumentSection> replaceSections(
