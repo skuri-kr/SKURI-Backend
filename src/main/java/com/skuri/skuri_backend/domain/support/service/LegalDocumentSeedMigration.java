@@ -1,6 +1,5 @@
 package com.skuri.skuri_backend.domain.support.service;
 
-import com.skuri.skuri_backend.common.seed.entity.SeedMigration;
 import com.skuri.skuri_backend.common.seed.repository.SeedMigrationRepository;
 import com.skuri.skuri_backend.domain.support.entity.LegalDocument;
 import com.skuri.skuri_backend.domain.support.entity.LegalDocumentBannerIconKey;
@@ -15,10 +14,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -93,13 +92,14 @@ public class LegalDocumentSeedMigration {
     }
 
     private boolean acquireMigrationMarker() {
-        try {
-            seedMigrationRepository.saveAndFlush(SeedMigration.apply(MIGRATION_KEY));
-            return true;
-        } catch (DataIntegrityViolationException e) {
+        boolean acquired = seedMigrationRepository.insertIfAbsent(
+                MIGRATION_KEY,
+                LocalDateTime.now()
+        ) == 1;
+        if (!acquired) {
             log.info("법적 문서 초기 seed migration 건너뜀: 이미 다른 인스턴스에서 적용됨");
-            return false;
         }
+        return acquired;
     }
 
     private int seedIfAbsent(

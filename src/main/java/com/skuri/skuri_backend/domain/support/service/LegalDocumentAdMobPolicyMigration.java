@@ -1,6 +1,5 @@
 package com.skuri.skuri_backend.domain.support.service;
 
-import com.skuri.skuri_backend.common.seed.entity.SeedMigration;
 import com.skuri.skuri_backend.common.seed.repository.SeedMigrationRepository;
 import com.skuri.skuri_backend.domain.support.entity.LegalDocument;
 import com.skuri.skuri_backend.domain.support.entity.LegalDocumentKey;
@@ -12,10 +11,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -142,12 +141,13 @@ public class LegalDocumentAdMobPolicyMigration {
     }
 
     private boolean acquireMigrationMarker() {
-        try {
-            seedMigrationRepository.saveAndFlush(SeedMigration.apply(MIGRATION_KEY));
-            return true;
-        } catch (DataIntegrityViolationException exception) {
+        boolean acquired = seedMigrationRepository.insertIfAbsent(
+                MIGRATION_KEY,
+                LocalDateTime.now()
+        ) == 1;
+        if (!acquired) {
             log.info("AdMob 이용약관·개인정보 처리방침 migration 건너뜀: 이미 적용됨");
-            return false;
         }
+        return acquired;
     }
 }

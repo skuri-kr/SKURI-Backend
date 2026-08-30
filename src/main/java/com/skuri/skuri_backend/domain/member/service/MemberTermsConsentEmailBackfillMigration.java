@@ -1,6 +1,5 @@
 package com.skuri.skuri_backend.domain.member.service;
 
-import com.skuri.skuri_backend.common.seed.entity.SeedMigration;
 import com.skuri.skuri_backend.common.seed.repository.SeedMigrationRepository;
 import com.skuri.skuri_backend.domain.member.policy.TermsConsentPolicy;
 import com.skuri.skuri_backend.domain.member.repository.MemberTermsConsentRepository;
@@ -9,9 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 @Slf4j
 @Component
@@ -44,12 +44,13 @@ public class MemberTermsConsentEmailBackfillMigration {
     }
 
     private boolean acquireMigrationMarker() {
-        try {
-            seedMigrationRepository.saveAndFlush(SeedMigration.apply(MIGRATION_KEY));
-            return true;
-        } catch (DataIntegrityViolationException exception) {
+        boolean acquired = seedMigrationRepository.insertIfAbsent(
+                MIGRATION_KEY,
+                LocalDateTime.now()
+        ) == 1;
+        if (!acquired) {
             log.info("기존 회원 이용약관 이메일 동의 backfill 건너뜀: 이미 적용됨");
-            return false;
         }
+        return acquired;
     }
 }
