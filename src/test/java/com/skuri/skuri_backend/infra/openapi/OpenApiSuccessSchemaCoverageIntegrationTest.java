@@ -408,6 +408,32 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         assertTrue(updated.contains("\"invitationInviterName\": \"김길동\""));
     }
 
+    @Test
+    void member_프로필수정_OpenAPI는_약관동의자동기록계약을노출한다() throws Exception {
+        JsonNode root = apiDocs("/v3/api-docs/member");
+        JsonNode operation = root.path("paths")
+                .path("/v1/members/me")
+                .path("patch");
+        JsonNode requestExample = operation.path("requestBody")
+                .path("content")
+                .path("application/json")
+                .path("example");
+        JsonNode requestProperties = root.path("components")
+                .path("schemas")
+                .path("UpdateMemberProfileRequest")
+                .path("properties");
+
+        assertTrue(operation.path("description").asText().contains("자동 기록"));
+        assertTrue(requestExample.isObject());
+        assertTrue(requestExample.has("nickname"));
+        assertFalse(requestExample.has("termsAccepted"));
+        assertFalse(requestExample.has("termsVersion"));
+        assertTrue(requestProperties.isObject());
+        assertTrue(requestProperties.has("nickname"));
+        assertFalse(requestProperties.has("termsAccepted"));
+        assertFalse(requestProperties.has("termsVersion"));
+    }
+
     private void assertJoinRequestListExamples(JsonNode paths, String path) throws Exception {
         JsonNode example = paths.path(path)
                 .path("get")
