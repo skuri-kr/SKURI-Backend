@@ -186,7 +186,7 @@ com.skuri.skuri_backend
 |--------|--------|------|
 | `Member` | `members` | 회원 기본 정보 + `BankAccount`(Embedded) + `NotificationSetting`(Embedded) |
 | `LinkedAccount` | `linked_accounts` | 로그인 계정 연결 (`GOOGLE`/`PASSWORD`/`UNKNOWN`, 비소셜 provider 부가정보는 null 저장) |
-| `MemberTermsConsent` | `member_terms_consents` | 이용약관 버전별 동의 출처와 실제 동의 시각(알 수 있으면) |
+| `MemberTermsConsent` | `member_terms_consents` | 이용약관 버전별 `SIGNUP` 동의 이력과 비-null 동의 기준 시각 |
 
 #### 1-2. 인프라 (Auth)
 
@@ -205,7 +205,7 @@ com.skuri.skuri_backend
 |--------|------|------|
 | `POST` | `/v1/members` | 회원 가입 (ID Token에서 정보 추출, 멱등) |
 | `GET` | `/v1/members/me` | 내 프로필 조회 (lastLogin 갱신) |
-| `PATCH` | `/v1/members/me` | 프로필 부분 수정 (닉네임, 학번, 학과, photoUrl, 최초 완료 시 현재 이용약관 동의) |
+| `PATCH` | `/v1/members/me` | 프로필 부분 수정 (닉네임, 학번, 학과, photoUrl, 최초 완료 시 현재 이용약관 동의 자동 기록) |
 | `GET` | `/v1/departments` | 활성 학과 master 조회 |
 | `DELETE` | `/v1/members/me/photo` | 프로필 사진 제거 (본인 소유 member-scoped PROFILE_IMAGE면 storage 원본/썸네일 정리) |
 | `PUT` | `/v1/members/me/bank-account` | 계좌 정보 수정 |
@@ -221,7 +221,7 @@ com.skuri.skuri_backend
 - [x] Firebase ID Token으로 인증 성공/실패 동작
 - [x] `@sungkyul.ac.kr` 이메일 도메인 제한 동작
 - [x] 회원 가입 → 프로필 조회 → 프로필 수정 플로우 동작
-- [x] 최초 프로필 완료 시 현재 이용약관 동의를 검증·기록하고, 기존 회원 이메일 동의는 가입 시각 cutoff 기준으로 멱등 백필
+- [x] 최초 프로필 완료 시 현재 이용약관 `SIGNUP` 동의를 자동 기록하고, 배포 시점 기존 회원 전체를 동일 출처·백필 실행 시각으로 멱등 적재
 - [x] 인증 없이 보호된 API 호출 시 401 반환
 - [x] OpenAPI JSON(`/v3/api-docs`) + Swagger UI + Scalar 노출
 - [x] `local-emulator` 프로필에서만 Auth Emulator 사용 가능하고, 다른 프로필에서 emulator host 사용 시 기동 차단

@@ -239,10 +239,6 @@ public class MemberController {
                                     @ExampleObject(
                                             name = "nickname_reserved",
                                             value = OpenApiMemberExamples.ERROR_NICKNAME_RESERVED
-                                    ),
-                                    @ExampleObject(
-                                            name = "terms_consent_required",
-                                            value = OpenApiMemberExamples.ERROR_TERMS_CONSENT_REQUIRED
                                     )
                             }
                     )

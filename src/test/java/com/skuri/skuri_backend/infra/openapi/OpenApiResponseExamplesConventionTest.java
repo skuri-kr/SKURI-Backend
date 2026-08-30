@@ -148,15 +148,14 @@ class OpenApiResponseExamplesConventionTest {
     }
 
     @Test
-    void 프로필완료_이용약관미동의응답을OpenAPI예시로노출한다() {
+    void 프로필수정_유효성검증응답을OpenAPI예시로노출한다() {
         assertResponseExampleNames(
                 MemberController.class,
                 "updateMyProfile",
                 "422",
                 "validation",
                 "photo_url_not_owned",
-                "nickname_reserved",
-                "terms_consent_required"
+                "nickname_reserved"
         );
     }
 

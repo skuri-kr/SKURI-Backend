@@ -434,28 +434,6 @@ class OpenApiSuccessSchemaCoverageIntegrationTest {
         assertTrue(hasNoInvitationInviter);
     }
 
-    @Test
-    void member_프로필수정_OpenAPI는_약관미동의422예시를_실제메시지로_노출한다() throws Exception {
-        JsonNode root = apiDocs("/v3/api-docs/member");
-        JsonNode example = root.path("paths")
-                .path("/v1/members/me")
-                .path("patch")
-                .path("responses")
-                .path("422")
-                .path("content")
-                .path("application/json")
-                .path("examples")
-                .path("terms_consent_required")
-                .path("value");
-        JsonNode body = example.isTextual() ? objectMapper.readTree(example.asText()) : example;
-
-        assertEquals("VALIDATION_ERROR", body.path("errorCode").asText());
-        assertEquals(
-                "현재 이용약관에 동의해야 프로필 설정을 완료할 수 있습니다.",
-                body.path("message").asText()
-        );
-    }
-
     private JsonNode apiDocs() throws Exception {
         return apiDocs("/v3/api-docs");
     }
