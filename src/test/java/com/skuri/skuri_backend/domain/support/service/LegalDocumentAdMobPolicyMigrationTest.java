@@ -50,8 +50,8 @@ class LegalDocumentAdMobPolicyMigrationTest {
                 any(String.class),
                 any(LocalDateTime.class)
         )).thenReturn(1, 0);
-        when(legalDocumentRepository.findById("termsOfUse")).thenReturn(Optional.of(terms));
-        when(legalDocumentRepository.findById("privacyPolicy")).thenReturn(Optional.of(privacy));
+        when(legalDocumentRepository.findByDocumentKeyForUpdate("termsOfUse")).thenReturn(Optional.of(terms));
+        when(legalDocumentRepository.findByDocumentKeyForUpdate("privacyPolicy")).thenReturn(Optional.of(privacy));
 
         migration.migrate();
         migration.migrate();
@@ -60,8 +60,8 @@ class LegalDocumentAdMobPolicyMigrationTest {
                 any(String.class),
                 any(LocalDateTime.class)
         );
-        verify(legalDocumentRepository).findById("termsOfUse");
-        verify(legalDocumentRepository).findById("privacyPolicy");
+        verify(legalDocumentRepository).findByDocumentKeyForUpdate("termsOfUse");
+        verify(legalDocumentRepository).findByDocumentKeyForUpdate("privacyPolicy");
         assertEquals("기존 이용약관", terms.getSections().get(0).paragraphs().get(0));
         assertTrue(terms.getSections().stream().anyMatch(section -> "article-18".equals(section.id())));
         assertTrue(privacy.getSections().stream().anyMatch(section -> "article-23".equals(section.id())));

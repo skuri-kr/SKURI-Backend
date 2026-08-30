@@ -63,7 +63,7 @@ class LegalDocumentServiceTest {
 
     @Test
     void upsertLegalDocument_없는문서면_생성한다() {
-        when(legalDocumentRepository.findById("termsOfUse")).thenReturn(Optional.empty());
+        when(legalDocumentRepository.findByDocumentKeyForUpdate("termsOfUse")).thenReturn(Optional.empty());
         when(legalDocumentRepository.saveAndFlush(any(LegalDocument.class))).thenAnswer(invocation -> {
             LegalDocument saved = invocation.getArgument(0);
             ReflectionTestUtils.setField(saved, "createdAt", LocalDateTime.of(2026, 3, 28, 10, 0));
@@ -81,7 +81,7 @@ class LegalDocumentServiceTest {
     @Test
     void upsertLegalDocument_기존문서면_전체교체한다() {
         LegalDocument existing = legalDocument("termsOfUse", true);
-        when(legalDocumentRepository.findById("termsOfUse")).thenReturn(Optional.of(existing));
+        when(legalDocumentRepository.findByDocumentKeyForUpdate("termsOfUse")).thenReturn(Optional.of(existing));
         when(legalDocumentRepository.saveAndFlush(existing)).thenAnswer(invocation -> {
             ReflectionTestUtils.setField(existing, "updatedAt", LocalDateTime.of(2026, 3, 28, 11, 0));
             return invocation.getArgument(0);
@@ -98,7 +98,7 @@ class LegalDocumentServiceTest {
     @Test
     void deleteLegalDocument_존재하는문서를삭제한다() {
         LegalDocument existing = legalDocument("termsOfUse", true);
-        when(legalDocumentRepository.findById("termsOfUse")).thenReturn(Optional.of(existing));
+        when(legalDocumentRepository.findByDocumentKeyForUpdate("termsOfUse")).thenReturn(Optional.of(existing));
 
         legalDocumentService.deleteLegalDocument("termsOfUse");
 
