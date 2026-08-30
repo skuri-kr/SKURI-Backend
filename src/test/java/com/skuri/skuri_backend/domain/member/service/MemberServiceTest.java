@@ -68,6 +68,9 @@ class MemberServiceTest {
     private DepartmentService departmentService;
 
     @Mock
+    private MemberTermsConsentService memberTermsConsentService;
+
+    @Mock
     private AfterCommitApplicationEventPublisher eventPublisher;
 
     @InjectMocks

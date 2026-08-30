@@ -135,6 +135,8 @@ class MemberControllerContractTest {
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.lastLogin").exists())
+                .andExpect(jsonPath("$.data.termsAccepted").value(true))
+                .andExpect(jsonPath("$.data.termsVersion").value("2026-08-30"))
                 .andExpect(jsonPath("$.data.notificationSetting.friendAndInvitationNotifications").value(true));
     }
 
@@ -193,7 +195,9 @@ class MemberControllerContractTest {
                                           "nickname": "새닉네임",
                                           "studentId": "20201234",
                                           "department": "컴퓨터공학과",
-                                          "photoUrl": "https://example.com/profile.jpg"
+                                          "photoUrl": "https://example.com/profile.jpg",
+                                          "termsAccepted": true,
+                                          "termsVersion": "2026-08-30"
                                         }
                                         """)
                 )
@@ -207,6 +211,8 @@ class MemberControllerContractTest {
                                 && "20201234".equals(request.studentId())
                                 && "컴퓨터공학과".equals(request.department())
                                 && "https://example.com/profile.jpg".equals(request.photoUrl())
+                                && Boolean.TRUE.equals(request.termsAccepted())
+                                && "2026-08-30".equals(request.termsVersion())
                 )
         );
     }
@@ -529,6 +535,8 @@ class MemberControllerContractTest {
                         false,
                         Map.of("news", true, "academy", true, "scholarship", false)
                 ),
+                true,
+                "2026-08-30",
                 LocalDateTime.now(),
                 LocalDateTime.now()
         );
