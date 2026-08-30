@@ -109,6 +109,10 @@ public class LegalDocumentAdMobPolicyMigration {
             Set<String> replacedSectionIds
     ) {
         Map<String, LegalDocumentSection> canonicalById = new LinkedHashMap<>();
+        Map<String, Integer> canonicalOrderById = new LinkedHashMap<>();
+        for (int index = 0; index < canonicalSections.size(); index++) {
+            canonicalOrderById.put(canonicalSections.get(index).id(), index);
+        }
         canonicalSections.stream()
                 .filter(section -> replacedSectionIds.contains(section.id()))
                 .forEach(section -> canonicalById.put(section.id(), section));
@@ -122,24 +126,31 @@ public class LegalDocumentAdMobPolicyMigration {
             }
         }
 
-        int supplementaryIndex = indexOf(merged, "supplementary-provisions");
-        int insertionIndex = supplementaryIndex >= 0 ? supplementaryIndex : merged.size();
         for (LegalDocumentSection canonical : canonicalSections) {
             if (canonicalById.remove(canonical.id()) != null) {
+                int insertionIndex = findCanonicalInsertionIndex(
+                        merged,
+                        canonicalOrderById,
+                        canonicalOrderById.get(canonical.id())
+                );
                 merged.add(insertionIndex, canonical);
-                insertionIndex++;
             }
         }
         return List.copyOf(merged);
     }
 
-    private static int indexOf(List<LegalDocumentSection> sections, String sectionId) {
+    private static int findCanonicalInsertionIndex(
+            List<LegalDocumentSection> sections,
+            Map<String, Integer> canonicalOrderById,
+            int targetOrder
+    ) {
         for (int index = 0; index < sections.size(); index++) {
-            if (sectionId.equals(sections.get(index).id())) {
+            Integer currentOrder = canonicalOrderById.get(sections.get(index).id());
+            if (currentOrder != null && currentOrder > targetOrder) {
                 return index;
             }
         }
-        return -1;
+        return sections.size();
     }
 
     private boolean acquireMigrationMarker() {
