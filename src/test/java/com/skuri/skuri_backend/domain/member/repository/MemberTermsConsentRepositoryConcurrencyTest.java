@@ -12,12 +12,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -44,7 +46,7 @@ class MemberTermsConsentRepositoryConcurrencyTest {
     private static final LocalDateTime SIGNUP_ACCEPTED_AT =
             LocalDateTime.of(2026, 8, 30, 9, 0);
     private static final LocalDateTime BACKFILL_AT =
-            LocalDateTime.of(2026, 8, 30, 12, 0);
+            LocalDateTime.of(2099, 8, 30, 12, 0);
 
     @Autowired
     private MemberRepository memberRepository;
@@ -54,6 +56,9 @@ class MemberTermsConsentRepositoryConcurrencyTest {
 
     @Autowired
     private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
     void setUp() {
@@ -125,6 +130,35 @@ class MemberTermsConsentRepositoryConcurrencyTest {
                     assertThat(consent.getSource()).isEqualTo(MemberTermsConsentSource.SIGNUP);
                     assertThat(consent.getAcceptedAt()).isEqualTo(BACKFILL_AT);
                 });
+    }
+
+    @Test
+    void backfill_기준시각후생성된회원은_대상에서제외한다() {
+        Member laterMember = Member.create(
+                "member-4",
+                "later@sungkyul.ac.kr",
+                "후속회원",
+                BACKFILL_AT.plusSeconds(1)
+        );
+        memberRepository.saveAndFlush(laterMember);
+        jdbcTemplate.update(
+                "update members set created_at = ? where id = ?",
+                Timestamp.valueOf(BACKFILL_AT.plusSeconds(1)),
+                laterMember.getId()
+        );
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+                memberTermsConsentRepository.backfillAllMemberSignupConsents(
+                        TermsConsentPolicy.CURRENT_VERSION,
+                        BACKFILL_AT
+                )
+        );
+
+        assertThat(memberTermsConsentRepository.count()).isEqualTo(1);
+        assertThat(memberTermsConsentRepository.existsByMember_IdAndTermsVersion(
+                laterMember.getId(),
+                TermsConsentPolicy.CURRENT_VERSION
+        )).isFalse();
     }
 
     @Test
