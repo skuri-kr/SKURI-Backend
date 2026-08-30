@@ -54,7 +54,7 @@ class MemberTermsConsentRepositoryConcurrencyTest {
                 "member-1",
                 "user@sungkyul.ac.kr",
                 "사용자",
-                LocalDateTime.now()
+                TermsConsentPolicy.EMAIL_CONSENT_MEMBER_JOINED_AT_CUTOFF.minusDays(1)
         ));
     }
 
@@ -71,8 +71,8 @@ class MemberTermsConsentRepositoryConcurrencyTest {
         CountDownLatch start = new CountDownLatch(1);
 
         try {
-            Future<?> first = executor.submit(() -> insertConsent(ready, start));
-            Future<?> second = executor.submit(() -> insertConsent(ready, start));
+            Future<?> first = executor.submit(() -> insertSignupConsent(ready, start));
+            Future<?> second = executor.submit(() -> insertSignupConsent(ready, start));
 
             assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
             start.countDown();
@@ -85,7 +85,28 @@ class MemberTermsConsentRepositoryConcurrencyTest {
         }
     }
 
-    private void insertConsent(CountDownLatch ready, CountDownLatch start) {
+    @Test
+    void 가입동의와이메일백필을_별도트랜잭션에서동시저장해도_한건만저장한다() throws Exception {
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try {
+            Future<?> signup = executor.submit(() -> insertSignupConsent(ready, start));
+            Future<?> backfill = executor.submit(() -> backfillEmailConsent(ready, start));
+
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            signup.get(5, TimeUnit.SECONDS);
+            backfill.get(5, TimeUnit.SECONDS);
+
+            assertThat(memberTermsConsentRepository.count()).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private void insertSignupConsent(CountDownLatch ready, CountDownLatch start) {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             ready.countDown();
             await(start);
@@ -94,6 +115,17 @@ class MemberTermsConsentRepositoryConcurrencyTest {
                     "member-1",
                     TermsConsentPolicy.CURRENT_VERSION,
                     LocalDateTime.now()
+            );
+        });
+    }
+
+    private void backfillEmailConsent(CountDownLatch ready, CountDownLatch start) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            ready.countDown();
+            await(start);
+            memberTermsConsentRepository.backfillEmailConsents(
+                    TermsConsentPolicy.CURRENT_VERSION,
+                    TermsConsentPolicy.EMAIL_CONSENT_MEMBER_JOINED_AT_CUTOFF
             );
         });
     }
