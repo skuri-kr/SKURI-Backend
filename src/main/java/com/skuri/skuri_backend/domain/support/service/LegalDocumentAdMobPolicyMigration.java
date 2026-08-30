@@ -82,7 +82,9 @@ public class LegalDocumentAdMobPolicyMigration {
             Set<String> replacedSectionIds,
             List<LegalDocumentBannerLine> bannerLines
     ) {
-        LegalDocument document = legalDocumentRepository.findById(documentKey.value()).orElse(null);
+        LegalDocument document = legalDocumentRepository
+                .findByDocumentKeyForUpdate(documentKey.value())
+                .orElse(null);
         if (document == null) {
             return 0;
         }
