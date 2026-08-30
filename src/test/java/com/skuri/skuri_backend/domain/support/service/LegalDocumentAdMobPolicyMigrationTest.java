@@ -190,6 +190,29 @@ class LegalDocumentAdMobPolicyMigrationTest {
     }
 
     @Test
+    void replaceEffectiveDateBannerLines_시행일줄의추가문구와톤을보존한다() {
+        List<LegalDocumentBannerLine> updated =
+                LegalDocumentAdMobPolicyMigration.replaceEffectiveDateBannerLines(
+                        List.of(bannerLine(
+                                "시행일: 2025년 3월 1일 · 최종 수정: 2025년 3월 1일 · 관리자 추가 안내",
+                                LegalDocumentBannerLineTone.SECONDARY
+                        )),
+                        bannerLine(
+                                LegalDocumentAdMobPolicyMigration.EFFECTIVE_DATE_LINE,
+                                LegalDocumentBannerLineTone.PRIMARY
+                        )
+                );
+
+        assertEquals(
+                List.of(bannerLine(
+                        LegalDocumentAdMobPolicyMigration.EFFECTIVE_DATE_LINE + " · 관리자 추가 안내",
+                        LegalDocumentBannerLineTone.SECONDARY
+                )),
+                updated
+        );
+    }
+
+    @Test
     void replaceEffectiveDateBannerLines_시행일이없으면_기본문구를끝에추가한다() {
         LegalDocumentBannerLine defaultLine = bannerLine(
                 LegalDocumentAdMobPolicyMigration.EFFECTIVE_DATE_LINE,
