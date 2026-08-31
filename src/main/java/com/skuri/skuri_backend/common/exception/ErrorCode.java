@@ -182,6 +182,9 @@ public enum ErrorCode {
             "허용되지 않는 댓글 moderation 상태 전이입니다."
     ),
 
+    // 콘텐츠 차단(Content Block) 도메인 에러.
+    CONTENT_BLOCK_SELF_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "CONTENT_BLOCK_SELF_NOT_ALLOWED", "자기 자신의 콘텐츠는 차단할 수 없습니다."),
+
     // 공지(Notice/AppNotice) 도메인 에러.
     // 공지, 앱 공지, 공지 댓글 등 공지성 콘텐츠 관리에서 발생하는 오류를 정의한다.
     NOTICE_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTICE_NOT_FOUND", "공지사항을 찾을 수 없습니다."),

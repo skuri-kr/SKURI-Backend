@@ -27,6 +27,7 @@ import java.util.List;
 public class NoticeComment extends BaseTimeEntity {
 
     public static final String DELETED_PLACEHOLDER = "삭제된 댓글입니다";
+    public static final String BLOCKED_PLACEHOLDER = "차단한 사용자의 댓글입니다.";
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

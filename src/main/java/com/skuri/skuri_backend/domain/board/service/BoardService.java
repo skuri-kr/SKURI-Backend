@@ -32,6 +32,7 @@ import com.skuri.skuri_backend.domain.board.repository.PostInteractionRepository
 import com.skuri.skuri_backend.domain.board.repository.PostRepository;
 import com.skuri.skuri_backend.domain.board.repository.PostSummaryProjection;
 import com.skuri.skuri_backend.domain.board.repository.PostThumbnailProjection;
+import com.skuri.skuri_backend.domain.contentblock.service.ContentBlockQueryService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.MemberWithdrawalSanitizer;
 import com.skuri.skuri_backend.domain.member.exception.MemberNotFoundException;
@@ -69,6 +70,7 @@ public class BoardService {
     private final CommentLikeRepository commentLikeRepository;
     private final PostInteractionRepository postInteractionRepository;
     private final MemberRepository memberRepository;
+    private final ContentBlockQueryService contentBlockQueryService;
     private final AfterCommitApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -109,6 +111,7 @@ public class BoardService {
                 category,
                 trimToNull(search),
                 trimToNull(authorId),
+                memberId,
                 pageable
         );
         return toPostSummaryPage(postPage, memberId);
@@ -116,7 +119,7 @@ public class BoardService {
 
     @Transactional
     public PostDetailResponse getPostDetail(String memberId, String postId) {
-        int updatedRows = postRepository.incrementViewCount(postId);
+        int updatedRows = postRepository.incrementViewCountForViewer(postId, memberId);
         if (updatedRows == 0) {
             throw new PostNotFoundException();
         }
@@ -226,6 +229,9 @@ public class BoardService {
     @Transactional(readOnly = true)
     public List<CommentResponse> getComments(String memberId, String postId) {
         Post post = findActivePostOrThrow(postId);
+        if (contentBlockQueryService.isBlockedBy(memberId, post.getAuthorId())) {
+            throw new PostNotFoundException();
+        }
         List<Comment> comments = commentRepository.findByPostIdOrderByCreatedAtAsc(postId);
         Set<String> likedCommentIds = resolveLikedCommentIds(memberId, comments);
         return flattenComments(comments, memberId, post.getAuthorId(), likedCommentIds);
@@ -588,8 +594,15 @@ public class BoardService {
             String postAuthorId,
             Set<String> likedCommentIds
     ) {
-        Map<String, CurrentAuthorProfile> currentAuthorsById = resolveCurrentAuthors(
+        Set<String> blockedAuthorIds = contentBlockQueryService.findBlockedMemberIds(
+                memberId,
                 comments.stream().map(Comment::getAuthorId).toList()
+        );
+        Map<String, CurrentAuthorProfile> currentAuthorsById = resolveCurrentAuthors(
+                comments.stream()
+                        .map(Comment::getAuthorId)
+                        .filter(authorId -> !blockedAuthorIds.contains(authorId))
+                        .toList()
         );
         Map<String, List<Comment>> childrenByParent = new LinkedHashMap<>();
         List<Comment> roots = new ArrayList<>();
@@ -612,7 +625,8 @@ public class BoardService {
                     postAuthorId,
                     likedCommentIds,
                     childrenByParent,
-                    currentAuthorsById
+                    currentAuthorsById,
+                    blockedAuthorIds
             );
         }
         return flattened;
@@ -626,7 +640,8 @@ public class BoardService {
             String postAuthorId,
             Set<String> likedCommentIds,
             Map<String, List<Comment>> childrenByParent,
-            Map<String, CurrentAuthorProfile> currentAuthorsById
+            Map<String, CurrentAuthorProfile> currentAuthorsById,
+            Set<String> blockedAuthorIds
     ) {
         flattened.add(toCommentResponse(
                 comment,
@@ -634,7 +649,8 @@ public class BoardService {
                 postAuthorId,
                 depth,
                 likedCommentIds.contains(comment.getId()),
-                currentAuthorsById
+                currentAuthorsById,
+                blockedAuthorIds.contains(comment.getAuthorId())
         ));
         for (Comment child : childrenByParent.getOrDefault(comment.getId(), List.of())) {
             appendCommentTree(
@@ -645,7 +661,8 @@ public class BoardService {
                     postAuthorId,
                     likedCommentIds,
                     childrenByParent,
-                    currentAuthorsById
+                    currentAuthorsById,
+                    blockedAuthorIds
             );
         }
     }
@@ -673,7 +690,8 @@ public class BoardService {
                 postAuthorId,
                 depth,
                 isLiked,
-                resolveCurrentAuthors(Collections.singletonList(comment.getAuthorId()))
+                resolveCurrentAuthors(Collections.singletonList(comment.getAuthorId())),
+                false
         );
     }
 
@@ -683,9 +701,10 @@ public class BoardService {
             String postAuthorId,
             int depth,
             boolean isLiked,
-            Map<String, CurrentAuthorProfile> currentAuthorsById
+            Map<String, CurrentAuthorProfile> currentAuthorsById,
+            boolean blocked
     ) {
-        boolean masked = comment.isDeleted() || comment.isHidden();
+        boolean masked = comment.isDeleted() || comment.isHidden() || blocked;
         AuthorView authorView = resolveAuthorView(
                 comment.isAnonymous(),
                 masked,
@@ -699,7 +718,9 @@ public class BoardService {
                 comment.getId(),
                 comment.hasParent() ? comment.getParent().getId() : null,
                 depth,
-                masked && comment.isHidden() ? Comment.HIDDEN_PLACEHOLDER : comment.getContent(),
+                blocked
+                        ? Comment.BLOCKED_PLACEHOLDER
+                        : masked && comment.isHidden() ? Comment.HIDDEN_PLACEHOLDER : comment.getContent(),
                 authorView.authorId,
                 authorView.authorName,
                 authorView.authorProfileImage,

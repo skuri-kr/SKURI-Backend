@@ -5,6 +5,7 @@ import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.common.util.AnonymousCommentIdGenerator;
+import com.skuri.skuri_backend.domain.contentblock.service.ContentBlockQueryService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.MemberWithdrawalSanitizer;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
@@ -68,6 +69,7 @@ public class NoticeService {
     private final NoticeLikeRepository noticeLikeRepository;
     private final NoticeBookmarkRepository noticeBookmarkRepository;
     private final MemberRepository memberRepository;
+    private final ContentBlockQueryService contentBlockQueryService;
     private final AfterCommitApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
@@ -369,8 +371,15 @@ public class NoticeService {
             String memberId,
             Set<String> likedCommentIds
     ) {
-        Map<String, CurrentAuthorProfile> currentAuthorsById = resolveCurrentAuthors(
+        Set<String> blockedAuthorIds = contentBlockQueryService.findBlockedMemberIds(
+                memberId,
                 comments.stream().map(NoticeComment::getUserId).toList()
+        );
+        Map<String, CurrentAuthorProfile> currentAuthorsById = resolveCurrentAuthors(
+                comments.stream()
+                        .map(NoticeComment::getUserId)
+                        .filter(authorId -> !blockedAuthorIds.contains(authorId))
+                        .toList()
         );
         Map<String, List<NoticeComment>> childrenByParent = new LinkedHashMap<>();
         List<NoticeComment> roots = new ArrayList<>();
@@ -392,7 +401,8 @@ public class NoticeService {
                     memberId,
                     likedCommentIds,
                     childrenByParent,
-                    currentAuthorsById
+                    currentAuthorsById,
+                    blockedAuthorIds
             );
         }
         return flattened;
@@ -405,14 +415,16 @@ public class NoticeService {
             String memberId,
             Set<String> likedCommentIds,
             Map<String, List<NoticeComment>> childrenByParent,
-            Map<String, CurrentAuthorProfile> currentAuthorsById
+            Map<String, CurrentAuthorProfile> currentAuthorsById,
+            Set<String> blockedAuthorIds
     ) {
         flattened.add(toCommentResponse(
                 comment,
                 memberId,
                 depth,
                 likedCommentIds.contains(comment.getId()),
-                currentAuthorsById
+                currentAuthorsById,
+                blockedAuthorIds.contains(comment.getUserId())
         ));
         for (NoticeComment child : childrenByParent.getOrDefault(comment.getId(), List.of())) {
             appendCommentTree(
@@ -422,7 +434,8 @@ public class NoticeService {
                     memberId,
                     likedCommentIds,
                     childrenByParent,
-                    currentAuthorsById
+                    currentAuthorsById,
+                    blockedAuthorIds
             );
         }
     }
@@ -443,7 +456,8 @@ public class NoticeService {
                 memberId,
                 depth,
                 isLiked,
-                resolveCurrentAuthors(Collections.singletonList(comment.getUserId()))
+                resolveCurrentAuthors(Collections.singletonList(comment.getUserId())),
+                false
         );
     }
 
@@ -452,9 +466,10 @@ public class NoticeService {
             String memberId,
             int depth,
             boolean isLiked,
-            Map<String, CurrentAuthorProfile> currentAuthorsById
+            Map<String, CurrentAuthorProfile> currentAuthorsById,
+            boolean blocked
     ) {
-        boolean deleted = comment.isDeleted();
+        boolean deleted = comment.isDeleted() || blocked;
         AuthorView authorView = resolveAuthorView(
                 comment.isAnonymous(),
                 deleted,
@@ -467,7 +482,7 @@ public class NoticeService {
                 comment.getId(),
                 comment.hasParent() ? comment.getParent().getId() : null,
                 depth,
-                comment.getContent(),
+                blocked ? NoticeComment.BLOCKED_PLACEHOLDER : comment.getContent(),
                 authorView.authorId,
                 authorView.authorName,
                 authorView.authorProfileImage,

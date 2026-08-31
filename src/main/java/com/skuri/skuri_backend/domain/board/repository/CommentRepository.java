@@ -42,6 +42,8 @@ public interface CommentRepository extends JpaRepository<Comment, String> {
             """)
     Optional<Comment> findActiveById(@Param("commentId") String commentId);
 
+    Optional<Comment> findByIdAndDeletedFalseAndHiddenFalse(String commentId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select c

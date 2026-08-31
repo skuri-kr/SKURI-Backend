@@ -45,11 +45,18 @@ public interface PostRepository extends JpaRepository<Post, String> {
                     or lower(p.title) like lower(concat('%', :search, '%'))
                     or lower(p.content) like lower(concat('%', :search, '%')))
               and (:authorId is null or p.authorId = :authorId)
+              and not exists (
+                    select block.id
+                    from ContentBlock block
+                    where block.blockerId = :viewerId
+                      and block.blockedId = p.authorId
+              )
             """)
     Page<PostSummaryProjection> searchSummaries(
             @Param("category") PostCategory category,
             @Param("search") String search,
             @Param("authorId") String authorId,
+            @Param("viewerId") String viewerId,
             Pageable pageable
     );
 
@@ -106,6 +113,12 @@ public interface PostRepository extends JpaRepository<Post, String> {
               and p.hidden = false
               and pi.id.userId = :userId
               and pi.bookmarked = true
+              and not exists (
+                    select block.id
+                    from ContentBlock block
+                    where block.blockerId = :userId
+                      and block.blockedId = p.authorId
+              )
             """)
     Page<PostSummaryProjection> findBookmarkedSummaries(@Param("userId") String userId, Pageable pageable);
 
@@ -205,8 +218,17 @@ public interface PostRepository extends JpaRepository<Post, String> {
             where p.id = :postId
               and p.deleted = false
               and p.hidden = false
+              and not exists (
+                    select block.id
+                    from ContentBlock block
+                    where block.blockerId = :viewerId
+                      and block.blockedId = p.authorId
+              )
             """)
-    int incrementViewCount(@Param("postId") String postId);
+    int incrementViewCountForViewer(
+            @Param("postId") String postId,
+            @Param("viewerId") String viewerId
+    );
 
     List<Post> findByAuthorId(String authorId);
 }

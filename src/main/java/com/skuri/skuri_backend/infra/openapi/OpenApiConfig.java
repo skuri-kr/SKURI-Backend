@@ -210,6 +210,14 @@ public class OpenApiConfig {
     }
 
     @Bean
+    public GroupedOpenApi contentBlockApi() {
+        return GroupedOpenApi.builder()
+                .group("content-block")
+                .pathsToMatch("/v1/content-blocks/**", "/v1/content-blocks")
+                .build();
+    }
+
+    @Bean
     public GroupedOpenApi shareApi() {
         return GroupedOpenApi.builder()
                 .group("share")
