@@ -15,6 +15,7 @@ import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeLikeRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeReadStatusRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeRepository;
+import com.skuri.skuri_backend.domain.contentblock.service.ContentBlockQueryService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.MemberWithdrawalSanitizer;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
@@ -31,6 +32,7 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.stereotype.Service;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,6 +60,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         AppNoticeInteractionConcurrencyDataJpaTest.AppNoticeRepositoryLockAspectConfiguration.class
 })
 class AppNoticeInteractionConcurrencyDataJpaTest {
+
+    @MockitoBean
+    private ContentBlockQueryService contentBlockQueryService;
 
     @Autowired
     private MemberRepository memberRepository;

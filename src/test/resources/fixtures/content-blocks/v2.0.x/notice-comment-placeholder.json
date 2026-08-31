@@ -1,0 +1,23 @@
+{
+  "success": true,
+  "data": [
+    {
+      "id": "notice-comment-1",
+      "parentId": null,
+      "depth": 0,
+      "content": "차단한 사용자의 댓글입니다.",
+      "authorId": null,
+      "authorName": null,
+      "authorProfileImage": null,
+      "isAuthorAdmin": false,
+      "isAnonymous": false,
+      "anonymousOrder": null,
+      "isAuthor": false,
+      "likeCount": 0,
+      "isLiked": false,
+      "isDeleted": true,
+      "createdAt": "2026-08-31T18:30:00",
+      "updatedAt": "2026-08-31T18:30:00"
+    }
+  ]
+}

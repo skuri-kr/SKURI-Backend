@@ -5,6 +5,7 @@ import com.skuri.skuri_backend.domain.academic.service.TimetableService;
 import com.skuri.skuri_backend.domain.app.service.AppNoticeService;
 import com.skuri.skuri_backend.domain.board.service.BoardService;
 import com.skuri.skuri_backend.domain.chat.service.ChatService;
+import com.skuri.skuri_backend.domain.contentblock.service.ContentBlockService;
 import com.skuri.skuri_backend.domain.friend.service.FriendWithdrawalCleanupService;
 import com.skuri.skuri_backend.domain.member.dto.response.MemberWithdrawResponse;
 import com.skuri.skuri_backend.domain.member.entity.Member;
@@ -73,6 +74,9 @@ class MemberLifecycleServiceTest {
     private FriendWithdrawalCleanupService friendWithdrawalCleanupService;
 
     @Mock
+    private ContentBlockService contentBlockService;
+
+    @Mock
     private AfterCommitApplicationEventPublisher eventPublisher;
 
     @InjectMocks
@@ -93,6 +97,7 @@ class MemberLifecycleServiceTest {
                 org.mockito.ArgumentMatchers.eq("member-1"),
                 org.mockito.ArgumentMatchers.any(LocalDateTime.class)
         );
+        verify(contentBlockService).deleteAllForMember("member-1");
         verify(linkedAccountRepository).deleteByMemberId("member-1");
         verify(taxiPartyService).handleMemberWithdrawal("member-1");
         verify(chatService).removeMemberFromAllChatRooms("member-1");
@@ -120,6 +125,7 @@ class MemberLifecycleServiceTest {
 
         assertEquals("정산이 진행 중인 ARRIVED 파티에 참여 중인 멤버는 탈퇴할 수 없습니다.", actual.getMessage());
         verify(linkedAccountRepository, never()).deleteByMemberId("member-1");
+        verify(contentBlockService, never()).deleteAllForMember("member-1");
         verify(taxiPartyService, never()).handleMemberWithdrawal("member-1");
         verify(eventPublisher, never()).publish(org.mockito.ArgumentMatchers.any());
     }

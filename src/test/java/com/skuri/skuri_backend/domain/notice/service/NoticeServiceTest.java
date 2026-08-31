@@ -6,6 +6,7 @@ import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.common.util.AnonymousCommentIdGenerator;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.contentblock.service.ContentBlockQueryService;
 import com.skuri.skuri_backend.domain.notice.dto.request.CreateNoticeCommentRequest;
 import com.skuri.skuri_backend.domain.notice.dto.request.UpdateNoticeCommentRequest;
 import com.skuri.skuri_backend.domain.notice.dto.response.NoticeBookmarkResponse;
@@ -37,6 +38,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -72,6 +74,9 @@ class NoticeServiceTest {
 
     @Mock
     private MemberRepository memberRepository;
+
+    @Mock
+    private ContentBlockQueryService contentBlockQueryService;
 
     @Mock
     private AfterCommitApplicationEventPublisher eventPublisher;
@@ -457,6 +462,32 @@ class NoticeServiceTest {
         assertEquals("comment-3", responses.get(2).id());
         assertEquals("comment-2", responses.get(2).parentId());
         assertEquals(2, responses.get(2).depth());
+    }
+
+    @Test
+    void getComments_차단댓글은삭제형응답값으로마스킹하고_자손구조는유지한다() {
+        Notice notice = notice("notice-1");
+        CommentFixture blockedParent = comment("comment-1", notice, null, "blocked-author", true, 1);
+        CommentFixture visibleChild = comment("comment-2", notice, blockedParent.comment, "visible-author", false, null);
+
+        when(noticeRepository.findById("notice-1")).thenReturn(Optional.of(notice));
+        when(noticeCommentRepository.findByNoticeIdOrderByCreatedAtAsc("notice-1"))
+                .thenReturn(List.of(blockedParent.comment, visibleChild.comment));
+        when(contentBlockQueryService.findBlockedMemberIds(
+                "member-1",
+                List.of("blocked-author", "visible-author")
+        )).thenReturn(Set.of("blocked-author"));
+
+        List<NoticeCommentResponse> responses = noticeService.getComments("member-1", "notice-1");
+
+        assertEquals(NoticeComment.BLOCKED_PLACEHOLDER, responses.get(0).content());
+        assertTrue(responses.get(0).isDeleted());
+        assertNull(responses.get(0).authorId());
+        assertNull(responses.get(0).authorName());
+        assertFalse(responses.get(0).isAnonymous());
+        assertEquals("comment-1", responses.get(1).parentId());
+        assertEquals(1, responses.get(1).depth());
+        assertFalse(responses.get(1).isDeleted());
     }
 
     @Test

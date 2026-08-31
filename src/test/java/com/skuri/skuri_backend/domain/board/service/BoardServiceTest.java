@@ -26,6 +26,7 @@ import com.skuri.skuri_backend.domain.board.repository.PostInteractionRepository
 import com.skuri.skuri_backend.domain.board.repository.PostRepository;
 import com.skuri.skuri_backend.domain.board.repository.PostSummaryProjection;
 import com.skuri.skuri_backend.domain.board.repository.PostThumbnailProjection;
+import com.skuri.skuri_backend.domain.contentblock.service.ContentBlockQueryService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -72,6 +74,9 @@ class BoardServiceTest {
 
     @Mock
     private MemberRepository memberRepository;
+
+    @Mock
+    private ContentBlockQueryService contentBlockQueryService;
 
     @Mock
     private AfterCommitApplicationEventPublisher eventPublisher;
@@ -235,6 +240,48 @@ class BoardServiceTest {
         assertEquals("comment-3", responses.get(2).id());
         assertEquals("comment-2", responses.get(2).parentId());
         assertEquals(2, responses.get(2).depth());
+    }
+
+    @Test
+    void getComments_차단댓글은삭제형응답값으로마스킹하고_자손구조는유지한다() {
+        Post post = post("post-1", "post-author");
+        Comment blockedParent = comment("comment-1", post, null, "blocked-author", true, 1);
+        Comment visibleChild = comment("comment-2", post, blockedParent, "visible-author", false, null);
+
+        when(postRepository.findByIdAndDeletedFalseAndHiddenFalse("post-1")).thenReturn(Optional.of(post));
+        when(commentRepository.findByPostIdOrderByCreatedAtAsc("post-1"))
+                .thenReturn(List.of(blockedParent, visibleChild));
+        when(contentBlockQueryService.isBlockedBy("member-1", "post-author")).thenReturn(false);
+        when(contentBlockQueryService.findBlockedMemberIds(
+                "member-1",
+                List.of("blocked-author", "visible-author")
+        )).thenReturn(Set.of("blocked-author"));
+
+        List<CommentResponse> responses = boardService.getComments("member-1", "post-1");
+
+        assertEquals(Comment.BLOCKED_PLACEHOLDER, responses.get(0).content());
+        assertTrue(responses.get(0).isDeleted());
+        assertNull(responses.get(0).authorId());
+        assertNull(responses.get(0).authorName());
+        assertFalse(responses.get(0).isAnonymous());
+        assertEquals("comment-1", responses.get(1).parentId());
+        assertEquals(1, responses.get(1).depth());
+        assertFalse(responses.get(1).isDeleted());
+    }
+
+    @Test
+    void getComments_게시글작성자가차단된경우_기존POST_NOT_FOUND로마스킹한다() {
+        Post post = post("post-1", "blocked-author");
+        when(postRepository.findByIdAndDeletedFalseAndHiddenFalse("post-1")).thenReturn(Optional.of(post));
+        when(contentBlockQueryService.isBlockedBy("member-1", "blocked-author")).thenReturn(true);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> boardService.getComments("member-1", "post-1")
+        );
+
+        assertEquals(ErrorCode.POST_NOT_FOUND, exception.getErrorCode());
+        verify(commentRepository, never()).findByPostIdOrderByCreatedAtAsc("post-1");
     }
 
     @Test
@@ -530,7 +577,7 @@ class BoardServiceTest {
         when(projection.isHasImage()).thenReturn(true);
         when(projection.isPinned()).thenReturn(false);
         when(projection.getCreatedAt()).thenReturn(LocalDateTime.now());
-        when(postRepository.searchSummaries(any(), any(), any(), any()))
+        when(postRepository.searchSummaries(any(), any(), any(), any(), any()))
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(projection)));
         when(postImageRepository.findFirstThumbnailByPostIds(List.of("post-1")))
                 .thenReturn(List.of(thumbnailProjection("post-1", "https://example.com/post-1-thumb.jpg")));
@@ -548,7 +595,7 @@ class BoardServiceTest {
         Member author = memberWithProfileImage("author-post-1", "https://example.com/current-profile.jpg");
         ReflectionTestUtils.setField(author, "isAdmin", true);
 
-        when(postRepository.searchSummaries(any(), any(), any(), any()))
+        when(postRepository.searchSummaries(any(), any(), any(), any(), any()))
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(projection)));
         when(postImageRepository.findFirstThumbnailByPostIds(List.of("post-1"))).thenReturn(List.of());
         when(postInteractionRepository.findById_UserIdAndId_PostIdIn("member-1", List.of("post-1")))
@@ -569,7 +616,7 @@ class BoardServiceTest {
         Member author = memberWithProfileImage("author-1", "https://example.com/current-profile.jpg");
         ReflectionTestUtils.setField(author, "isAdmin", true);
 
-        when(postRepository.incrementViewCount("post-1")).thenReturn(1);
+        when(postRepository.incrementViewCountForViewer("post-1", "member-1")).thenReturn(1);
         when(postRepository.findActiveDetailById("post-1")).thenReturn(Optional.of(post));
         when(postInteractionRepository.existsById_UserIdAndId_PostIdAndLikedTrue("member-1", "post-1"))
                 .thenReturn(false);
@@ -593,7 +640,7 @@ class BoardServiceTest {
         when(interaction.isLiked()).thenReturn(true);
         when(interaction.isBookmarked()).thenReturn(true);
 
-        when(postRepository.searchSummaries(any(), any(), any(), any()))
+        when(postRepository.searchSummaries(any(), any(), any(), any(), any()))
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(personalized, othersOnly)));
         when(postImageRepository.findFirstThumbnailByPostIds(List.of("post-1", "post-2")))
                 .thenReturn(List.of(
@@ -621,7 +668,7 @@ class BoardServiceTest {
     void getPosts_삭제된내댓글만남으면_isCommentedByMe_false() {
         PostSummaryProjection projection = summaryProjection("post-1", 3);
 
-        when(postRepository.searchSummaries(any(), any(), any(), any()))
+        when(postRepository.searchSummaries(any(), any(), any(), any(), any()))
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(projection)));
         when(postImageRepository.findFirstThumbnailByPostIds(List.of("post-1")))
                 .thenReturn(List.of(thumbnailProjection("post-1", "https://example.com/post-1-thumb.jpg")));
@@ -639,7 +686,7 @@ class BoardServiceTest {
     void getPosts_이미지가없으면_thumbnailUrl은_null이다() {
         PostSummaryProjection projection = summaryProjection("post-1", 0, false);
 
-        when(postRepository.searchSummaries(any(), any(), any(), any()))
+        when(postRepository.searchSummaries(any(), any(), any(), any(), any()))
                 .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(projection)));
         when(postImageRepository.findFirstThumbnailByPostIds(List.of("post-1")))
                 .thenReturn(List.of());

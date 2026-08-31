@@ -24,10 +24,12 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static com.skuri.skuri_backend.domain.contentblock.compatibility.ContentBlockV20xHttpCompatibilityFixture.assertNoticeCommentResponse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -212,6 +214,22 @@ class NoticeControllerContractTest {
     }
 
     @Test
+    void getComments_차단placeholder는실제HTTP에서_2_0_x댓글계약으로해석가능하다() throws Exception {
+        mockValidToken();
+        when(noticeService.getComments("firebase-uid", "notice-1"))
+                .thenReturn(List.of(blockedCommentResponse()));
+
+        MvcResult mvcResult = mockMvc.perform(
+                        get("/v1/notices/notice-1/comments")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertNoticeCommentResponse(mvcResult);
+    }
+
+    @Test
     void getComments_공지없음_404() throws Exception {
         mockValidToken();
         when(noticeService.getComments("firebase-uid", "not-found"))
@@ -351,6 +369,28 @@ class NoticeControllerContractTest {
                 false,
                 LocalDateTime.now(),
                 LocalDateTime.now()
+        );
+    }
+
+    private NoticeCommentResponse blockedCommentResponse() {
+        LocalDateTime occurredAt = LocalDateTime.of(2026, 8, 31, 18, 30);
+        return new NoticeCommentResponse(
+                "notice-comment-1",
+                null,
+                0,
+                "차단한 사용자의 댓글입니다.",
+                null,
+                null,
+                null,
+                false,
+                false,
+                null,
+                false,
+                0,
+                false,
+                true,
+                occurredAt,
+                occurredAt
         );
     }
 }
