@@ -1,8 +1,8 @@
 # 백엔드 역할 정의서 v1.0
 (Firebase Serverless → Spring Migration)
 
-> 최종 수정일: 2026-08-25
-> 관련 문서: [도메인 분석](./domain-analysis.md) | [API 명세](./api-specification.md) | [구현 로드맵](./implementation-roadmap.md) | [Friend 기능 기준](./features/friends.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
+> 최종 수정일: 2026-08-31
+> 관련 문서: [도메인 분석](./domain-analysis.md) | [API 명세](./api-specification.md) | [구현 로드맵](./implementation-roadmap.md) | [Friend 기능 기준](./features/friends.md) | [Content Block 기준](./features/content-blocks.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 > 참고: AS-IS 섹션은 migration kickoff 시점의 legacy Firebase 구조를 설명한다. 마인크래프트 상세 설계/이력은 백엔드 레포 `docs/minecraft-spring-migration-plan.md`를 본다.
 
 ## 1. 문서 목적
@@ -124,6 +124,20 @@ Friend는 Supporting 도메인으로서 영구 미재사용 친구 코드 regist
 | Support | 기존 신고 저장·중복 정책·운영 처리 |
 
 Friend Foundation과 관계 Core, Minecraft 안전 projection, 시간표 공유, TaxiParty·Chat 초대의 API·DB 조회는 현재 런타임에 존재한다. 친구 요청은 30일 PENDING·역방향 자동 수락·수락 멱등성·terminal 409을 서버가 강제하며, 차단은 일반 대상 없음으로 마스킹한다. 시간표 공유는 `PRIVATE` 기본값, 친구별 예외 우선, friendship 종료·차단 시 양방향 예외 정리를 서버가 강제한다. 초대는 수신자별 부분 성공, 수락 시 자격·정원 재검증, terminal EXPIRED 사유와 공개방 7일 만료를 각 소유 도메인이 강제한다. 택시 초대는 OPEN·CLOSED 상태의 현재 참가자가 보낼 수 있고, 파티장 초대는 수신자 수락 즉시 참가하며 일반 참가자 초대는 동승 요청으로 전환해 파티장 승인을 받는다. 정원 도달은 모집 상태를 자동 전이하지 않고 남은 PENDING 동승 요청·초대만 EXPIRED + CAPACITY_FULL로 종료하며, 리더·관리자는 정원과 무관하게 명시적으로 모집을 재개할 수 있다. 친구 요청·수락·거절과 초대는 after-commit 이벤트로 전달하되, 요청은 Member pair → FriendRequest(수락은 Friendship·양방향 차단), 초대는 Member pair → Party/ChatRoom → Invitation 잠금 아래 최신 유효 상태에서만 인앱·SSE를 저장·발행한다. FCM은 그 커밋 후 새 `REQUIRES_NEW` 트랜잭션에서 같은 잠금을 `PushNotificationService.send` 반환까지 유지해 최종 판단과 전송을 직렬화하며, `allNotifications && friendAndInvitationNotifications`가 false면 모든 알림 전달만 생략한다. 외부 FCM은 best-effort다. 상세 정책은 `docs/features/friends.md`를 기준으로 한다.
+
+### 4.6 Content Block 도메인과 UGC 노출 책임
+
+Content Block은 Friend `member_blocks`를 재사용하지 않는 Supporting 도메인이다. Spring은 클라이언트가 보낸 `targetType + targetId`를 활성 콘텐츠에서 해석하고, 실제 회원 ID를 외부에 노출하지 않은 채 blocker→blocked 단방향 관계를 저장한다.
+
+| 영역 | Spring 내 최종 책임 |
+| --- | --- |
+| ContentBlock | 콘텐츠 기반 작성자 해석, 중복 차단 멱등 처리, opaque 목록·해제, 회원 탈퇴 cleanup |
+| Board | 게시글 목록의 pagination 이전 필터, 상세 `POST_NOT_FOUND`, 댓글 reply tree placeholder |
+| Notice/AppNotice | 학교 공지·앱 공지 댓글 reply tree placeholder |
+| Member | 인증된 ACTIVE 차단자·대상 검증과 탈퇴 orchestration |
+| Admin/Support | 운영 조회와 신고 증거는 ContentBlock 필터 없이 원본을 유지 |
+
+적용 범위는 자유게시판 게시글·댓글, 학교 공지 댓글, 앱 공지 댓글로 고정한다. 채팅·택시파티·친구 관계·요청·초대·시간표 공유·공개 Share preview는 변경하지 않는다. 게시글 상세는 전용 오류를 추가하지 않고 기존 404를 사용하며, 댓글은 기존 DTO의 `isDeleted=true`와 placeholder를 사용한다. 이 때문에 백엔드를 앱보다 먼저 배포하거나 사용자가 2.1.0 미만 앱으로 내려가도 기존 응답 역직렬화 계약이 유지된다.
 
 ---
 
@@ -365,6 +379,7 @@ Spring 백엔드는 Access Token / Refresh Token을 직접 발급하거나 관�
     - 관리자 override는 public 작성자 권한 체크를 우회하지만, hard delete는 하지 않는다.
     - moderation 상태는 `VISIBLE`, `HIDDEN`, `DELETED`를 사용하고 `DELETED`는 기존 soft delete를 재사용한다.
     - `DELETED`는 복구하지 않고, `HIDDEN <-> VISIBLE`만 허용한다.
+    - Content Block은 public 사용자 조회에만 적용하며 관리자 게시글·댓글 조회와 신고 증거는 필터하지 않는다.
 - Legal Document 권한 예시:
   - 공개 조회:
     - `GET /v1/legal-documents/{documentKey}`
@@ -527,6 +542,7 @@ Spring 백엔드는 본 프로젝트에서 다음과 같은 역할을 수행한�
 - 실시간 데이터 제공자
 - 인증 결과를 신뢰하고 권한을 판단하는 서버
 - Friend Foundation·관계 Core, Academic 시간표 공유, TaxiParty·공개방 초대 규칙을 최종 강제하고 후속 Notification 협력을 제공하는 서버
+- Friend와 분리된 단방향 Content Block을 저장하고 Board·Notice·AppNotice의 하위호환 UGC 노출 정책을 강제하는 서버
 
 ---
 

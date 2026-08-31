@@ -1,6 +1,6 @@
 # Spring 백엔드 ERD (Entity Relationship Diagram)
 
-> 최종 수정일: 2026-08-30
+> 최종 수정일: 2026-08-31
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -805,8 +805,25 @@ erDiagram
         varchar(36) blocked_id PK
         datetime created_at
         datetime updated_at
+}
+```
+
+### 1.6 Content Block
+
+```mermaid
+erDiagram
+    members ||--o{ content_blocks : "blocks or is blocked"
+
+    content_blocks {
+        varchar(36) id PK "외부 해제용 opaque UUID"
+        varchar(36) blocker_id "차단자 내부 회원 ID"
+        varchar(36) blocked_id "차단 대상 내부 회원 ID"
+        datetime created_at
+        datetime updated_at
     }
 ```
+
+`content_blocks`는 Friend의 `member_blocks`와 다른 책임을 가진다. 물리 FK는 두지 않고 Service가 양쪽 ACTIVE Member를 검증하며, 회원 탈퇴 orchestration이 blocker/blocked 양쪽 행을 정리한다. 따라서 친구 관계·요청·초대·채팅·택시파티 상태는 전이하지 않는다.
 
 ---
 
@@ -1153,6 +1170,25 @@ Taxi history 계약 메모:
 | friend_preferences | `(owner_member_id, friend_member_id)` composite PK | 즐겨찾기는 소유자 방향별 독립 설정 |
 | member_blocks | `(blocker_id, blocked_id)` composite PK | 차단은 단방향이며 차단 시 관계·PENDING 요청을 정리 |
 
+### 2.5.1 Content Block
+
+| 테이블 | 설명 | 예상 레코드 수 |
+|--------|------|---------------|
+| `content_blocks` | 차단자에게만 대상 회원의 UGC를 숨기는 단방향 콘텐츠 차단 관계 | 차단 수 |
+
+| 컬럼 | 타입 | 제약조건 | 설명 |
+|------|------|---------|------|
+| id | VARCHAR(36) | PK | 회원 식별자와 무관한 해제 API용 UUID |
+| blocker_id | VARCHAR(36) | NOT NULL | 차단자 내부 회원 ID. 외부 API 미노출 |
+| blocked_id | VARCHAR(36) | NOT NULL | 차단 대상 내부 회원 ID. 외부 API 미노출 |
+| created_at | DATETIME | NOT NULL | 차단 시각 |
+| updated_at | DATETIME | NOT NULL | 수정 시각 |
+
+- `(blocker_id, blocked_id)` unique로 같은 방향의 중복 차단을 막는다.
+- `(blocker_id, created_at)`는 최신순 차단 목록, `blocked_id`는 회원 탈퇴 cleanup을 지원한다.
+- 작성자 해석은 `POST | COMMENT | NOTICE_COMMENT | APP_NOTICE_COMMENT` 원본 repository에서 수행하므로 콘텐츠 ID를 저장하지 않는다.
+- public 게시글 목록은 이 테이블을 `NOT EXISTS`로 먼저 적용한 뒤 페이지네이션한다. 관리자 조회와 신고 증거는 이 관계로 필터하지 않는다.
+
 ### 2.6 Board 도메인
 
 | 테이블 | 설명 | 예상 레코드 수 |
@@ -1305,6 +1341,7 @@ Taxi history 계약 메모:
 | 채팅방-친구초대 | chat_rooms | chat_room_invitations | 1:N | 공개 non-PARTY 방 초대와 terminal 이력 |
 | 회원-친구 공개 프로필 | members | friend_profiles | 1:0..1 | 프로필 완료 ACTIVE 회원당 하나의 공개 프로필 |
 | 활성 친구 코드-공개 프로필 | friend_code_registry | friend_profiles | 1:0..1 | ACTIVE 코드만 현재 프로필에 연결 |
+| 회원-콘텐츠 차단 | members | content_blocks | 1:N 논리 참조 | blocker→blocked 단방향이며 차단자에게만 Board·Notice·AppNotice UGC를 숨김 |
 | 게시글-이미지 | posts | post_images | 1:N | 게시글에 여러 이미지 |
 | 게시글-댓글 | posts | comments | 1:N | 게시글에 여러 댓글 |
 | 댓글-대댓글 | comments | comments | 1:N (self) | 무제한 self-reference + placeholder soft delete |
@@ -1692,6 +1729,20 @@ CREATE TABLE share_links (
 - `resource_id`는 원본 도메인 ID를 보존한다. 서로 다른 원본 테이블을 참조하므로 물리 FK 대신 발급·해석 시 해당 repository가 활성 원본을 검증한다.
 - `code`는 혼동 문자를 제외한 Base58 8자리이며 비만료·미변경을 기본 정책으로 한다.
 
+### 4.13 Content Block
+
+```sql
+CREATE UNIQUE INDEX uk_content_blocks_blocker_blocked
+    ON content_blocks(blocker_id, blocked_id);
+CREATE INDEX idx_content_blocks_blocker_created
+    ON content_blocks(blocker_id, created_at);
+CREATE INDEX idx_content_blocks_blocked
+    ON content_blocks(blocked_id);
+```
+
+- 회원 ID는 외부에 반환하지 않고 `content_blocks.id`만 차단 목록·해제 계약에 사용한다.
+- 현재 운영 방식인 `spring.jpa.hibernate.ddl-auto=update`에서 신규 테이블로 additive 생성되므로 기존 테이블·응답 계약을 변경하지 않는다.
+
 ---
 
 ## 참고
@@ -1703,6 +1754,7 @@ CREATE TABLE share_links (
 ---
 
 > **문서 이력**
+> - 2026-08-31: `content_blocks` 단방향 UGC 차단 관계, opaque UUID, 중복 방지·목록·탈퇴 cleanup 인덱스와 Friend `member_blocks` 분리 경계를 추가
 > - 2026-08-28: `share_links` 범용 registry, 원본별 unique 제약과 논리 참조 정책을 추가
 > - 2026-08-25: 알림 canonical enum을 런타임 `NotificationType`과 동기화 — `PARTY_REOPENED`, 친구 요청·수락·거절, 택시·공개방 초대 타입과 친구·초대 payload 필드를 반영
 > - 2026-08-24: 택시파티 정원·초대 보완 반영 — 정원 도달의 자동 모집 마감을 제거하고, `party_invitations`·`chat_room_invitations`의 EXPIRED 수신자 삭제용 `DISMISSED` 상태와 `(status, accepted_join_request_id)` 인덱스를 추가

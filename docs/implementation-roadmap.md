@@ -1,7 +1,7 @@
 # SKURI 백엔드 구현 로드맵
 
-> 최종 수정일: 2026-08-25
-> 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [API 명세](./api-specification.md) | [기술 전략](./tech-strategy.md) | [역할 정의](./role-definition.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md) | [친구 기능 기준 명세](./features/friends.md)
+> 최종 수정일: 2026-08-31
+> 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [API 명세](./api-specification.md) | [기술 전략](./tech-strategy.md) | [역할 정의](./role-definition.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md) | [친구 기능 기준 명세](./features/friends.md) | [콘텐츠 차단 기준](./features/content-blocks.md)
 > 보조 참고: 채팅 Firestore → MySQL 이관 참고는 백엔드 레포 `docs/chat-firestore-to-mysql-migration-reference.md`, 마인크래프트 상세 설계/이력은 백엔드 레포 `docs/minecraft-spring-migration-plan.md`
 
 ---
@@ -14,7 +14,7 @@
 | Java | 21 |
 | 빌드 도구 | Gradle |
 | 현재 의존성 | JPA, Web MVC, Validation, Security, Firebase Admin, Springdoc OpenAPI(Swagger UI/Scalar), Thumbnailator, TwelveMonkeys WebP, Lombok, MySQL Connector |
-| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Backend #88·Frontend #30 구현·자동 검증·리뷰 대응 완료, 실제 기기 최종 통합 QA 예정 |
+| 구현 상태 | Phase 0 완료 (공통 기반 구축), Phase 1 완료, Phase 2 완료 (TaxiParty + SSE 반영), Phase 3 완료 (Chat + WebSocket 반영), Phase 4 완료 (Board 반영), Phase 5 완료 (Notice + AppNotice + 공통 Comment 정책 반영), Phase 6 완료 (Academic + 시간표/학사일정/관리자 강의 bulk 반영), Phase 7 완료 (Support + 문의/신고/앱 버전/학식 운영 API 반영), Phase 8 완료 (Notification 인프라), Phase 9 완료 (인프라/배포 기준 정리), Phase 10 완료 (Member 탈퇴/계정 라이프사이클), Phase 11 완료 (운영 공통 인프라 / Admin 공통), Phase 12 완료 (이미지/미디어 업로드 인프라 1차), Phase 13 완료 (마인크래프트 public/internal API + public SSE + bridge outbox + 앱 연동 반영), Phase 14 Backend #88·Frontend #30 구현·자동 검증·리뷰 대응 완료, Phase 15 Share Link 구현, Phase 16 ContentBlock 구현·자동 검증 반영, 실제 기기 최종 통합 QA는 앱 전달 후 진행 |
 
 ---
 
@@ -84,6 +84,10 @@ Phase 12: 이미지/미디어 업로드 인프라
 Phase 13: 마인크래프트 Spring 전환
     ↓
 Phase 14: 친구·시간표 공유·친구 초대
+    ↓
+Phase 15: Share Link 도메인
+    ↓
+Phase 16: 콘텐츠 작성자 차단
 ```
 
 ---
@@ -693,6 +697,7 @@ SSE 운영 제약:
 - `GET /v1/legal-documents/{documentKey}`는 `documentKey=termsOfUse|privacyPolicy` 고정 키만 허용하며, `isActive=false` 또는 미존재 문서는 `404 LEGAL_DOCUMENT_NOT_FOUND`
 - 초기 이용약관/개인정보 처리방침 2건은 1회성 seed migration으로 적재하고 이후에는 관리자 API로 관리
 - 2026-08-30 AdMob 처리·국외이전 조항은 별도 1회성 migration으로 해당 조항과 시행일만 갱신하여 다른 관리자 편집 섹션을 보존한다.
+- 2026-08-31 이용약관의 만 19세 이상·UGC 안전 정책은 terms 전용 1회성 migration으로 관련 조항과 공고·시행일만 갱신한다. 개인정보 처리방침, 약관 동의 버전, 기존 사용자 동의 이력과 다른 관리자 편집 섹션은 변경하지 않는다.
 - 문의 첨부 이미지는 `POST /v1/images?context=INQUIRY_IMAGE` 2단계 업로드 후 `POST /v1/inquiries` 본문의 `attachments[]`로 저장한다.
 - 문의는 첨부 이미지를 최대 3개까지 허용하며, 메타데이터 전체(`url`, `thumbUrl`, `width`, `height`, `size`, `mime`)를 JSON 컬럼으로 보존한다.
 - 문의 첨부는 모든 문의 유형에서 허용하며, 탈퇴 후에도 문의 기록과 함께 보존한다.
@@ -1145,15 +1150,6 @@ SSE 운영 제약:
 
 각 단계에서 OpenAPI, ERD, 도메인 문서와 Contract·Service 테스트를 해당 런타임 PR에 함께 동기화한다. 변경량 때문에 같은 저장소 PR을 분리해야 하면 먼저 사용자 승인을 받는다.
 
-### Phase 15: Share Link 도메인
-
-- [x] `share_links` 범용 registry와 `(resource_type, resource_id)` 멱등 unique 계약
-- [x] NOTICE·BOARD 8자리 Base58 링크 발급 및 인증된 앱 resolve
-- [x] 공지 text/image/table 제한 projection, 게시물 익명 안전 projection, 이번 주 학식 공개 projection
-- [x] 긴 Base64 링크 비호환과 원본 삭제·숨김 시 `SHARE_LINK_NOT_FOUND` 마스킹
-- [x] OpenAPI·ERD·도메인 문서·Contract/Service 테스트 동기화
-- [ ] 운영 배포 후 `link.skuri.kr` 웹과 실제 콘텐츠 통합 smoke test
-
 #### 14-5. 제외 범위
 
 - URL 딥링크 친구 추가
@@ -1162,7 +1158,7 @@ SSE 운영 제약:
 - Minecraft FRIEND 계정 소유권 이전
 - 친구 그룹, 연락처·수업·학과·상호 친구 기반 추천
 - 온라인·최근 활동 상태
-- 공개 콘텐츠 전역 차단 필터
+- Friend 관계 차단을 공개 콘텐츠 전역 필터로 직접 재사용하는 기능 (별도 Phase 16 ContentBlock으로 분리 구현)
 - 관리자 친구 관계망 운영 UI
 
 #### 14-6. 완료 기준
@@ -1183,6 +1179,44 @@ SSE 운영 제약:
 - [~] 회원 탈퇴와 친구 끊기·차단 파생 데이터 cleanup 검증 (Backend 자동 검증 완료, 통합 QA 예정)
 - [ ] 런타임 OpenAPI와 공유 문서 동기화
 
+### Phase 15: Share Link 도메인
+
+- [x] `share_links` 범용 registry와 `(resource_type, resource_id)` 멱등 unique 계약
+- [x] NOTICE·BOARD 8자리 Base58 링크 발급 및 인증된 앱 resolve
+- [x] 공지 text/image/table 제한 projection, 게시물 익명 안전 projection, 이번 주 학식 공개 projection
+- [x] 긴 Base64 링크 비호환과 원본 삭제·숨김 시 `SHARE_LINK_NOT_FOUND` 마스킹
+- [x] OpenAPI·ERD·도메인 문서·Contract/Service 테스트 동기화
+- [ ] 운영 배포 후 `link.skuri.kr` 웹과 실제 콘텐츠 통합 smoke test
+
+### Phase 16: 콘텐츠 작성자 차단
+
+> 상세 기준: `docs/features/content-blocks.md`
+
+#### 16-1. 목표와 경계
+
+- Friend `member_blocks`와 분리된 `content_blocks`를 사용한다.
+- A→B 단방향이며 A의 공개 UGC 화면에만 적용한다.
+- 적용 surface는 자유게시판 게시글·댓글, 학교 공지 댓글, 앱 공지 댓글이다.
+- 채팅·택시파티·친구 관계·요청·초대·관리자 조회·신고 증거·공개 Share preview에는 적용하지 않는다.
+
+#### 16-2. API·저장·조회
+
+- `POST /v1/content-blocks`: `targetType + targetId`로 서버가 작성자를 해석하고 멱등 생성
+- `GET /v1/content-blocks`: `blockId + 고정 label + blockedAt`만 최신순 반환
+- `DELETE /v1/content-blocks/{blockId}`: 현재 소유자 조건의 204 멱등 해제
+- 게시글 목록·검색·북마크는 DB 필터 후 pagination, 상세는 기존 404 semantics 사용
+- 댓글은 기존 삭제형 DTO placeholder로 reply tree를 보존하고 회원 신원을 노출하지 않음
+
+#### 16-3. 하위호환·완료 기준
+
+- [x] 신규 테이블·API만 additive하게 추가하고 기존 요청·응답 schema 유지
+- [x] 새 차단이 없는 2.1.0 미만 앱 결과는 변경 전과 동일
+- [x] 새 앱에서 차단 후 다운그레이드해도 기존 `isDeleted=true` 댓글 schema로 렌더링 가능
+- [x] 게시글 pagination 이전 필터와 상세 조회수 미증가 repository 검증
+- [x] 네 target type, 멱등 생성·해제, self 차단 거절 Service/Contract 검증
+- [x] Board·Notice·AppNotice reply tree placeholder 검증
+- [ ] 앱 배포 전후 실제 기기·시뮬레이터 통합 QA (사용자 수행)
+
 ---
 
 ## 4. Phase 간 의존 관계
@@ -1202,6 +1236,7 @@ Phase 3/5/6/7 ── 연동 ──→ Phase 11 (운영 공통 Admin 인프라)
 Phase 1/3/4/5 ── 연동 ──→ Phase 12 (이미지/미디어 업로드 인프라)
 Phase 1/3/8 ── 연동 ──→ Phase 13 (마인크래프트 Spring 전환)
 Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
+Phase 1/4/5 ── 연동 ──→ Phase 16 (콘텐츠 작성자 차단)
 ```
 
 **참고:** Phase 4~7 (Board, Notice, Academic, Support)은 서로 독립적이므로 **병렬 구현 가능**합니다.
@@ -1248,12 +1283,14 @@ Phase 1/2/3/6/7/8/13 ── 연동 ──→ Phase 14 (친구·공유·초대)
 - [기술 전략](./tech-strategy.md) — 기술 선택 근거 및 포트폴리오 전략
 - [역할 정의](./role-definition.md) — Spring 백엔드의 책임 범위
 - [친구 기능 기준 명세](./features/friends.md) — Phase 14 정책, 권한, 상태 전이, 예정 API
+- [콘텐츠 작성자 차단 기준](./features/content-blocks.md) — Phase 16 적용 surface, 익명성, 하위호환 경계
 - 백엔드 레포 `docs/minecraft-spring-migration-plan.md` — 앱/플러그인/백엔드 통합 전환 상세 설계
 
 ---
 
 > **문서 이력**
 > - 2026-08-18: Phase 14 리뷰 보완 — 영구 코드 registry, privacy·PENDING cursor 계약, invitationId·expiryReason과 탈퇴 경쟁 검증을 추가
+> - 2026-08-31: Phase 16 ContentBlock 추가 — Friend와 분리된 단방향 UGC 필터, 콘텐츠 기반 API, 댓글 tree placeholder와 2.1.0 미만 앱 하위호환 기준을 반영
 > - 2026-08-18: Phase 14 친구·시간표 공유·친구 초대 계획 추가 — 정책 기준 문서, 도메인 분리, 구현 중지선과 완료 기준을 문서화
 > - 2026-08-22: Phase 14 1·2단계 완료 반영 — Backend #81·#82·#83과 Frontend #24·#25 완료 범위, Friend 전용 신고 제외, 저장소별 남은 3단계 PR 계획을 동기화
 > - 2026-08-22: Phase 14 시간표 공유 구현 반영 — Backend·Frontend 각각 한 PR의 구현·테스트·문서 정합성 점검을 반영하고, 남은 2단계 PR 계획으로 전환

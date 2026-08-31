@@ -1,6 +1,6 @@
 # Spring 백엔드 도메인 분석
 
-> 최종 수정일: 2026-08-28
+> 최종 수정일: 2026-08-31
 > 분석 기준: 레거시 Firestore/Cloud Functions 구조 + 현재 RN repository/transport 구조 + 현재 Spring 구현
 
 본 문서는 SKURI Taxi의 레거시 Firebase 구조와 현재 Spring Boot + MySQL 구현을 함께 대조해 정리한 **도메인 분석 결과**입니다.
@@ -37,6 +37,7 @@
 | 프론트 레포 `src/features`, `src/shared`, `src/di` | 현재 RN repository/query/transport 구조 |
 | 백엔드 레포 `src/main/java/com/skuri/skuri_backend/domain` | 현재 Spring 도메인 구현 |
 | `docs/features/friends.md` | 승인된 Phase 14 Friend 도메인과 기존 도메인 협력 계획 |
+| `docs/features/content-blocks.md` | Friend 관계 차단과 분리된 UGC 작성자 차단 기준 |
 
 ### 1.3 설계 결정 사항
 
@@ -47,12 +48,13 @@
 | Settlement(정산) | Party 내부에 임베디드 | 실제 결제/송금 API 연동 계획 없음 |
 | Notification | 인프라 계층으로 유지 | 자체 비즈니스 규칙 없음, 이벤트 결과 전달용 |
 | Friend | Supporting 도메인으로 분리 | 친구 코드·요청·관계·즐겨찾기·차단을 소유하고 기존 도메인의 시간표·초대·계정 규칙은 침범하지 않음 |
+| ContentBlock | Supporting 도메인으로 분리 | 콘텐츠 ID로 작성자를 내부 해석하되 차단자에게만 지정 UGC를 숨기고 Friend·Chat·TaxiParty 상태를 변경하지 않음 |
 
 ---
 
 ## 2. 도메인 목록
 
-### 2.1 승인된 목표 도메인 (9개 + 인프라)
+### 2.1 승인된 목표 도메인 (11개 + 인프라)
 
 > Friend의 Foundation(공개 프로필, ACTIVE·RETIRED 코드 registry, 코드 preview, 닉네임 검색 공개 설정), 관계 Core(요청·상호 관계·즐겨찾기·친구 끊기·차단·닉네임 검색·PENDING 목록), Minecraft 안전 projection, 시간표 공유와 TaxiParty·Chat 초대 협력, 친구·초대 알림과 PENDING 초대 외 Friend 파생 데이터 탈퇴 정리를 Backend #88에서 완료했다. Frontend #30은 모바일 알림 연결 구현·자동 검증·리뷰 대응을 마쳤으며, 병합·배포 뒤 실제 기기 통합 QA를 진행한다.
 
@@ -68,6 +70,7 @@
 | 8 | **Support** | Generic | 문의/신고 접수, 앱 버전, 법적 문서, 학식 메뉴 | Inquiry, Report, AppVersion, LegalDocument, CafeteriaMenu |
 | 9 | **Friend** | Supporting | 친구 코드, 검색 허용, 요청, 상호 관계, 즐겨찾기, 친구 끊기, 차단 | FriendProfile, FriendCodeRegistry, FriendRequest, Friendship, FriendPreference, MemberBlock (관계 Core 구현) |
 | 10 | **Share** | Supporting | 공개 콘텐츠의 안정적 짧은 코드, 안전한 공개 projection, 앱 내부 원본 ID 해석 | ShareLink |
+| 11 | **ContentBlock** | Supporting | 콘텐츠 기반 작성자 해석, 단방향 UGC 노출 필터, 익명 신원 비노출 차단 목록 | ContentBlock |
 | - | **Notification** | Infra | 도메인 이벤트 기반 알림 인박스 | UserNotification |
 
 ### 2.2 도메인 유형 정의
@@ -876,6 +879,35 @@ Hooks:
 - 공지 raw HTML을 그대로 전달하지 않고 text/image/table DTO로 제한하며, 게시물은 익명 안전 작성자명과 잘린 텍스트만 제공한다.
 - 코드는 비만료·멱등이며 기존 긴 링크와 deferred deep link는 지원하지 않는다.
 
+### 3.11 ContentBlock (콘텐츠 작성자 차단)
+
+```
+유형: Supporting
+
+책임:
+  - POST, COMMENT, NOTICE_COMMENT, APP_NOTICE_COMMENT의 활성 원본에서 작성자를 내부 해석
+  - blocker → blocked 단방향 관계를 별도 content_blocks에 저장
+  - 차단자에게만 자유게시판 게시글·댓글, 학교 공지 댓글, 앱 공지 댓글을 숨김
+  - opaque blockId, 고정 label, 차단 시각만 외부에 반환
+  - 회원 탈퇴 시 blocker/blocked 양쪽 관계 정리
+
+엔티티:
+  - ContentBlock
+    - id(UUID), blockerId, blockedId, createdAt, updatedAt
+
+비소유·비적용 책임:
+  - 친구 관계·요청·초대·시간표 공유: Friend/Academic
+  - 채팅 메시지·채팅방: Chat
+  - 택시파티: TaxiParty
+  - 관리자 moderation과 신고 증거: Board/Notice/Support 원본 조회 유지
+  - 공개 Share preview: Share 원본 공개 정책 유지
+```
+
+- 게시글 목록·검색·북마크는 DB `NOT EXISTS`로 차단 작성자를 제외한 뒤 페이지네이션한다.
+- 차단 작성자의 게시글 상세는 기존 `POST_NOT_FOUND`로 마스킹하고 조회수도 증가시키지 않는다.
+- 댓글은 reply tree 연결을 보존하기 위해 제거하지 않는다. 기존 `isDeleted=true` 응답 안에서 본문 placeholder와 null 작성자 정보를 반환하므로 2.1.0 미만 앱도 schema 변경 없이 렌더링할 수 있다.
+- 새 API와 테이블은 additive이며 기존 Board/Notice/AppNotice 응답 필드를 추가·삭제하지 않는다.
+
 ## 4. 도메인 간 관계
 
 ### 4.1 관계 다이어그램
@@ -937,6 +969,8 @@ Member ◄── Friend ──► Notification
 | TaxiParty → Chat | 사용 | 파티 채팅은 Chat 엔진 사용, 규칙은 TaxiParty에서 관리 |
 | TaxiParty ↔ PartyChat | 강결합 | 파티 생성/종료 시 채팅방도 함께 생성/비활성화 |
 | Board, Notice → Member | 약결합 | 작성자 참조만 |
+| ContentBlock → Member, Board, Notice, AppNotice | 정책 확인 | 인증된 차단자와 활성 작성자를 검증하고 공개 사용자 조회에만 단방향 필터를 제공한다. 다른 도메인의 원본·상태는 수정하지 않는다. |
+| Board, Notice, AppNotice → ContentBlock | 읽기 정책 | public 게시글·댓글 projection에만 적용한다. 관리자 조회와 Support 신고 증거는 적용하지 않는다. |
 | Support | 독립 | 공용 데이터, 다른 도메인과 직접 의존 없음 |
 | Friend → Member | 약결합, 관계 Core 구현 | 관계 생성·변경은 공개 ID 해석 뒤 ordered ACTIVE Member 잠금을 획득하고 요청자·대상을 재확인한다. 이미 생성된 요청의 만료 terminal 정리는 탈퇴 회원도 처리할 수 있도록 기존 Member 행을 상태와 무관하게 잠근다. 내부 회원 ID는 외부에 노출하지 않는다. |
 | Academic → Friend | 정책 확인, 런타임 구현 | friendship·차단을 확인한 뒤 Academic이 시간표 공개 projection과 관계 종료 시 공유 예외 정리를 결정 |
@@ -1197,6 +1231,12 @@ com.skuri.skuri_backend
 >   - `exception`
 >   - `repository`
 >   - `service`
+> - `domain/contentblock`
+>   - `controller`: 생성·목록·해제 API
+>   - `dto/request`, `dto/response`
+>   - `entity`: ContentBlock, ContentBlockTargetType
+>   - `repository`
+>   - `service`: mutation과 Board/Notice/AppNotice 조회 필터
 
 ---
 
@@ -1819,6 +1859,13 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
   - [x] TaxiParty·Chat 초대 API의 OpenAPI·ERD·Contract·Service 테스트 동기화
   - [x] Notification과 회원 탈퇴 Friend derived-data cleanup 협력 구현·문서 동기화
 
+- [x] **Phase 16: ContentBlock 도메인과 UGC 노출 필터**
+  - [x] Friend `member_blocks`와 분리된 단방향 `content_blocks` 관계
+  - [x] 콘텐츠 기반 생성, 신원 비노출 목록, opaque ID 해제 API
+  - [x] 게시글 pagination 이전 필터·상세 404와 댓글 reply tree placeholder
+  - [x] 학교 공지·앱 공지 댓글 placeholder와 기존 응답 schema 하위호환
+  - [x] 관리자·신고·채팅·택시파티·Friend 비적용 경계 문서화
+
 ---
 
 ## 참고 문서
@@ -1832,6 +1879,7 @@ public class MinecraftBridgeEvent extends BaseTimeEntity {
 ---
 
 > **문서 이력**
+> - 2026-08-31: ContentBlock supporting 도메인, Friend 분리 경계, UGC 조회 필터와 2.1.0 미만 앱 하위호환 정책을 추가
 > - 2026-08-28: Share supporting 도메인과 공개 projection 경계를 추가
 > - 2026-08-24: 친구 초대 보완 반영 — 파티장·참가자 초대 수락 경로 분리, 정원 도달 JoinRequest 만료, 파티원 조회·리더 강퇴 책임을 현재 런타임으로 동기화
 > - 2026-08-23: 예약어 닉네임을 유지한 미완료 회원의 최초 프로필 완료 전환 거부와 기존 완료 예약어 회원 grandfathering을 반영

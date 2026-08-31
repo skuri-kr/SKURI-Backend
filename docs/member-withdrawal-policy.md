@@ -1,7 +1,7 @@
 # Member 탈퇴 정책
 
-> 최종 수정일: 2026-08-25
-> 관련 문서: [API 명세](./api-specification.md) | [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [구현 로드맵](./implementation-roadmap.md) | [친구 기능 기준 명세](./features/friends.md)
+> 최종 수정일: 2026-08-31
+> 관련 문서: [API 명세](./api-specification.md) | [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [구현 로드맵](./implementation-roadmap.md) | [친구 기능 기준 명세](./features/friends.md) | [콘텐츠 차단 기준](./features/content-blocks.md)
 
 ---
 
@@ -86,6 +86,7 @@ ALTER TABLE members
 | Notification | `user_notifications`, `fcm_tokens` 전량 삭제, SSE 연결 종료 |
 | Academic | `user_timetables` 전량 삭제 |
 | Friend | 공개 프로필 삭제, 활성 친구 코드 영구 폐기, 요청·관계·설정·차단·시간표 공유 정리, 처리 중 초대 만료 |
+| ContentBlock | blocker 또는 blocked로 연결된 차단 관계 삭제. 과거 UGC는 별도 가명 연결을 보존하지 않고 기존 `탈퇴한 사용자` 익명화 정책으로 조회될 수 있음 |
 
 ### 3.1 TaxiParty
 
