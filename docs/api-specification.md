@@ -7987,7 +7987,7 @@ Content Block은 기존 Friend `member_blocks`와 분리된 단방향 콘텐츠 
 
 - `targetType`: `POST | COMMENT | NOTICE_COMMENT | APP_NOTICE_COMMENT`
 - 클라이언트는 회원 ID가 아니라 현재 보고 있는 콘텐츠 ID만 전달한다.
-- 서버가 활성 콘텐츠의 실제 작성자를 내부에서 해석한다. 삭제·숨김 콘텐츠 또는 탈퇴 작성자의 콘텐츠는 해당 콘텐츠의 기존 `*_NOT_FOUND`로 마스킹한다.
+- 서버가 현재 노출 가능한 콘텐츠의 실제 작성자를 내부에서 해석한다. 삭제·숨김 콘텐츠, 삭제·숨김 부모 게시글의 댓글, 예약 상태 앱 공지의 댓글 또는 탈퇴 작성자의 콘텐츠는 해당 콘텐츠의 기존 `*_NOT_FOUND`로 마스킹한다.
 - blocker/blocked ACTIVE 회원 행은 ID 오름차순으로 함께 잠근다. 대상 탈퇴가 먼저 확정되면 기존 대상 `*_NOT_FOUND`, 차단 생성이 먼저 확정되면 후속 탈퇴 cleanup이 해당 관계를 제거한다.
 - 대상 회원이 탈퇴하면 차단 관계는 제거되고 과거 콘텐츠는 기존 탈퇴 익명화 정책에 따라 `탈퇴한 사용자` 콘텐츠로 다시 보일 수 있다. 영구 차단을 위한 별도 가명 식별자는 보존하지 않는다.
 - 자기 콘텐츠는 `400 CONTENT_BLOCK_SELF_NOT_ALLOWED`로 거절한다.
@@ -8021,6 +8021,7 @@ Content Block은 기존 Friend `member_blocks`와 분리된 단방향 콘텐츠 
 - 자유게시판 댓글, 학교 공지 댓글, 앱 공지 댓글은 flat reply tree를 보존해야 하므로 행을 제거하지 않는다. 기존 댓글 응답 스키마 안에서 `content=차단한 사용자의 댓글입니다.`, 작성자 필드 `null`, `isAnonymous=false`, `isAuthor=false`, `isLiked=false`, `isDeleted=true` placeholder로 반환한다. 자유게시판 댓글의 `isPostAuthor`도 `false`다.
 - 관리자 게시글·댓글 조회와 신고 증거 조회는 운영 판단을 위해 필터하지 않는다.
 - 공개 Share preview, 채팅, 택시파티, 친구 관계·요청·초대에는 Content Block을 적용하지 않는다.
+- 차단자가 이후 차단 작성자의 게시글·게시판 댓글·학교 공지 답글·앱 공지 댓글/답글에 대한 알림 대상이 될 경우, 인앱 알림·알림 SSE·FCM 푸시 수신자에서 제외한다. 채팅·택시파티 알림에는 적용하지 않는다.
 - 기존 Board/Notice/AppNotice 응답에 필드를 추가·삭제하지 않는다. 따라서 2.1.0 미만 앱은 새 API를 호출하지 않아도 기존과 같은 JSON을 역직렬화할 수 있고, 사용자가 새 앱에서 차단한 뒤 다운그레이드해도 기존 `isDeleted` placeholder로 안전하게 표시한다.
 - 새 차단 관계가 없는 기존 사용자의 조회 결과는 변경 전과 동일하다.
 

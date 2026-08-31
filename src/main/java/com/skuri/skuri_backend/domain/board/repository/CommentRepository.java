@@ -44,6 +44,18 @@ public interface CommentRepository extends JpaRepository<Comment, String> {
 
     Optional<Comment> findByIdAndDeletedFalseAndHiddenFalse(String commentId);
 
+    @Query("""
+            select c
+            from Comment c
+            join fetch c.post p
+            where c.id = :commentId
+              and c.deleted = false
+              and c.hidden = false
+              and p.deleted = false
+              and p.hidden = false
+            """)
+    Optional<Comment> findVisibleById(@Param("commentId") String commentId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select c

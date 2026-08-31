@@ -25,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -93,13 +94,13 @@ public class ContentBlockService {
             case POST -> postRepository.findByIdAndDeletedFalseAndHiddenFalse(targetId)
                     .map(Post::getAuthorId)
                     .orElseThrow(PostNotFoundException::new);
-            case COMMENT -> commentRepository.findByIdAndDeletedFalseAndHiddenFalse(targetId)
+            case COMMENT -> commentRepository.findVisibleById(targetId)
                     .map(Comment::getAuthorId)
                     .orElseThrow(CommentNotFoundException::new);
             case NOTICE_COMMENT -> noticeCommentRepository.findByIdAndDeletedFalse(targetId)
                     .map(NoticeComment::getUserId)
                     .orElseThrow(NoticeCommentNotFoundException::new);
-            case APP_NOTICE_COMMENT -> appNoticeCommentRepository.findByIdAndDeletedFalse(targetId)
+            case APP_NOTICE_COMMENT -> appNoticeCommentRepository.findVisibleById(targetId, LocalDateTime.now())
                     .map(AppNoticeComment::getUserId)
                     .orElseThrow(AppNoticeCommentNotFoundException::new);
         };

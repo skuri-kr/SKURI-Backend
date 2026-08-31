@@ -81,9 +81,10 @@ class ContentBlockServiceTest {
         when(noticeComment.getUserId()).thenReturn("target");
         when(appNoticeComment.getUserId()).thenReturn("target");
         when(postRepository.findByIdAndDeletedFalseAndHiddenFalse("post-1")).thenReturn(Optional.of(post));
-        when(commentRepository.findByIdAndDeletedFalseAndHiddenFalse("comment-1")).thenReturn(Optional.of(comment));
+        when(commentRepository.findVisibleById("comment-1")).thenReturn(Optional.of(comment));
         when(noticeCommentRepository.findByIdAndDeletedFalse("notice-comment-1")).thenReturn(Optional.of(noticeComment));
-        when(appNoticeCommentRepository.findByIdAndDeletedFalse("app-comment-1")).thenReturn(Optional.of(appNoticeComment));
+        when(appNoticeCommentRepository.findVisibleById(org.mockito.ArgumentMatchers.eq("app-comment-1"), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(appNoticeComment));
         when(contentBlockRepository.findByBlockerIdAndBlockedId("blocker", "target")).thenReturn(Optional.empty());
         when(contentBlockRepository.saveAndFlush(any(ContentBlock.class))).thenAnswer(invocation -> savedBlock(invocation.getArgument(0)));
 
@@ -129,6 +130,41 @@ class ContentBlockServiceTest {
 
         assertEquals("block-id", response.blockId());
         verify(contentBlockRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void create_숨김또는삭제된부모게시글의댓글은차단할수없다() {
+        when(commentRepository.findVisibleById("comment-1")).thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> contentBlockService.create(
+                        "blocker",
+                        new CreateContentBlockRequest(ContentBlockTargetType.COMMENT, "comment-1")
+                )
+        );
+
+        assertEquals(ErrorCode.COMMENT_NOT_FOUND, exception.getErrorCode());
+        verifyNoInteractions(memberRepository, contentBlockRepository);
+    }
+
+    @Test
+    void create_예약상태앱공지의댓글은차단할수없다() {
+        when(appNoticeCommentRepository.findVisibleById(
+                org.mockito.ArgumentMatchers.eq("app-comment-1"),
+                any(LocalDateTime.class)
+        )).thenReturn(Optional.empty());
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> contentBlockService.create(
+                        "blocker",
+                        new CreateContentBlockRequest(ContentBlockTargetType.APP_NOTICE_COMMENT, "app-comment-1")
+                )
+        );
+
+        assertEquals(ErrorCode.APP_NOTICE_COMMENT_NOT_FOUND, exception.getErrorCode());
+        verifyNoInteractions(memberRepository, contentBlockRepository);
     }
 
     @Test

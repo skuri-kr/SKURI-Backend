@@ -38,6 +38,24 @@ public class ContentBlockQueryService {
         return Set.copyOf(contentBlockRepository.findBlockedMemberIds(blockerId, candidates));
     }
 
+    @Transactional(readOnly = true)
+    public Set<String> findMemberIdsBlocking(
+            String blockedMemberId,
+            Collection<String> candidateBlockerIds
+    ) {
+        if (!hasText(blockedMemberId) || candidateBlockerIds == null || candidateBlockerIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> candidates = candidateBlockerIds.stream()
+                .filter(ContentBlockQueryService::hasText)
+                .filter(candidate -> !blockedMemberId.equals(candidate))
+                .collect(Collectors.toSet());
+        if (candidates.isEmpty()) {
+            return Set.of();
+        }
+        return Set.copyOf(contentBlockRepository.findBlockerMemberIds(blockedMemberId, candidates));
+    }
+
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
     }

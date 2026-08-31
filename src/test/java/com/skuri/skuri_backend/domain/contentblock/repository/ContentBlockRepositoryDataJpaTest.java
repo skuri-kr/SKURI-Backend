@@ -36,6 +36,7 @@ class ContentBlockRepositoryDataJpaTest {
         assertEquals(36, saved.getId().length());
         assertEquals(List.of("blocked"), contentBlockRepository.findBlockedMemberIds("blocker", List.of("blocked", "other")));
         assertEquals(List.of(), contentBlockRepository.findBlockedMemberIds("blocked", List.of("blocker")));
+        assertEquals(List.of("blocker"), contentBlockRepository.findBlockerMemberIds("blocked", List.of("blocker", "other")));
 
         assertThrows(
                 DataIntegrityViolationException.class,

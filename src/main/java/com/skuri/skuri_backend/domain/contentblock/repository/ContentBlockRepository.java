@@ -31,4 +31,15 @@ public interface ContentBlockRepository extends JpaRepository<ContentBlock, Stri
             @Param("blockerId") String blockerId,
             @Param("candidateMemberIds") Collection<String> candidateMemberIds
     );
+
+    @Query("""
+            select block.blockerId
+            from ContentBlock block
+            where block.blockedId = :blockedMemberId
+              and block.blockerId in :candidateBlockerIds
+            """)
+    List<String> findBlockerMemberIds(
+            @Param("blockedMemberId") String blockedMemberId,
+            @Param("candidateBlockerIds") Collection<String> candidateBlockerIds
+    );
 }

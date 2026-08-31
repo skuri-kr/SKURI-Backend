@@ -8,6 +8,7 @@ import com.skuri.skuri_backend.domain.app.entity.AppNoticeComment;
 import com.skuri.skuri_backend.domain.app.entity.AppNoticePriority;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeRepository;
+import com.skuri.skuri_backend.domain.contentblock.service.ContentBlockQueryService;
 import com.skuri.skuri_backend.domain.friend.entity.FriendRequest;
 import com.skuri.skuri_backend.domain.friend.repository.FriendRequestRepository;
 import com.skuri.skuri_backend.domain.friend.service.FriendMemberPairLockService;
@@ -80,6 +81,9 @@ class NotificationAfterCommitDeliveryDataJpaTest {
 
     @MockitoBean
     private PushNotificationService pushNotificationService;
+
+    @MockitoBean
+    private ContentBlockQueryService contentBlockQueryService;
 
     @Test
     void 인앱알림저장은_독립트랜잭션으로수행한다() throws Exception {
