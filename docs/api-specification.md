@@ -1,6 +1,6 @@
 # Spring 백엔드 API 명세
 
-> 최종 수정일: 2026-08-28
+> 최종 수정일: 2026-08-31
 > 관련 문서: [도메인 분석](./domain-analysis.md) | [ERD](./erd.md) | [Member 탈퇴 정책](./member-withdrawal-policy.md)
 
 ---
@@ -22,6 +22,7 @@
 13. [Minecraft API](#13-minecraft-api)
 14. [Friend API](#14-friend-api)
 15. [Share Link API](#15-share-link-api)
+16. [Content Block API](#16-content-block-api)
 
 ---
 
@@ -3564,6 +3565,7 @@ Authorization:Bearer <firebase_id_token>
 
 - `documentKey`: `termsOfUse` | `privacyPolicy`
 - `isActive=true`인 문서만 조회되며, 비활성 또는 미존재 문서는 `404 LEGAL_DOCUMENT_NOT_FOUND`를 반환합니다.
+- `termsOfUse`는 2026-08-31 공고·시행 기준으로 만 19세 이상 이용, 부적절한 콘텐츠·악성 이용자 무관용, 신고·콘텐츠 차단 및 운영 제재 정책을 포함합니다.
 
 **Response:**
 ```json
@@ -3576,7 +3578,7 @@ Authorization:Bearer <firebase_id_token>
       "iconKey": "document",
       "lines": [
         {
-          "text": "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
+          "text": "공고일: 2026년 8월 31일 · 시행일: 2026년 8월 31일",
           "tone": "primary"
         }
       ],
@@ -5867,7 +5869,7 @@ isAdmin == false 시: 403 FORBIDDEN (ADMIN_REQUIRED)
     "iconKey": "document",
     "lines": [
       {
-        "text": "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
+        "text": "공고일: 2026년 8월 31일 · 시행일: 2026년 8월 31일",
         "tone": "primary"
       }
     ],
@@ -7962,7 +7964,82 @@ batch 형식과 outcome 계약은 택시파티 초대와 같고, 친구 관계�
 
 ---
 
+## 16. Content Block API
+
+Content Block은 기존 Friend `member_blocks`와 분리된 단방향 콘텐츠 노출 제어다. 차단자의 화면에서만 대상 작성자의 공개 UGC를 숨기며 친구 관계·친구 요청·초대·채팅·택시파티에는 영향을 주지 않는다.
+
+| Method | Path | 인증 | 설명 |
+|---|---|---|---|
+| `POST` | `/v1/content-blocks` | 필요 | 콘텐츠 ID로 작성자를 내부 해석해 차단. 중복 요청은 기존 차단을 반환 |
+| `GET` | `/v1/content-blocks` | 필요 | 내 콘텐츠 차단 목록을 최신순으로 조회 |
+| `DELETE` | `/v1/content-blocks/{blockId}` | 필요 | 불투명한 차단 ID로 해제. 없음·타인 소유도 204 멱등 처리 |
+
+### 16.1 차단 생성
+
+요청:
+
+```json
+{
+  "targetType": "COMMENT",
+  "targetId": "comment_uuid"
+}
+```
+
+- `targetType`: `POST | COMMENT | NOTICE_COMMENT | APP_NOTICE_COMMENT`
+- 클라이언트는 회원 ID가 아니라 현재 보고 있는 콘텐츠 ID만 전달한다.
+- 서버가 현재 노출 가능한 콘텐츠의 실제 작성자를 내부에서 해석한다. 삭제·숨김 콘텐츠, 삭제·숨김 부모 게시글의 댓글, 예약 상태 앱 공지의 댓글 또는 탈퇴 작성자의 콘텐츠는 해당 콘텐츠의 기존 `*_NOT_FOUND`로 마스킹한다.
+- blocker/blocked ACTIVE 회원 행은 ID 오름차순으로 함께 잠근다. 대상 탈퇴가 먼저 확정되면 기존 대상 `*_NOT_FOUND`, 차단 생성이 먼저 확정되면 후속 탈퇴 cleanup이 해당 관계를 제거한다.
+- 대상 회원이 탈퇴하면 차단 관계는 제거되고 과거 콘텐츠는 기존 탈퇴 익명화 정책에 따라 `탈퇴한 사용자` 콘텐츠로 다시 보일 수 있다. 영구 차단을 위한 별도 가명 식별자는 보존하지 않는다.
+- 자기 콘텐츠는 `400 CONTENT_BLOCK_SELF_NOT_ALLOWED`로 거절한다.
+- `(blocker_id, blocked_id)`는 unique이며 같은 사용자를 다른 콘텐츠에서 다시 차단해도 기존 차단을 반환한다.
+
+`201` 응답:
+
+```json
+{
+  "success": true,
+  "data": {
+    "blockId": "81e33b43-2df2-49df-bc33-e7832e7801b5",
+    "label": "차단한 사용자",
+    "blockedAt": "2026-08-31T18:30:00"
+  }
+}
+```
+
+응답에는 실제 회원 ID, 친구 공개 ID, 닉네임, 학과, 프로필 이미지를 포함하지 않는다.
+
+### 16.2 차단 목록·해제
+
+- `GET /v1/content-blocks`는 페이지네이션 없는 `ContentBlockResponse[]`를 `blockedAt DESC`로 반환한다.
+- 각 원소는 `blockId`, 고정 `label=차단한 사용자`, `blockedAt`만 포함한다.
+- `DELETE /v1/content-blocks/{blockId}`는 차단이 없거나 다른 사용자의 ID여도 대상 열거를 막기 위해 `204`를 반환한다.
+
+### 16.3 콘텐츠 필터와 하위호환
+
+- 자유게시판 목록·검색·북마크 목록은 `content_blocks`를 DB 쿼리에서 제외한 뒤 페이지네이션한다.
+- 차단 작성자의 자유게시판 상세와 댓글 목록 직접 접근은 기존 `404 POST_NOT_FOUND`를 사용한다.
+- 자유게시판 댓글, 학교 공지 댓글, 앱 공지 댓글은 flat reply tree를 보존해야 하므로 행을 제거하지 않는다. 기존 댓글 응답 스키마 안에서 `content=차단한 사용자의 댓글입니다.`, 작성자 필드 `null`, `isAnonymous=false`, `isAuthor=false`, `isLiked=false`, `isDeleted=true` placeholder로 반환한다. 자유게시판 댓글의 `isPostAuthor`도 `false`다.
+- 관리자 게시글·댓글 조회와 신고 증거 조회는 운영 판단을 위해 필터하지 않는다.
+- 공개 Share preview, 채팅, 택시파티, 친구 관계·요청·초대에는 Content Block을 적용하지 않는다.
+- 차단자가 이후 차단 작성자의 게시글·게시판 댓글·학교 공지 답글·앱 공지 댓글/답글에 대한 알림 대상이 될 경우, 인앱 알림·알림 SSE·FCM 푸시 수신자에서 제외한다. 채팅·택시파티 알림에는 적용하지 않는다.
+- 기존 Board/Notice/AppNotice 응답에 필드를 추가·삭제하지 않는다. 따라서 2.1.0 미만 앱은 새 API를 호출하지 않아도 기존과 같은 JSON을 역직렬화할 수 있고, 사용자가 새 앱에서 차단한 뒤 다운그레이드해도 기존 `isDeleted` placeholder로 안전하게 표시한다.
+- 새 차단 관계가 없는 기존 사용자의 조회 결과는 변경 전과 동일하다.
+
+### 16.4 에러 코드
+
+| 에러 코드 | HTTP | 설명 |
+|---|---:|---|
+| `CONTENT_BLOCK_SELF_NOT_ALLOWED` | 400 | 자기 콘텐츠의 작성자 차단 시도 |
+| `POST_NOT_FOUND` | 404 | 활성·노출 게시글이 없거나 차단 관계로 상세를 마스킹 |
+| `COMMENT_NOT_FOUND` | 404 | 활성·노출 게시판 댓글 없음 |
+| `NOTICE_COMMENT_NOT_FOUND` | 404 | 활성 학교 공지 댓글 없음 |
+| `APP_NOTICE_COMMENT_NOT_FOUND` | 404 | 활성 앱 공지 댓글 없음 |
+
+---
+
 > 변경 이력
+> - 2026-08-31: 이용약관 운영 정책 갱신 — 만 19세 이상, UGC 무관용·금지 콘텐츠·신고·콘텐츠 차단·운영 제재와 공고 즉시 시행 예외를 반영
+> - 2026-08-31: Content Block API 추가 — 콘텐츠 기반 작성자 해석, 불투명 목록·해제, 게시판/학교 공지/앱 공지 댓글 필터, 관리자·신고 제외와 2.1.0 미만 앱 하위호환 계약을 반영
 > - 2026-08-28: Share Link API 추가 — 8자리 Base58 코드, 보호된 발급·해석, 공지/게시물/이번 주 학식의 제한된 공개 미리보기와 긴 링크 비호환 정책을 반영
 > - 2026-08-25: 알림 payload 계약 동기화 — `requestId`의 동승·친구 요청 공용 의미, `PARTY_REOPENED`·친구·초대 canonical type, `friendPublicId`·`invitationId`·`invitationType` strict DTO와 이동 규칙을 추가
 > - 2026-08-24: 택시 정원·친구 초대 보완 — 정원 자동 모집 마감 제거, CLOSED 참가자 초대·리더 승인, join request의 `invitationInviterName`, 다중 초대 원본의 안정 선택, 시간 만료 채팅 초대 DELETE의 EXPIRED→DISMISSED 전이, EXPIRED 수신자의 목록 삭제 계약을 `/v3/api-docs` 기준으로 추가

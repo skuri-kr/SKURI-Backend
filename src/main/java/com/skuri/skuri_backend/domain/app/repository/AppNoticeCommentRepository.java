@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -59,6 +60,19 @@ public interface AppNoticeCommentRepository extends JpaRepository<AppNoticeComme
     );
 
     Optional<AppNoticeComment> findByIdAndDeletedFalse(String commentId);
+
+    @Query("""
+            select c
+            from AppNoticeComment c
+            join fetch c.appNotice a
+            where c.id = :commentId
+              and c.deleted = false
+              and a.publishedAt <= :now
+            """)
+    Optional<AppNoticeComment> findVisibleById(
+            @Param("commentId") String commentId,
+            @Param("now") LocalDateTime now
+    );
 
     Optional<AppNoticeComment> findFirstByAppNotice_IdAndUserIdAndAnonymousTrueAndAnonymousOrderIsNotNullOrderByCreatedAtAsc(
             String appNoticeId,

@@ -20,6 +20,7 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
+import com.skuri.skuri_backend.domain.contentblock.service.ContentBlockQueryService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.entity.NotificationSetting;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
@@ -67,6 +68,7 @@ public class NotificationEventHandler {
     private final AppNoticeCommentRepository appNoticeCommentRepository;
     private final AcademicScheduleRepository academicScheduleRepository;
     private final MemberRepository memberRepository;
+    private final ContentBlockQueryService contentBlockQueryService;
     private final NotificationService notificationService;
     private final PushNotificationService pushNotificationService;
     private final FriendNotificationDeliveryService friendNotificationDeliveryService;
@@ -363,7 +365,7 @@ public class NotificationEventHandler {
         if (parentAuthorId != null && !parentAuthorId.equals(actorId)) {
             Member parentAuthor = findMember(parentAuthorId);
             if (isCommentNotificationAllowed(parentAuthor)) {
-                dispatch(NotificationDispatchRequest.of(
+                dispatchContentAuthorNotification(NotificationDispatchRequest.of(
                         NotificationType.COMMENT_CREATED,
                         List.of(parentAuthorId),
                         "내 댓글에 답글이 달렸어요",
@@ -371,7 +373,7 @@ public class NotificationEventHandler {
                         NotificationData.ofPostComment(post.getId(), comment.getId()),
                         true,
                         true
-                ));
+                ), actorId);
                 consumed.add(parentAuthorId);
             }
         }
@@ -380,7 +382,7 @@ public class NotificationEventHandler {
         if (!postAuthorId.equals(actorId) && !consumed.contains(postAuthorId)) {
             Member postAuthor = findMember(postAuthorId);
             if (isCommentNotificationAllowed(postAuthor)) {
-                dispatch(NotificationDispatchRequest.of(
+                dispatchContentAuthorNotification(NotificationDispatchRequest.of(
                         NotificationType.COMMENT_CREATED,
                         List.of(postAuthorId),
                         "내 게시글에 댓글이 달렸어요",
@@ -388,7 +390,7 @@ public class NotificationEventHandler {
                         NotificationData.ofPostComment(post.getId(), comment.getId()),
                         true,
                         true
-                ));
+                ), actorId);
                 consumed.add(postAuthorId);
             }
         }
@@ -402,7 +404,7 @@ public class NotificationEventHandler {
                 })
                 .toList();
 
-        dispatch(NotificationDispatchRequest.of(
+        dispatchContentAuthorNotification(NotificationDispatchRequest.of(
                 NotificationType.COMMENT_CREATED,
                 bookmarkRecipients,
                 "북마크한 게시글에 새 댓글이 달렸어요",
@@ -410,7 +412,7 @@ public class NotificationEventHandler {
                 NotificationData.ofPostComment(post.getId(), comment.getId()),
                 true,
                 true
-        ));
+        ), actorId);
     }
 
     private void handleNoticeCommentCreated(NotificationDomainEvent.NoticeCommentCreated event) {
@@ -429,7 +431,7 @@ public class NotificationEventHandler {
             return;
         }
 
-        dispatch(NotificationDispatchRequest.of(
+        dispatchContentAuthorNotification(NotificationDispatchRequest.of(
                 NotificationType.COMMENT_CREATED,
                 List.of(parentAuthorId),
                 "내 댓글에 답글이 달렸어요",
@@ -437,7 +439,7 @@ public class NotificationEventHandler {
                 NotificationData.ofNoticeComment(comment.getNotice().getId(), comment.getId()),
                 true,
                 true
-        ));
+        ), comment.getUserId());
     }
 
     private void handleNoticeCreated(NotificationDomainEvent.NoticeCreated event) {
@@ -503,7 +505,7 @@ public class NotificationEventHandler {
                 Member parentAuthor = findActiveMember(parentAuthorId);
                 boolean parentIsAdminRecipient = adminRecipients.contains(parentAuthorId);
                 if (parentIsAdminRecipient || isCommentNotificationAllowed(parentAuthor)) {
-                    dispatch(NotificationDispatchRequest.of(
+                    dispatchContentAuthorNotification(NotificationDispatchRequest.of(
                             NotificationType.COMMENT_CREATED,
                             List.of(parentAuthorId),
                             "내 댓글에 답글이 달렸어요",
@@ -511,13 +513,13 @@ public class NotificationEventHandler {
                             NotificationData.ofAppNoticeComment(appNotice.getId(), comment.getId()),
                             true,
                             true
-                    ));
+                    ), actorId);
                     adminRecipients.remove(parentAuthorId);
                 }
             }
         }
 
-        dispatch(NotificationDispatchRequest.of(
+        dispatchContentAuthorNotification(NotificationDispatchRequest.of(
                 NotificationType.COMMENT_CREATED,
                 List.copyOf(adminRecipients),
                 comment.hasParent() ? "앱 공지에 새 답글이 달렸어요" : "앱 공지에 새 댓글이 달렸어요",
@@ -525,7 +527,7 @@ public class NotificationEventHandler {
                 NotificationData.ofAppNoticeComment(appNotice.getId(), comment.getId()),
                 true,
                 true
-        ));
+        ), actorId);
     }
 
     private String formatAppNoticeCommentMessage(AppNotice appNotice, AppNoticeComment comment) {
@@ -597,6 +599,35 @@ public class NotificationEventHandler {
         } catch (Exception e) {
             log.warn("푸시 알림 전송 실패: type={}, recipients={}, message={}", request.type(), request.recipientIds().size(), e.getMessage());
         }
+    }
+
+    private void dispatchContentAuthorNotification(NotificationDispatchRequest request, String actorId) {
+        if (request.recipientIds().isEmpty() || actorId == null || actorId.isBlank()) {
+            dispatch(request);
+            return;
+        }
+
+        Set<String> blockingRecipientIds = contentBlockQueryService.findMemberIdsBlocking(
+                actorId,
+                request.recipientIds()
+        );
+        if (blockingRecipientIds == null || blockingRecipientIds.isEmpty()) {
+            dispatch(request);
+            return;
+        }
+
+        dispatch(NotificationDispatchRequest.of(
+                request.type(),
+                request.recipientIds().stream()
+                        .filter(recipientId -> !blockingRecipientIds.contains(recipientId))
+                        .toList(),
+                request.title(),
+                request.message(),
+                request.data(),
+                request.pushEnabled(),
+                request.inboxEnabled(),
+                request.presentationProfile()
+        ));
     }
 
     private Member findMember(String memberId) {

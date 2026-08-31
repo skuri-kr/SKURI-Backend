@@ -71,7 +71,7 @@ class LegalDocumentAdMobPolicyMigrationTest {
         assertEquals(
                 List.of(
                         "기존 부칙",
-                        "제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다."
+                        "제2조(시행일) 본 약관은 2026.08.31.부터 시행됩니다."
                 ),
                 terms.getSections().stream()
                         .filter(section -> "supplementary-provisions".equals(section.id()))
@@ -241,6 +241,29 @@ class LegalDocumentAdMobPolicyMigrationTest {
     }
 
     @Test
+    void replaceEffectiveDateBannerLines_공고일이포함된시행일도_중복추가없이교체한다() {
+        List<LegalDocumentBannerLine> updated =
+                LegalDocumentAdMobPolicyMigration.replaceEffectiveDateBannerLines(
+                        List.of(bannerLine(
+                                "공고일: 2026년 8월 31일 · 시행일: 2026년 8월 31일",
+                                LegalDocumentBannerLineTone.PRIMARY
+                        )),
+                        bannerLine(
+                                LegalDocumentAdMobPolicyMigration.EFFECTIVE_DATE_LINE,
+                                LegalDocumentBannerLineTone.PRIMARY
+                        )
+                );
+
+        assertEquals(
+                List.of(bannerLine(
+                        LegalDocumentAdMobPolicyMigration.EFFECTIVE_DATE_LINE,
+                        LegalDocumentBannerLineTone.PRIMARY
+                )),
+                updated
+        );
+    }
+
+    @Test
     void replaceSupplementaryEffectiveDate_관리자문단과제목을보존하고_시행일만교체한다() {
         List<LegalDocumentSection> updated =
                 LegalDocumentAdMobPolicyMigration.replaceSupplementaryEffectiveDate(
@@ -264,7 +287,7 @@ class LegalDocumentAdMobPolicyMigrationTest {
         assertEquals(
                 List.of(
                         "관리자가 추가한 안내",
-                        "제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다. 별도 고지는 계속 유효합니다.",
+                        "제1조(시행일) 본 약관은 2026.08.31.부터 시행됩니다. 별도 고지는 계속 유효합니다.",
                         "관리자가 추가한 후속 문단"
                 ),
                 supplementary.paragraphs()
@@ -289,9 +312,9 @@ class LegalDocumentAdMobPolicyMigrationTest {
 
         assertEquals(
                 List.of(
-                        "제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다. 최초 시행 안내입니다.",
+                        "제1조(시행일) 본 약관은 2026.08.31.부터 시행됩니다. 최초 시행 안내입니다.",
                         "관리자가 추가한 중간 문단",
-                        "제1조 본 방침은 2026.08.30.부터 시행됩니다. 개정 경과조치는 유지합니다."
+                        "제1조 본 방침은 2026.08.31.부터 시행됩니다. 개정 경과조치는 유지합니다."
                 ),
                 updated.get(0).paragraphs()
         );
@@ -312,7 +335,7 @@ class LegalDocumentAdMobPolicyMigrationTest {
         assertEquals(
                 List.of(
                         "제1조(시행 및 경과조치) 기존 처리에는 종전 약관을 시행합니다.",
-                        "제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다."
+                        "제2조(시행일) 본 약관은 2026.08.31.부터 시행됩니다."
                 ),
                 updated.get(0).paragraphs()
         );
@@ -352,7 +375,10 @@ class LegalDocumentAdMobPolicyMigrationTest {
                 updated.stream().map(LegalDocumentSection::id).toList()
         );
         assertEquals(
-                List.of("제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다."),
+                List.of(
+                        "제1조(공고일) 본 약관은 2026.08.31.에 공고합니다.",
+                        "제2조(시행일) 본 약관은 2026.08.31.부터 시행됩니다."
+                ),
                 updated.get(1).paragraphs()
         );
     }

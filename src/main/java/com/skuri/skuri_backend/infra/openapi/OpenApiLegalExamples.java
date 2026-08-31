@@ -15,7 +15,7 @@ public final class OpenApiLegalExamples {
                   "iconKey": "document",
                   "lines": [
                     {
-                      "text": "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
+                      "text": "공고일: 2026년 8월 31일 · 시행일: 2026년 8월 31일",
                       "tone": "primary"
                     }
                   ],
@@ -107,7 +107,7 @@ public final class OpenApiLegalExamples {
                 "iconKey": "document",
                 "lines": [
                   {
-                    "text": "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
+                    "text": "공고일: 2026년 8월 31일 · 시행일: 2026년 8월 31일",
                     "tone": "primary"
                   }
                 ],

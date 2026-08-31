@@ -4,6 +4,7 @@ import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher
 import com.skuri.skuri_backend.domain.academic.service.TimetableService;
 import com.skuri.skuri_backend.domain.app.service.AppNoticeService;
 import com.skuri.skuri_backend.domain.board.service.BoardService;
+import com.skuri.skuri_backend.domain.contentblock.service.ContentBlockService;
 import com.skuri.skuri_backend.domain.member.dto.response.MemberWithdrawResponse;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.event.MemberLifecycleEvent;
@@ -41,6 +42,7 @@ public class MemberLifecycleService {
     private final InquiryService inquiryService;
     private final TimetableService timetableService;
     private final FriendWithdrawalCleanupService friendWithdrawalCleanupService;
+    private final ContentBlockService contentBlockService;
     private final AfterCommitApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -52,6 +54,7 @@ public class MemberLifecycleService {
         LocalDateTime withdrawnAt = LocalDateTime.now();
         member.withdraw(withdrawnAt);
         friendWithdrawalCleanupService.cleanupWithdrawnMember(memberId, withdrawnAt);
+        contentBlockService.deleteAllForMember(memberId);
         linkedAccountRepository.deleteByMemberId(memberId);
         taxiPartyService.handleMemberWithdrawal(memberId);
         chatService.removeMemberFromAllChatRooms(memberId);

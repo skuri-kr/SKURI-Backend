@@ -24,8 +24,10 @@ import com.skuri.skuri_backend.domain.chat.entity.ChatRoomType;
 import com.skuri.skuri_backend.domain.chat.repository.ChatMessageRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomMemberRepository;
 import com.skuri.skuri_backend.domain.chat.repository.ChatRoomRepository;
+import com.skuri.skuri_backend.domain.contentblock.service.ContentBlockQueryService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.notice.entity.NoticeComment;
 import com.skuri.skuri_backend.domain.notice.repository.NoticeCommentRepository;
 import com.skuri.skuri_backend.domain.notice.repository.NoticeRepository;
 import com.skuri.skuri_backend.domain.notification.entity.NotificationType;
@@ -93,6 +95,8 @@ class NotificationEventHandlerTest {
     private AcademicScheduleRepository academicScheduleRepository;
     @Mock
     private MemberRepository memberRepository;
+    @Mock
+    private ContentBlockQueryService contentBlockQueryService;
     @Mock
     private NotificationService notificationService;
     @Mock
@@ -201,6 +205,57 @@ class NotificationEventHandlerTest {
     }
 
     @Test
+    void handleBoardCommentCreated_작성자를차단한수신자에게는알림을보내지않는다() {
+        Post post = Post.create("게시글", "내용", "target-1", "작성자", null, false, PostCategory.GENERAL);
+        ReflectionTestUtils.setField(post, "id", "post-1");
+        Comment created = Comment.create(post, "새 댓글", "actor-1", "작성자", null, false, null, null, null);
+        ReflectionTestUtils.setField(created, "id", "comment-new");
+        Member target = Member.create("target-1", "target-1@sungkyul.ac.kr", "작성자", LocalDateTime.now());
+
+        when(commentRepository.findActiveById("comment-new")).thenReturn(Optional.of(created));
+        when(memberRepository.findById("target-1")).thenReturn(Optional.of(target));
+        when(postInteractionRepository.findBookmarkedUserIdsByPostId("post-1")).thenReturn(List.of());
+        when(contentBlockQueryService.findMemberIdsBlocking(
+                org.mockito.ArgumentMatchers.eq("actor-1"),
+                org.mockito.ArgumentMatchers.anySet()
+        )).thenReturn(Set.of("target-1"));
+
+        notificationEventHandler.handle(new NotificationDomainEvent.BoardCommentCreated("comment-new"));
+
+        verify(notificationService, never()).createInboxNotifications(org.mockito.ArgumentMatchers.any());
+        verify(pushNotificationService, never()).send(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void handleNoticeCommentCreated_작성자를차단한수신자에게는알림을보내지않는다() {
+        NoticeComment parent = org.mockito.Mockito.mock(NoticeComment.class);
+        NoticeComment reply = org.mockito.Mockito.mock(NoticeComment.class);
+        com.skuri.skuri_backend.domain.notice.entity.Notice notice = org.mockito.Mockito.mock(
+                com.skuri.skuri_backend.domain.notice.entity.Notice.class
+        );
+        Member target = Member.create("target-1", "target-1@sungkyul.ac.kr", "작성자", LocalDateTime.now());
+
+        when(reply.getParent()).thenReturn(parent);
+        when(reply.getUserId()).thenReturn("actor-1");
+        when(reply.getContent()).thenReturn("새 답글");
+        when(reply.getId()).thenReturn("notice-comment-new");
+        when(reply.getNotice()).thenReturn(notice);
+        when(parent.getUserId()).thenReturn("target-1");
+        when(notice.getId()).thenReturn("notice-1");
+        when(noticeCommentRepository.findById("notice-comment-new")).thenReturn(Optional.of(reply));
+        when(memberRepository.findById("target-1")).thenReturn(Optional.of(target));
+        when(contentBlockQueryService.findMemberIdsBlocking(
+                org.mockito.ArgumentMatchers.eq("actor-1"),
+                org.mockito.ArgumentMatchers.anySet()
+        )).thenReturn(Set.of("target-1"));
+
+        notificationEventHandler.handle(new NotificationDomainEvent.NoticeCommentCreated("notice-comment-new"));
+
+        verify(notificationService, never()).createInboxNotifications(org.mockito.ArgumentMatchers.any());
+        verify(pushNotificationService, never()).send(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void handleAppNoticeCommentCreated_작성자를제외한활성운영자모두에게알린다() {
         AppNotice appNotice = appNotice("app-notice-1");
         AppNoticeComment comment = AppNoticeComment.create(
@@ -221,6 +276,30 @@ class NotificationEventHandlerTest {
         assertEquals(Set.of("admin-1", "admin-2"), captor.getValue().recipientIds());
         assertEquals("app-notice-1", captor.getValue().data().appNoticeId());
         assertEquals("app-comment-1", captor.getValue().data().commentId());
+    }
+
+    @Test
+    void handleAppNoticeCommentCreated_작성자를차단한운영자는알림대상에서제외한다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        AppNoticeComment comment = AppNoticeComment.create(
+                appNotice, "actor-1", "작성자", "새 댓글", false, null, null, null
+        );
+        ReflectionTestUtils.setField(comment, "id", "app-comment-1");
+
+        when(appNoticeCommentRepository.findNotificationAggregateById("app-comment-1")).thenReturn(Optional.of(comment));
+        when(memberRepository.findActiveAdminIdsExcluding("actor-1"))
+                .thenReturn(List.of("admin-1", "admin-2"));
+        when(contentBlockQueryService.findMemberIdsBlocking(
+                org.mockito.ArgumentMatchers.eq("actor-1"),
+                org.mockito.ArgumentMatchers.anySet()
+        )).thenReturn(Set.of("admin-1"));
+
+        notificationEventHandler.handle(new NotificationDomainEvent.AppNoticeCommentCreated("app-comment-1"));
+
+        ArgumentCaptor<NotificationDispatchRequest> captor = ArgumentCaptor.forClass(NotificationDispatchRequest.class);
+        verify(notificationService).createInboxNotifications(captor.capture());
+        verify(pushNotificationService).send(captor.getValue());
+        assertEquals(Set.of("admin-2"), captor.getValue().recipientIds());
     }
 
     @Test

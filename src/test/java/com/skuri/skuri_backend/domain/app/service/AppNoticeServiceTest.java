@@ -21,6 +21,7 @@ import com.skuri.skuri_backend.domain.app.repository.AppNoticeLikeRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentRepository;
 import com.skuri.skuri_backend.domain.app.repository.AppNoticeCommentLikeRepository;
 import com.skuri.skuri_backend.domain.member.repository.MemberRepository;
+import com.skuri.skuri_backend.domain.contentblock.service.ContentBlockQueryService;
 import com.skuri.skuri_backend.domain.member.entity.Member;
 import com.skuri.skuri_backend.domain.notice.dto.request.CreateNoticeCommentRequest;
 import com.skuri.skuri_backend.domain.notice.dto.request.UpdateNoticeCommentRequest;
@@ -37,9 +38,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -72,6 +76,9 @@ class AppNoticeServiceTest {
 
     @Mock
     private MemberRepository memberRepository;
+
+    @Mock
+    private ContentBlockQueryService contentBlockQueryService;
 
     @Mock
     private AfterCommitApplicationEventPublisher eventPublisher;
@@ -146,6 +153,52 @@ class AppNoticeServiceTest {
 
         assertEquals(1, appNotice.getCommentCount());
         verify(eventPublisher).publish(new NotificationDomainEvent.AppNoticeCommentCreated("app-comment-1"));
+    }
+
+    @Test
+    void getComments_차단댓글은삭제형응답값으로마스킹하고_자손구조는유지한다() {
+        AppNotice appNotice = appNotice("app-notice-1");
+        AppNoticeComment blockedParent = AppNoticeComment.create(
+                appNotice,
+                "blocked-author",
+                "실제 닉네임",
+                "숨길 본문",
+                true,
+                "anon-id",
+                1,
+                null
+        );
+        AppNoticeComment visibleChild = AppNoticeComment.create(
+                appNotice,
+                "visible-author",
+                "작성자",
+                "보이는 답글",
+                false,
+                null,
+                null,
+                blockedParent
+        );
+        ReflectionTestUtils.setField(blockedParent, "id", "comment-1");
+        ReflectionTestUtils.setField(visibleChild, "id", "comment-2");
+        when(appNoticeRepository.findPublishedById(eq("app-notice-1"), any(LocalDateTime.class)))
+                .thenReturn(Optional.of(appNotice));
+        when(appNoticeCommentRepository.findByAppNoticeIdOrderByCreatedAtAsc("app-notice-1"))
+                .thenReturn(List.of(blockedParent, visibleChild));
+        when(contentBlockQueryService.findBlockedMemberIds(
+                "member-1",
+                List.of("blocked-author", "visible-author")
+        )).thenReturn(Set.of("blocked-author"));
+
+        var responses = appNoticeService.getComments("member-1", "app-notice-1");
+
+        assertEquals(AppNoticeComment.BLOCKED_PLACEHOLDER, responses.get(0).content());
+        assertTrue(responses.get(0).isDeleted());
+        assertNull(responses.get(0).authorId());
+        assertNull(responses.get(0).authorName());
+        assertFalse(responses.get(0).isAnonymous());
+        assertEquals("comment-1", responses.get(1).parentId());
+        assertEquals(1, responses.get(1).depth());
+        assertFalse(responses.get(1).isDeleted());
     }
 
     @Test

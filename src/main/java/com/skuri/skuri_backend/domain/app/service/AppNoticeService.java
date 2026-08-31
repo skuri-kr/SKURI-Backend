@@ -4,6 +4,7 @@ import com.skuri.skuri_backend.common.event.AfterCommitApplicationEventPublisher
 import com.skuri.skuri_backend.common.exception.BusinessException;
 import com.skuri.skuri_backend.common.exception.ErrorCode;
 import com.skuri.skuri_backend.common.util.AnonymousCommentIdGenerator;
+import com.skuri.skuri_backend.domain.contentblock.service.ContentBlockQueryService;
 import com.skuri.skuri_backend.domain.app.dto.request.CreateAppNoticeRequest;
 import com.skuri.skuri_backend.domain.app.dto.request.UpdateAppNoticeRequest;
 import com.skuri.skuri_backend.domain.app.dto.response.AppNoticeCreateResponse;
@@ -62,6 +63,7 @@ public class AppNoticeService {
     private final AppNoticeCommentRepository appNoticeCommentRepository;
     private final AppNoticeCommentLikeRepository appNoticeCommentLikeRepository;
     private final MemberRepository memberRepository;
+    private final ContentBlockQueryService contentBlockQueryService;
     private final AfterCommitApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
@@ -308,7 +310,16 @@ public class AppNoticeService {
     }
 
     private List<NoticeCommentResponse> flattenComments(List<AppNoticeComment> comments, String memberId, Set<String> likedIds) {
-        Map<String, CurrentAuthorProfile> authors = resolveCurrentAuthors(comments.stream().map(AppNoticeComment::getUserId).toList());
+        Set<String> blockedAuthorIds = contentBlockQueryService.findBlockedMemberIds(
+                memberId,
+                comments.stream().map(AppNoticeComment::getUserId).toList()
+        );
+        Map<String, CurrentAuthorProfile> authors = resolveCurrentAuthors(
+                comments.stream()
+                        .map(AppNoticeComment::getUserId)
+                        .filter(authorId -> !blockedAuthorIds.contains(authorId))
+                        .toList()
+        );
         Map<String, List<AppNoticeComment>> children = new LinkedHashMap<>();
         List<AppNoticeComment> roots = new ArrayList<>();
         for (AppNoticeComment comment : comments) {
@@ -319,36 +330,55 @@ public class AppNoticeService {
             }
         }
         List<NoticeCommentResponse> result = new ArrayList<>();
-        roots.forEach(root -> appendCommentTree(result, root, 0, memberId, likedIds, children, authors));
+        roots.forEach(root -> appendCommentTree(
+                result,
+                root,
+                0,
+                memberId,
+                likedIds,
+                children,
+                authors,
+                blockedAuthorIds
+        ));
         return result;
     }
 
     private void appendCommentTree(
             List<NoticeCommentResponse> result, AppNoticeComment comment, int depth, String memberId,
             Set<String> likedIds, Map<String, List<AppNoticeComment>> children,
-            Map<String, CurrentAuthorProfile> authors
+            Map<String, CurrentAuthorProfile> authors,
+            Set<String> blockedAuthorIds
     ) {
-        result.add(toCommentResponse(comment, memberId, depth, likedIds.contains(comment.getId()), authors));
+        result.add(toCommentResponse(
+                comment,
+                memberId,
+                depth,
+                likedIds.contains(comment.getId()),
+                authors,
+                blockedAuthorIds.contains(comment.getUserId())
+        ));
         children.getOrDefault(comment.getId(), List.of()).forEach(child ->
-                appendCommentTree(result, child, depth + 1, memberId, likedIds, children, authors));
+                appendCommentTree(result, child, depth + 1, memberId, likedIds, children, authors, blockedAuthorIds));
     }
 
     private NoticeCommentResponse toCommentResponse(AppNoticeComment comment, String memberId, int depth, boolean isLiked) {
         return toCommentResponse(comment, memberId, depth, isLiked,
-                resolveCurrentAuthors(Collections.singletonList(comment.getUserId())));
+                resolveCurrentAuthors(Collections.singletonList(comment.getUserId())), false);
     }
 
     private NoticeCommentResponse toCommentResponse(
             AppNoticeComment comment, String memberId, int depth, boolean isLiked,
-            Map<String, CurrentAuthorProfile> authors
+            Map<String, CurrentAuthorProfile> authors,
+            boolean blocked
     ) {
-        boolean deleted = comment.isDeleted();
+        boolean deleted = comment.isDeleted() || blocked;
         AuthorView author = resolveAuthorView(
                 comment.isAnonymous(), deleted, comment.getUserId(), comment.getUserDisplayName(),
                 authors.get(comment.getUserId()), comment.getAnonymousOrder());
         return new NoticeCommentResponse(
                 comment.getId(), comment.hasParent() ? comment.getParent().getId() : null, depth,
-                comment.getContent(), author.id, author.name, author.photoUrl, author.admin,
+                blocked ? AppNoticeComment.BLOCKED_PLACEHOLDER : comment.getContent(),
+                author.id, author.name, author.photoUrl, author.admin,
                 !deleted && comment.isAnonymous(), deleted ? null : comment.getAnonymousOrder(),
                 !deleted && comment.isAuthor(memberId), comment.getLikeCount(), !deleted && isLiked,
                 deleted, comment.getCreatedAt(), comment.getUpdatedAt()

@@ -18,9 +18,11 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.LocalDateTime;
 
+import static com.skuri.skuri_backend.domain.contentblock.compatibility.ContentBlockV20xHttpCompatibilityFixture.assertAppNoticeCommentResponse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -72,6 +74,22 @@ class AppNoticeInteractionControllerContractTest {
                         .header(AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].id").value("app-comment-1"));
+    }
+
+    @Test
+    void 댓글목록_차단placeholder는실제HTTP에서_2_0_1댓글계약으로해석가능하다() throws Exception {
+        mockValidToken();
+        when(appNoticeService.getComments("firebase-uid", "app-notice-1"))
+                .thenReturn(java.util.List.of(blockedCommentResponse()));
+
+        MvcResult mvcResult = mockMvc.perform(
+                        get("/v1/app-notices/app-notice-1/comments")
+                                .header(AUTHORIZATION, "Bearer valid-token")
+                )
+                .andExpect(status().isOk())
+                .andReturn();
+
+        assertAppNoticeCommentResponse(mvcResult);
     }
 
     @Test
@@ -353,6 +371,14 @@ class AppNoticeInteractionControllerContractTest {
         return new NoticeCommentResponse(
                 "app-comment-1", null, 0, "새 댓글", null, "익명1", null, false,
                 true, 1, true, 0, false, false, LocalDateTime.now(), LocalDateTime.now()
+        );
+    }
+
+    private NoticeCommentResponse blockedCommentResponse() {
+        LocalDateTime occurredAt = LocalDateTime.of(2026, 8, 31, 18, 30);
+        return new NoticeCommentResponse(
+                "app-comment-1", null, 0, "차단한 사용자의 댓글입니다.", null, null, null, false,
+                false, null, false, 0, false, true, occurredAt, occurredAt
         );
     }
 }
