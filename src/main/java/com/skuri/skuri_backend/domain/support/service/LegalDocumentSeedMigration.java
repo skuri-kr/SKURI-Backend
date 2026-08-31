@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +39,7 @@ public class LegalDocumentSeedMigration {
     private final SeedMigrationRepository seedMigrationRepository;
 
     @EventListener(ApplicationReadyEvent.class)
+    @Order(100)
     @Transactional
     public void seed() {
         if (!acquireMigrationMarker()) {
@@ -52,7 +54,7 @@ public class LegalDocumentSeedMigration {
                 "SKURI 이용약관",
                 LegalDocumentBannerTone.GREEN,
                 List.of(new LegalDocumentBannerLine(
-                        "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일",
+                        "공고일: 2026년 8월 31일 · 시행일: 2026년 8월 31일",
                         LegalDocumentBannerLineTone.PRIMARY
                 )),
                 parseSections(TERMS_OF_USE_RAW_TEXT),
@@ -191,7 +193,7 @@ public class LegalDocumentSeedMigration {
 
             이 약관은 스쿠리 (이하 '회사' 라고 합니다)가 제공하는 제반 서비스의 이용과 관련하여 회사와 회원과의 권리, 의무 및 책임사항, 기타 필요한 사항을 규정함을 목적으로 합니다.
 
-            이 서비스는 만 14세 이상 이용자만을 대상으로 하며, 만 18세 미만의 이용자는 보호자의 동의 하에만 회원가입이 가능합니다. 회사는 청소년 보호를 위해 유해 정보 차단 등 필요한 조치를 취합니다.
+            이 서비스는 만 19세 이상 이용자만을 대상으로 합니다. 만 19세 미만인 자는 보호자의 동의 여부와 관계없이 회원가입 및 서비스를 이용할 수 없습니다.
 
             본 서비스는 개인 개발자가 비영리 목적으로 운영하는 모바일 커뮤니티 앱이며, '회사'라는 용어는 편의상 사용된 것으로, 사업자등록이 없는 개인 운영자를 의미합니다. 회사는 택시 운송의 주선, 알선, 배차 또는 결제 기능을 제공하지 않습니다.
 
@@ -214,6 +216,8 @@ public class LegalDocumentSeedMigration {
             제4조(약관의 효력과 변경)
 
             이 약관은 스쿠리(이)가 제공하는 모든 인터넷서비스에 게시하여 공시합니다. '회사'는 관계법령에 위배되지 않는 범위 내에서 이 약관을 변경할 수 있습니다. 회사는 약관이 변경되는 경우 변경된 약관의 내용과 시행일을 정하여, 그 시행일로부터 최소 7일(이용자에게 불리하거나 중대한 변경은 30일) 이전부터 공지합니다. 기존 이용자에게는 별도의 전자적 수단으로 통지할 수 있습니다. 변경된 약관은 공지 또는 통지한 시행일로부터 효력이 발생합니다.
+
+            단, 법령 준수, 이용자 보호, 서비스 안전 또는 부적절한 콘텐츠 대응을 위한 변경은 공지와 동시에 시행할 수 있습니다.
 
             제5조(이용자에 대한 통지)
 
@@ -268,6 +272,16 @@ public class LegalDocumentSeedMigration {
             나. 동승 약속의 성실한 이행 및 사전 통지 없는 불참 방지
             다. 요금 분담에 대한 명확한 합의 및 성실한 정산
             라. 안전한 동승을 위한 기본적인 주의 의무 준수
+
+            이용자는 서비스에 다음 각 호의 콘텐츠를 게시하거나 전송해서는 안 됩니다.
+
+            가. 음란하거나 성적인 콘텐츠
+            나. 특정 개인 또는 집단에 대한 혐오 또는 차별을 조장하는 콘텐츠
+            다. 다른 이용자에 대한 괴롭힘, 협박 또는 위협에 해당하는 콘텐츠
+            라. 불법행위를 조장하거나 그 실행을 돕는 콘텐츠
+            마. 타인의 개인정보를 동의 없이 노출하는 콘텐츠
+
+            이용자는 자유게시판 게시글·댓글, 학교 공지 댓글 및 앱 공지 댓글에서 부적절한 콘텐츠를 신고하고 해당 콘텐츠의 작성자를 차단할 수 있습니다.
 
             제13조(서비스의 제공)
 
@@ -330,7 +344,9 @@ public class LegalDocumentSeedMigration {
 
             제20조(콘텐츠의 관리)
 
-            불법·유해 콘텐츠는 관련 법에 따라 게시중단·삭제될 수 있습니다. 신고 시 24시간 내 조치합니다.
+            회사는 부적절한 콘텐츠 및 악성 이용자를 허용하지 않는 무관용 원칙을 적용합니다.
+
+            회사는 신고 접수 또는 자체 확인을 통해 본 약관을 위반한 콘텐츠와 이용 행위를 신속히 검토하며, 위반 정도와 반복 여부에 따라 콘텐츠 삭제 또는 숨김, 서비스 이용 제한 또는 정지, 계정 해지 등의 조치를 할 수 있습니다.
 
             제21조(콘텐츠의 저작권)
 
@@ -348,7 +364,9 @@ public class LegalDocumentSeedMigration {
 
             부칙
 
-            제1조(시행일) 본 약관은 2026.08.30.부터 시행됩니다.
+            제1조(공고일) 본 약관은 2026.08.31.에 공고합니다.
+
+            제2조(시행일) 본 약관은 2026.08.31.부터 시행됩니다.
             """;
 
     private static final String PRIVACY_POLICY_RAW_TEXT = """

@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Profile;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,11 +38,11 @@ public class LegalDocumentAdMobPolicyMigration {
     static final String EFFECTIVE_DATE_LINE =
             "시행일: 2026년 8월 30일 · 최종 수정: 2026년 8월 30일";
 
-    private static final String EFFECTIVE_DATE_PREFIX = "시행일:";
     private static final String SUPPLEMENTARY_PROVISIONS_SECTION_ID =
             "supplementary-provisions";
     private static final Pattern EFFECTIVE_DATE_BANNER_PATTERN = Pattern.compile(
-            "^시행일:\\s*\\d{4}년\\s*\\d{1,2}월\\s*\\d{1,2}일"
+            "^(?:공고일:\\s*\\d{4}년\\s*\\d{1,2}월\\s*\\d{1,2}일\\s*·\\s*)?"
+                    + "시행일:\\s*\\d{4}년\\s*\\d{1,2}월\\s*\\d{1,2}일"
                     + "(?:\\s*·\\s*최종 수정:\\s*\\d{4}년\\s*\\d{1,2}월\\s*\\d{1,2}일)?"
     );
     private static final Pattern EFFECTIVE_DATE_PATTERN =
@@ -56,6 +57,7 @@ public class LegalDocumentAdMobPolicyMigration {
     private final SeedMigrationRepository seedMigrationRepository;
 
     @EventListener(ApplicationReadyEvent.class)
+    @Order(200)
     @Transactional
     public void migrate() {
         if (!acquireMigrationMarker()) {
@@ -124,7 +126,7 @@ public class LegalDocumentAdMobPolicyMigration {
         boolean effectiveDateFound = false;
         for (LegalDocumentBannerLine existingLine : existingLines) {
             Matcher matcher = EFFECTIVE_DATE_BANNER_PATTERN.matcher(existingLine.text());
-            if (existingLine.text().startsWith(EFFECTIVE_DATE_PREFIX) && matcher.find()) {
+            if (matcher.find()) {
                 updatedLines.add(new LegalDocumentBannerLine(
                         matcher.replaceFirst(Matcher.quoteReplacement(EFFECTIVE_DATE_LINE)),
                         existingLine.tone()
@@ -204,6 +206,7 @@ public class LegalDocumentAdMobPolicyMigration {
     private static boolean hasRecognizedEffectiveDate(String paragraph) {
         String normalized = paragraph.trim();
         boolean recognizedPrefix = normalized.startsWith("제1조(시행일)")
+                || normalized.startsWith("제2조(시행일)")
                 || normalized.startsWith("제1조 본 방침은");
         return recognizedPrefix && EFFECTIVE_DATE_PATTERN.matcher(normalized).find();
     }
